@@ -494,6 +494,45 @@ def run_knn_friction(
 # shares one tested rasterizer.
 # ===================================================================
 
+def _fill_missing(vals, where, say=print):
+    """Empty friction means NO OBSTACLE, so fill it with 0 - unless
+    ALL of it is empty, which means the field was never populated.
+
+    JOHN'S RULING, session 12. The old behaviour refused any null,
+    on the reasoning that a silent 0 and a real 0 must not look
+    alike. That is true and it was still the wrong trade: friction is
+    additive, cost is 1 + friction, so 0 is UNAMBIGUOUSLY "nothing
+    here" - and making somebody populate 700,000 road features to say
+    "nothing here" is a tax we were charging for a purity that helped
+    nobody. John hit it on 735,098 OSM roads with six classes filled.
+
+    THE CASE THE STRICTNESS WAS REALLY PROTECTING AGAINST IS KEPT.
+    Create the field, forget to populate it, run: every value null,
+    every value 0, no barrier at all - and the tool reports "barrier
+    applied", takes its several minutes, and returns exactly what a
+    plain run would. Nothing would say the friction did nothing. So
+    ALL-EMPTY IS STILL REFUSED, and how many were filled is always
+    reported.
+    """
+    v = np.asarray(vals, float)
+    n_missing = int(np.isnan(v).sum())
+    if not n_missing:
+        return v
+    if n_missing == len(v):
+        raise ValueError(
+            f"[friction] {where}: the value field is empty on EVERY "
+            f"feature ({len(v):,}). Filling them all with 0 would "
+            "mean no barrier at all, and the run would take just as "
+            "long to return exactly what a run without a barrier "
+            "returns. Populate the field, or leave the barrier out.")
+    v = np.where(np.isnan(v), 0.0, v)
+    if say:
+        say(f"[friction] {where}: {n_missing:,} of {len(v):,} "
+            f"features had no value and were read as 0 (no "
+            f"obstacle). {len(v) - n_missing:,} carry a value.")
+    return v
+
+
 def _check_cost_range(vals, where):
     """Costs may go BELOW zero, but never to -1 or past it.
 
@@ -556,6 +595,7 @@ def features_to_friction(features, value_field: str = "friction",
     else:
         raise ValueError(f"[friction] features need a '{value_field}' "
                          "column or a default_value")
+    vals = _fill_missing(vals, "feature values")
     _check_cost_range(vals, "feature values")
     u = float(unit_size)
     acc: dict[tuple[float, float], list] = {}
@@ -687,9 +727,77 @@ def _clip_ring(pts, X0, Y0, X1, Y1):
     return poly
 
 
+def feature_cells(feat, unit_size: float) -> dict:
+    """Which cells a feature genuinely occupies, and by how much.
+
+    Returns {(i, j): measure} - LENGTH in metres for a line, AREA in
+    square metres for a polygon - for every cell the feature has
+    positive presence in. Corner and edge kisses give 0 and are
+    absent.
+
+    EXTRACTED IN v1.47.11 SO NOTHING DUPLICATES IT. This is a hundred
+    lines of Liang-Barsky clipping and ring-area arithmetic, and it
+    was about to be written a second time for the lattice join.
+    BACKLOG 120 is the standing entry about exactly that: two copies
+    of a calculation drift, and the drift is invisible because both
+    look right. paths_to_friction and paths_to_cells now share it.
+    """
+    u = float(unit_size)
+    gtype = str(feat.get("type", "line")).lower()
+    parts = feat.get("parts") or []
+    measure: dict[tuple[int, int], float] = {}
+    if gtype.startswith("line"):
+        for part in parts:
+            pts = [(float(p[0]), float(p[1])) for p in part
+                   if p is not None]
+            for (x1, y1), (x2, y2) in zip(pts[:-1], pts[1:]):
+                i0 = int(np.floor(min(x1, x2) / u))
+                i1 = int(np.floor(max(x1, x2) / u))
+                j0 = int(np.floor(min(y1, y2) / u))
+                j1 = int(np.floor(max(y1, y2) / u))
+                for i in range(i0, i1 + 1):
+                    for j in range(j0, j1 + 1):
+                        L = _clip_len(x1, y1, x2, y2, i * u,
+                                      j * u, (i + 1) * u,
+                                      (j + 1) * u)
+                        if L > 0.0:
+                            measure[(i, j)] = measure.get(
+                                (i, j), 0.0) + L
+    elif gtype.startswith("poly"):
+        for part in parts:
+            rings = [[(float(p[0]), float(p[1])) for p in ring
+                      if p is not None] for ring in part]
+            rings = [r for r in rings if len(r) >= 3]
+            if not rings:
+                continue
+            for ri, ring in enumerate(rings):
+                a = _ring_area(ring)
+                if (ri == 0 and a < 0) or (ri > 0 and a > 0):
+                    rings[ri] = ring[::-1]     # ext +, holes -
+            allp = np.asarray([p for r in rings for p in r], float)
+            i0 = int(np.floor(allp[:, 0].min() / u))
+            i1 = int(np.floor(allp[:, 0].max() / u))
+            j0 = int(np.floor(allp[:, 1].min() / u))
+            j1 = int(np.floor(allp[:, 1].max() / u))
+            for i in range(i0, i1 + 1):
+                for j in range(j0, j1 + 1):
+                    A = 0.0
+                    for ring in rings:
+                        A += _ring_area(_clip_ring(
+                            ring, i * u, j * u, (i + 1) * u,
+                            (j + 1) * u))
+                    if A > 0.0:
+                        measure[(i, j)] = measure.get(
+                            (i, j), 0.0) + A
+    else:
+        raise ValueError(f"[friction] unknown feature type "
+                         f"'{gtype}' - line or polygon")
+    return measure
+
+
 def paths_to_friction(features, values=None, unit_size: float = 100.0,
                       default_value: float | None = None,
-                      agg: str = "sum") -> pd.DataFrame:
+                      agg: str = "sum", say=print) -> pd.DataFrame:
     """
     Geopandas-FREE geometry-to-grid: coordinate paths -> friction
     cells, for hosts whose Python cannot grow geopandas (the ArcGIS
@@ -720,62 +828,12 @@ def paths_to_friction(features, values=None, unit_size: float = 100.0,
     else:
         raise ValueError("[friction] paths_to_friction needs values "
                          "or a default_value")
-    if np.isnan(vals).any():
-        raise ValueError("[friction] missing (null) friction values - "
-                         "fill or filter the value field first")
+    vals = _fill_missing(vals, "feature values", say)
     _check_cost_range(vals, "feature values")
     u = float(unit_size)
     acc: dict[tuple[float, float], list] = {}
     for feat, v in zip(features, vals):
-        gtype = str(feat.get("type", "line")).lower()
-        parts = feat.get("parts") or []
-        measure: dict[tuple[int, int], float] = {}
-        if gtype.startswith("line"):
-            for part in parts:
-                pts = [(float(p[0]), float(p[1])) for p in part
-                       if p is not None]
-                for (x1, y1), (x2, y2) in zip(pts[:-1], pts[1:]):
-                    i0 = int(np.floor(min(x1, x2) / u))
-                    i1 = int(np.floor(max(x1, x2) / u))
-                    j0 = int(np.floor(min(y1, y2) / u))
-                    j1 = int(np.floor(max(y1, y2) / u))
-                    for i in range(i0, i1 + 1):
-                        for j in range(j0, j1 + 1):
-                            L = _clip_len(x1, y1, x2, y2, i * u,
-                                          j * u, (i + 1) * u,
-                                          (j + 1) * u)
-                            if L > 0.0:
-                                measure[(i, j)] = measure.get(
-                                    (i, j), 0.0) + L
-        elif gtype.startswith("poly"):
-            for part in parts:
-                rings = [[(float(p[0]), float(p[1])) for p in ring
-                          if p is not None] for ring in part]
-                rings = [r for r in rings if len(r) >= 3]
-                if not rings:
-                    continue
-                for ri, ring in enumerate(rings):
-                    a = _ring_area(ring)
-                    if (ri == 0 and a < 0) or (ri > 0 and a > 0):
-                        rings[ri] = ring[::-1]     # ext +, holes -
-                allp = np.asarray([p for r in rings for p in r], float)
-                i0 = int(np.floor(allp[:, 0].min() / u))
-                i1 = int(np.floor(allp[:, 0].max() / u))
-                j0 = int(np.floor(allp[:, 1].min() / u))
-                j1 = int(np.floor(allp[:, 1].max() / u))
-                for i in range(i0, i1 + 1):
-                    for j in range(j0, j1 + 1):
-                        A = 0.0
-                        for ring in rings:
-                            A += _ring_area(_clip_ring(
-                                ring, i * u, j * u, (i + 1) * u,
-                                (j + 1) * u))
-                        if A > 0.0:
-                            measure[(i, j)] = measure.get(
-                                (i, j), 0.0) + A
-        else:
-            raise ValueError(f"[friction] unknown feature type "
-                             f"'{gtype}' - line or polygon")
+        measure = feature_cells(feat, u)
         for (i, j), m in measure.items():
             if m > 1e-9:
                 acc.setdefault((i * u + u / 2, j * u + u / 2),
@@ -798,11 +856,17 @@ def points_to_friction(x, y, values, unit_size: float = 100.0,
     if len(x) != len(y) or len(x) != len(v):
         raise ValueError("[friction] x, y and values must be equal "
                          "length")
-    bad = ~(np.isfinite(x) & np.isfinite(y) & np.isfinite(v))
+    # A MISSING COORDINATE IS STILL FATAL - a point with no place is
+    # not a barrier anywhere. A missing VALUE is not: 0 means "no
+    # obstacle" and that is almost always what an empty cell means
+    # (John's ruling, session 12).
+    bad = ~(np.isfinite(x) & np.isfinite(y))
     if bad.any():
         raise ValueError(f"[friction] {int(bad.sum())} rows with "
-                         "missing coordinates or friction values - "
-                         "fill or filter them first")
+                         "missing coordinates - a point with no place "
+                         "is not a barrier anywhere. Fill or filter "
+                         "them first.")
+    v = _fill_missing(v, "point values")
     _check_cost_range(v, "point values")
     u = float(unit_size)
     acc: dict[tuple[float, float], list] = {}

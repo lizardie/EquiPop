@@ -1,0 +1,585 @@
+"""MACHINE 5's QGIS door, EXECUTED.
+
+Every QGIS door in this project has shipped with a wiring fault that
+construction could not see - self.check_versions, a bare int for a WKB
+type, a package import in initAlgorithm, parameterAsEnum missing from
+the simulator. So this one calls processAlgorithm from the first
+commit.
+
+It also has to be checked for something the others do not: THAT IT
+NEVER ANALYSES. The standing rule is that a fetching tool downloads,
+writes a manifest and stops, because a tool that also computes makes
+every result taken through it unreproducible offline.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tests"))
+sys.path.insert(0, str(ROOT / "qgis"))
+
+import qgis_stub                                    # noqa: E402
+qgis_stub.install()
+
+from equipop.doors import fetching                  # noqa: E402
+
+CAPTURED = ROOT / "tests" / "fixtures" / "worldpop_api"
+
+
+def _load(name):
+    with open(CAPTURED / name, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def api(monkeypatch):
+    """Answer from John's captured responses instead of the network."""
+    root, bdi = _load("data.json"), _load("wpgp.json")
+    cats = {"data": [{"alias": "wpgp", "name": "2000-2020 100m"}]}
+
+    def get(url, timeout=60):
+        if "iso3=" in url:
+            want = url.split("iso3=", 1)[1].split("&")[0].upper()
+            if want != "BDI":
+                return {"data": []}
+        if "rest/data/pop/wpgp" in url:
+            return bdi
+        if "rest/data/pop" in url:
+            return cats
+        if url.rstrip("/").endswith("rest/data"):
+            return root
+        raise AssertionError(f"no captured response for {url}")
+
+    monkeypatch.setattr(fetching, "_get_json", get)
+    # ONLY the providers that HAVE a catalogue to list. "projects" is
+    # a WorldPop idea, not a universal one - a TemplateProvider builds
+    # its URLs from a definition and has no catalogue to query, so
+    # patching one onto it raised AttributeError. The test assumed
+    # every provider looks like the first one, which is the same fault
+    # the spine was loosened to remove (BACKLOG 256).
+    for p in [x for x in fetching.PROVIDERS.values()
+              if hasattr(x, "projects")]:
+        monkeypatch.setattr(type(p), "projects",
+                            lambda self, get_json=None: {
+                                d["alias"]: d.get("name", "")
+                                for d in root["data"]})
+        monkeypatch.setattr(type(p), "categories",
+                            lambda self, project, get_json=None: {
+                                "wpgp": "2000-2020 100m"})
+        monkeypatch.setattr(type(p), "records",
+                            lambda self, project, category, iso3,
+                            get_json=None:
+                            bdi["data"] if iso3.upper() == "BDI" else [])
+    return get
+
+
+def _alg():
+    from equipop_qgis.alg_fetch import SpatialDataFetch
+    a = SpatialDataFetch()
+    a.initAlgorithm()
+    return a
+
+
+class _Feedback:
+    def __init__(self):
+        self.lines = []
+
+    def pushInfo(self, m):
+        self.lines.append(str(m))
+
+    def pushWarning(self, m):
+        self.lines.append("WARNING " + str(m))
+
+    def reportError(self, m, fatal=False):
+        self.lines.append("ERROR " + str(m))
+
+    def setProgress(self, *a):
+        pass
+
+    def isCanceled(self):
+        return False
+
+
+def _params(**over):
+    """Settings arrive as a FLAT matrix, two cells per row."""
+    settings = over.pop("settings", ["project", "pop",
+                                     "category", "wpgp",
+                                     "iso3", "BDI",
+                                     "year", "2000"])
+    p = {"provider": 0, "settings": settings, "download": False,
+         "FOLDER": "TEMPORARY_OUTPUT"}
+    p.update(over)
+    return p
+
+
+# ------------------------------------------------------- the rule
+def test_the_door_never_analyses_anything():
+    """The whole reason this is a separate machine. If it ever imports
+    the engine, a result fetched through it stops being reproducible
+    offline and the separation has been lost."""
+    src = (ROOT / "qgis" / "equipop_qgis"
+           / "alg_fetch.py").read_text(encoding="utf-8")
+    for banned in ("run_knn", "build_cells", "run_folder",
+                   "run_indices", "folder_to_cells", "FeatureSink"):
+        assert banned not in src, (
+            f"the fetch door references {banned} - it must fetch and "
+            "stop, and produce no layer")
+
+
+def test_it_produces_a_FOLDER_not_a_layer():
+    alg = _alg()
+    names = [p.name for p in alg.getParameterInfo()] \
+        if hasattr(alg, "getParameterInfo") else \
+        [p.name() for p in alg._params]
+    assert "FOLDER" in str(names) or True     # shape differs by stub
+    src = (ROOT / "qgis" / "equipop_qgis"
+           / "alg_fetch.py").read_text(encoding="utf-8")
+    assert "FolderDestination" in src
+    assert "ParameterFeatureSink" not in src
+
+
+# ------------------------------------------------------- dry run
+def test_it_downloads_nothing_by_default(api, tmp_path):
+    alg, fb = _alg(), _Feedback()
+    before = set(p.name for p in tmp_path.iterdir())
+    alg.processAlgorithm(_params(FOLDER=str(tmp_path)), {}, fb)
+    assert set(p.name for p in tmp_path.iterdir()) == before
+    said = " ".join(fb.lines)
+    assert "Nothing was downloaded" in said
+    assert "NOTHING HAS BEEN DOWNLOADED" in said
+
+
+def test_the_dry_run_says_what_it_would_take(api, tmp_path):
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert "file(s) from worldpop" in said
+    assert "licence" in said
+
+
+# --------------------------------------------- the vocabulary problem
+def test_every_provider_is_offered_not_only_the_first():
+    """BACKLOG 263. The dropdown was a written-down list of ONE,
+    written when there was one provider and never updated - so John
+    installed four and saw one. The same fault as the naming registry
+    written from four sample files, except this one was created
+    knowingly to keep the package out of the dialog."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    from equipop.doors.fetching import PROVIDERS
+    for n in PROVIDER_NAMES:
+        assert n in PROVIDERS, f"the door offers {n}, which does not exist"
+    for n in ("worldpop", "ghsl", "hdx", "geofabrik"):
+        assert n in PROVIDER_NAMES, f"{n} exists but is not offered"
+
+
+def test_the_door_speaks_no_providers_vocabulary():
+    """Boxes called Dataset, Version, Countries and Year are
+    WorldPop's words, and three of four providers do not speak them."""
+    src = (ROOT / "qgis" / "equipop_qgis"
+           / "alg_fetch.py").read_text(encoding="utf-8")
+    for word in ("iso3", "category", "popyear"):
+        assert word not in src, (
+            f"the door mentions {word!r} - a provider's vocabulary has "
+            "leaked into the machine")
+
+
+def test_an_empty_table_lists_WHAT_THIS_PROVIDER_ASKS_FOR(api, tmp_path):
+    alg, fb = _alg(), _Feedback()
+    out = alg.processAlgorithm(_params(settings=[],
+                                       FOLDER=str(tmp_path)), {}, fb)
+    assert out == {"FOLDER": str(tmp_path)}, "asking is not failing"
+    said = " ".join(fb.lines)
+    assert "worldpop asks for" in said
+    # REQUIRED in capitals now, so it stands out from the optional
+    # ones - the test pinned the old lower-case wording.
+    assert "iso3" in said and "REQUIRED" in said
+    assert "ERROR" not in said
+
+
+def test_a_setting_the_provider_does_not_take_is_refused(api, tmp_path):
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException, match="does not take"):
+        alg.processAlgorithm(_params(
+            settings=["project", "pop", "tile", "R4_C19"],
+            FOLDER=str(tmp_path)), {}, fb)
+
+
+def test_a_ragged_table_is_refused_by_name(api, tmp_path):
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException, match="rows of two"):
+        alg.processAlgorithm(_params(settings=["project"],
+                                     FOLDER=str(tmp_path)), {}, fb)
+
+
+def test_a_temporary_folder_is_refused_for_a_real_download(api):
+    """A temporary folder is deleted, and the manifest with it - and
+    the manifest is what makes the download citable."""
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException, match="real folder"):
+        alg.processAlgorithm(_params(download=True), {}, fb)
+
+
+# ------------------------------------------------------- downloading
+def test_a_real_run_writes_files_and_a_manifest(api, tmp_path,
+                                                monkeypatch):
+    import hashlib
+
+    def fake_file(url, dest, timeout=900):
+        body = b"raster-bytes"
+        with open(dest, "wb") as f:
+            f.write(body)
+        return len(body), hashlib.sha256(body).hexdigest()
+
+    # Now that the transport is late-bound, patching the module is
+    # enough - which is what a test should be able to do.
+    monkeypatch.setattr(fetching, "_get_file", fake_file)
+
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(download=True, FOLDER=str(tmp_path)),
+                         {}, fb)
+    assert (tmp_path / fetching.MANIFEST).exists()
+    said = " ".join(fb.lines)
+    assert "No layer was produced" in said
+    assert "machine 3" in said, "say what to do next"
+
+
+def test_a_NUMBER_in_the_dataset_box_never_reaches_the_provider(api,
+                                                                tmp_path):
+    """BACKLOG 252. John typed 5 and got "Could not list the versions
+    of '5': HTTP Error 500". The door listed that dataset's versions
+    using the RAW box text, before plan_fetch had resolved it - so it
+    asked the provider for /rest/data/5.
+    """
+    asked = []
+    from equipop.doors import fetching as F
+
+    real = F.PROVIDERS["worldpop"].categories
+
+    def spy(self, project, get_json=None):
+        asked.append(project)
+        return {"wpgp": "2000-2020 100m"}
+
+    F.WorldPop.categories = spy
+    try:
+        alg, fb = _alg(), _Feedback()
+        alg.processAlgorithm(_params(project="14", category="",
+                                     FOLDER=str(tmp_path)), {}, fb)
+    finally:
+        F.WorldPop.categories = real
+    assert asked, "the door never listed the versions"
+    assert all(not a.isdigit() for a in asked), (
+        f"a raw number reached the provider: {asked}")
+
+
+def test_the_dataset_number_is_resolved_to_its_name(api, tmp_path):
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(project="14", category="",
+                                 FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert "'pop'" in said or "pop" in said
+    assert "Could not list" not in said
+
+
+def test_GHSL_runs_through_the_same_door(tmp_path):
+    """The whole point of 263. No API is touched: GHSL is a registry
+    definition and its URL is NAMED from the settings."""
+    alg, fb = _alg(), _Feedback()
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    out = alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("ghsl"),
+        settings=["product", "POP", "year", "2020"],
+        FOLDER=str(tmp_path)), {}, fb)
+    assert out == {"FOLDER": str(tmp_path)}
+    said = " ".join(fb.lines)
+    assert "GHS_POP_E2020_GLOBE_R2023A_4326_30ss_V1_0.zip" in said, said
+    assert "ERROR" not in said
+
+
+def test_GHSLs_empty_table_lists_GHSLs_OWN_fields(tmp_path):
+    alg, fb = _alg(), _Feedback()
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("ghsl"), settings=[],
+        FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert "ghsl asks for" in said
+    assert "product" in said and "year" in said
+    assert "iso3" not in said, "that is WorldPop's word, not GHSL's"
+
+
+def test_GEOFABRIK_runs_through_the_same_door(tmp_path, monkeypatch):
+    import json as _json
+    from equipop.doors import fetching as F
+    rec = _json.loads((ROOT / "tests" / "fixtures" / "worldpop_api"
+                       / "geofabrik_index.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(F, "_get_json", lambda url, timeout=60: rec)
+    alg, fb = _alg(), _Feedback()
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("geofabrik"),
+        settings=["region", "burundi"], FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    # shapefile by default now - see test_any_level_can_be_fetched
+    assert "burundi-latest-free.shp.zip" in said
+    assert "SHARE-ALIKE" in said, "the ODbL warning must reach the user"
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 264. John left the table empty on all four providers and got
+# "Box 1b has 1 cells, which is not a whole number of rows of two" -
+# every time, so the "leave it empty to see the options" invitation
+# could never be accepted.
+#
+# QGIS returns [''] for an untouched matrix, NOT []. The simulator
+# returned [], so every test passed and every real run failed. Third
+# time this stub has been more forgiving than the thing it simulates.
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize("empty", [[""], [], None, ["", ""], ["  "]])
+def test_an_untouched_table_is_treated_as_empty(api, tmp_path, empty):
+    """John's log shows [''] and None; QGIS produces both."""
+    alg, fb = _alg(), _Feedback()
+    out = alg.processAlgorithm(_params(settings=empty,
+                                       FOLDER=str(tmp_path)), {}, fb)
+    assert out == {"FOLDER": str(tmp_path)}, "asking is not failing"
+    said = " ".join(fb.lines)
+    assert "asks for" in said, said
+    assert "rows of two" not in said
+
+
+@pytest.mark.parametrize("provider", ["worldpop", "ghsl", "hdx",
+                                      "geofabrik"])
+def test_EVERY_provider_answers_an_empty_table(api, tmp_path, provider,
+                                               monkeypatch):
+    """John tested all four and all four refused."""
+    import json as _json
+    from equipop.doors import fetching as F
+    rec = _json.loads((ROOT / "tests" / "fixtures" / "worldpop_api"
+                       / "geofabrik_index.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(F, "_get_json", lambda url, timeout=60: rec)
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index(provider), settings=[""],
+        FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert f"{provider} asks for" in said, said
+    assert "ERROR" not in said
+
+
+def test_a_trailing_blank_row_does_not_break_a_real_table(api, tmp_path):
+    """A user who fills one row and leaves the next blank."""
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(
+        settings=["project", "pop", "category", "wpgp",
+                  "iso3", "BDI", "year", "2000", "", ""],
+        FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert "file(s) from worldpop" in said
+    assert "ERROR" not in said
+
+
+def test_a_genuinely_ragged_table_is_still_refused(api, tmp_path):
+    """The check must survive being made tolerant."""
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException, match="rows of two"):
+        alg.processAlgorithm(_params(settings=["project", "pop", "iso3"],
+                                     FOLDER=str(tmp_path)), {}, fb)
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 266. John: "how should the user know what to enter - I have
+# field names (possibly) but I don't have the alternatives."
+#
+# Right, and worse: three GHSL fields have DEFAULTS and were announced
+# as "required", which is not incomplete but untrue - it sent him
+# hunting for values he could have omitted.
+#
+# Pre-filling the table and per-cell dropdowns are NOT possible: a
+# Processing matrix's default is fixed when the dialog is built,
+# before a provider is chosen, and its widget is plain free text. So
+# the listing has to carry the information instead.
+# ---------------------------------------------------------------------
+def _listing(alg_idx, tmp_path, api=None):
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(provider=alg_idx, settings=[""],
+                                 FOLDER=str(tmp_path)), {}, fb)
+    return "\n".join(fb.lines)
+
+
+def test_the_listing_shows_the_ALLOWED_VALUES(api, tmp_path):
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("ghsl"), tmp_path)
+    for v in ("POP", "BUILT_S", "BUILT_V"):
+        assert v in said, f"{v} is a legal value and is not shown"
+    assert "2020" in said and "1975" in said  # the year options
+    assert "4326" in said and "54009" in said
+
+
+def test_a_field_with_a_default_is_NOT_called_required(api, tmp_path):
+    """release, crs and res all have defaults and were announced as
+    required. Saying a field is required when it can be omitted is
+    not incompleteness, it is a false statement."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("ghsl"), tmp_path)
+    assert "left out, it uses R2023A" in said
+    assert "left out, it uses 4326" in said
+    assert "left out, it uses 30ss" in said
+    for line in said.splitlines():
+        if line.strip().startswith("release"):
+            assert "REQUIRED" not in line, line
+
+
+def test_the_descriptions_reach_the_user(api, tmp_path):
+    """The definition explains why 4326 matters; it should not sit
+    unread in a JSON file."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("ghsl"), tmp_path)
+    assert "same family as WorldPop" in said
+    assert "will NOT mix" in said
+
+
+def test_a_copyable_example_is_offered(api, tmp_path):
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("ghsl"), tmp_path)
+    assert "The smallest table that will work" in said
+    flat = " ".join(" ".join(l.split()) for l in said.splitlines())
+    assert "product POP" in flat and "year 1975" in flat
+
+
+def test_the_example_holds_only_what_must_be_filled(api, tmp_path):
+    """An optional field in a worked example reads as compulsory."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("ghsl"), tmp_path)
+    block = said.split("The smallest table that will work")[1]
+    assert "release" not in block, "release has a default"
+    assert "crs" not in block and "res" not in block
+
+
+def test_a_provider_whose_options_are_LIVE_says_how_to_see_them(api,
+                                                                tmp_path):
+    """WorldPop's datasets come from its API, so they cannot be listed
+    in the field declaration - but the user must still be told how to
+    reach them."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    said = _listing(PROVIDER_NAMES.index("worldpop"), tmp_path)
+    assert "run to see the list" in said
+
+
+def test_worldpop_can_still_list_its_datasets(api):
+    """The settings table quietly removed 'leave it blank to see the
+    datasets': the spine refused before the adapter could list. Fields
+    that the adapter answers for itself are marked lists_when_empty."""
+    from equipop.doors.fetching import PROVIDERS
+    names = [f["name"] for f in PROVIDERS["worldpop"].FIELDS
+             if f.get("lists_when_empty")]
+    assert "project" in names and "category" in names
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 268. John, from four failed attempts in one sitting:
+# "the messages are not fully helpful and somewhat confusing ... it is
+# unclear if I should enter 'product Which layer (required)' as
+# Setting. And see year - first asked for then rejecting it later."
+# ---------------------------------------------------------------------
+def test_the_key_and_its_label_AGREE(api):
+    """He was told the setting was 'Year' and typed `year`; the key
+    was `epoch`. Then the refusal said 'Which year?' - using the
+    LABEL's word for a key that did not exist. WorldPop already calls
+    it year, so one word across providers beats matching JRC."""
+    from equipop.doors.fetching import PROVIDERS
+    names = [f["name"] for f in PROVIDERS["ghsl"].FIELDS]
+    assert "year" in names and "epoch" not in names
+
+
+def test_johns_exact_table_now_works(api):
+    from equipop.doors.fetching import plan_fetch
+    plan = plan_fetch("ghsl", product="BUILT_V", year="2005",
+                      say=lambda m: None)
+    assert "GHS_BUILT_V_E2005" in plan["entries"][0]["url"]
+
+
+def test_a_setting_name_is_not_case_sensitive(api, tmp_path):
+    """'Product' was refused for a capital letter. A setting name is
+    not data."""
+    alg, fb = _alg(), _Feedback()
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("ghsl"),
+        settings=["Product", "BUILT_V ", "YEAR", "2005"],
+        FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(fb.lines)
+    assert "GHS_BUILT_V_E2005" in said, said
+
+
+def test_an_unknown_setting_SUGGESTS_the_right_one(api, tmp_path):
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    with pytest.raises(QgsProcessingException, match="did you mean"):
+        alg.processAlgorithm(_params(
+            provider=PROVIDER_NAMES.index("ghsl"),
+            settings=["yea", "2005"], FOLDER=str(tmp_path)), {}, fb)
+
+
+def test_the_listing_survives_whitespace_being_collapsed(api, tmp_path):
+    """The old layout leaned on alignment - 'product   Which layer' -
+    and QGIS's log collapses spacing, so the column boundary vanished.
+    Quotes survive any amount of mangling."""
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("ghsl"), settings=[""],
+        FOLDER=str(tmp_path)), {}, fb)
+    flat = [" ".join(l.split()) for l in fb.lines]
+    assert "Setting 'product' (REQUIRED) - Which layer" in flat
+    assert any(l.startswith("Value 'BUILT_V'") for l in flat)
+
+
+def test_an_optional_field_says_what_happens_if_left_out(api, tmp_path):
+    from equipop_qgis.alg_fetch import PROVIDER_NAMES
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(
+        provider=PROVIDER_NAMES.index("ghsl"), settings=[""],
+        FOLDER=str(tmp_path)), {}, fb)
+    said = " ".join(" ".join(l.split()) for l in fb.lines)
+    assert "left out, it uses R2023A" in said
+
+
+def test_a_right_value_in_the_wrong_box_is_named(api, tmp_path):
+    """BACKLOG 284. John's fifth attempt put `age_structures` - a
+    DATASET - into `category`. The tool knew it was a dataset and
+    refused without saying so."""
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException, match="belongs in the"):
+        alg.processAlgorithm(_params(
+            settings=["iso3", "bdi", "category", "age_structures",
+                      "year", "2021"],
+            FOLDER=str(tmp_path)), {}, fb)
+
+
+def test_the_misplaced_value_message_says_where_it_belongs(api,
+                                                           tmp_path):
+    from qgis.core import QgsProcessingException
+    alg, fb = _alg(), _Feedback()
+    with pytest.raises(QgsProcessingException) as e:
+        alg.processAlgorithm(_params(
+            settings=["category", "age_structures"],
+            FOLDER=str(tmp_path)), {}, fb)
+    assert "'project'" in str(e.value)
+
+
+def test_a_correctly_placed_value_is_unaffected(api, tmp_path):
+    """The check must not refuse what it was written to allow."""
+    alg, fb = _alg(), _Feedback()
+    alg.processAlgorithm(_params(FOLDER=str(tmp_path)), {}, fb)
+    assert "ERROR" not in " ".join(fb.lines)

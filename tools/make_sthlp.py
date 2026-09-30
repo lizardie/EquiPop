@@ -44,12 +44,14 @@ OPTION_HELP = {
     "pop(varname)": "pop",
     "prefix(string)": None,
     "selfpot(#)": "selfpot",
+    "originrule(string)": "originrule",
     "treatmode(string)": None,
     "missing(numlist)": "missingcodes",
     "decay(string)": "decaymodel",
     "halflife(#)": None,
     "halflifevar(varname)": None,
     "bins(#)": None,
+    "calibration(string)": None,
     "selfpotname(string)": None,
     "overshoot(string)": "overshoot",
     "project": None,
@@ -74,9 +76,12 @@ STATA_ONLY = {
         "The northing, on the same system as x(); or latitude in "
         "degrees, with -project-.",
     "halflife(#)":
-        "The distance at which a neighbour counts half as much, in the "
-        "same units as your coordinates. Required by decay(), unless "
-        "halflifevar() gives one per place instead.",
+        "A distance, in the same units as your coordinates, that "
+        "anchors the decay curve. WHAT IT MEANS is set by "
+        "calibration(): by default, half of all trips are shorter than "
+        "this - so a median commute from a survey goes straight in. "
+        "Required by decay(), unless halflifevar() gives one per place "
+        "instead.",
     "halflifevar(varname)":
         "A variable holding each place's own half-life, so bandwidth "
         "varies across the map - wide in the countryside, tight in a "
@@ -87,6 +92,18 @@ STATA_ONLY = {
         "How many bands of similar bandwidth halflifevar() is grouped "
         "into. More bands follow the variation more closely and take "
         "longer. Ignored without halflifevar(). Default 10.",
+    "calibration(string)":
+        "What the halflife() distance MEANS. halflife, the default: "
+        "half of all trips are shorter than it - use this for a survey "
+        "median. halfprob: a neighbour at that distance counts half as "
+        "much. Östh, Lyhagen and Reggiani (2016) name both readings and "
+        "advocate the first, which old EquiPop used; versions 1.30 to "
+        "1.47 had silently switched to the second. The two give the "
+        "same result for decay(negexp), so the choice only matters for "
+        "the other models. decay(power) has no half-life - its curve "
+        "never encloses a finite area, so no median exists - and uses "
+        "halfprob whatever you ask, saying so. Both betas are printed, "
+        "so the difference is visible whichever you choose.",
     "selfpotname(string)":
         "How far a place is from itself - the same three choices the "
         "QGIS and ArcGIS versions offer, by name rather than by "
@@ -214,7 +231,8 @@ def build():
     for opt in ("x(varname)", "y(varname)"):
         add("{synopt:{opt %s}}%s{p_end}" % (opt, _first_line(opt)))
     add("{syntab:Neighbourhood}")
-    for opt in ("k(numlist)", "r(numlist)", "unit(#)", "selfpot(#)"):
+    for opt in ("k(numlist)", "r(numlist)", "unit(#)", "selfpot(#)",
+                "originrule(string)"):
         add("{synopt:{opt %s}}%s{p_end}" % (opt, _first_line(opt)))
     add("{syntab:Population}")
     for opt in ("treat(varlist)", "pop(varname)"):
@@ -225,7 +243,8 @@ def build():
         % _first_line("missing(numlist)"))
     add("{syntab:Distance weighting}")
     for opt in ("decay(string)", "halflife(#)", "halflifevar(varname)",
-                "bins(#)", "overshoot(string)", "selfpotname(string)"):
+                "bins(#)", "calibration(string)", "overshoot(string)",
+                "selfpotname(string)"):
         add("{synopt:{opt %s}}%s{p_end}" % (opt, _first_line(opt)))
     add("{syntab:Coordinates}")
     for opt in ("project", "epsg(#)"):
@@ -295,7 +314,9 @@ def build():
             ("r(unit)", "cell size in metres"),
             ("r(selfpot)", "self-potential used"),
             ("r(N_origins)", "rows in the sample"),
-            ("r(N_missing)", "rows that received no result")):
+            ("r(N_missing)", "rows that received no result"),
+            ("r(halflife)", "half-life distance, with decay()"),
+            ("r(beta)", "decay parameter actually used")):
         add("{synopt:{cmd:%s}}%s{p_end}" % (nm, desc))
     add("{p2col 5 20 24 2: Macros}{p_end}")
     for nm, desc in (
@@ -304,7 +325,9 @@ def build():
             ("r(varlist)", "names of the variables created"),
             ("r(treat)", "treatment variables used"),
             ("r(k)", "k values requested"),
-            ("r(r)", "radii requested")):
+            ("r(r)", "radii requested"),
+            ("r(decay)", "decay model, with decay()"),
+            ("r(calibration)", "half-life or half-probability, as APPLIED")):
         add("{synopt:{cmd:%s}}%s{p_end}" % (nm, desc))
     add("{p2colreset}{...}")
     add("")
@@ -368,8 +391,44 @@ def build():
         "treat(HighEdu) k(25 50 200) unit(100)}{p_end}")
     add("{phang}{cmd:. equipop if urban==1, x(X) y(Y) "
         "treat(HighEdu) k(50) replace}{p_end}")
-    add("{phang}{cmd:. equipop [fweight=pop], x(X) y(Y) "
-        "treat(HighEdu) k(50)}{p_end}")
+    add("")
+    add("{pstd}A reference population - counts per row rather than one "
+        "row per person:{p_end}")
+    add("{phang}{cmd:. equipop, x(X) y(Y) pop(totalpop) "
+        "treat(university) k(500 1000)}{p_end}")
+    add("{pstd}{cmd:pop()} takes FRACTIONAL counts, which is what "
+        "gridded population needs. {cmd:[fweight=]} means the same "
+        "thing and lets Stata validate it, but demands whole numbers "
+        "- give one or the other, never both:{p_end}")
+    add("{phang}{cmd:. equipop [fweight=households], x(X) y(Y) "
+        "treat(renting) k(200)}{p_end}")
+    add("")
+    add("{pstd}Self-potential - whether an origin counts itself. The "
+        "default keeps it, which is right when a row is a place; "
+        "{cmd:selfpot(0)} drops it, which is right when a row is a "
+        "person and you are asking about their surroundings:{p_end}")
+    add("{phang}{cmd:. equipop, x(X) y(Y) treat(unemployed) k(100) "
+        "selfpot(0)}{p_end}")
+    add("")
+    add("{pstd}Distance decay - near neighbours weigh more than far "
+        "ones. {cmd:half(m)} is the distance at which a neighbour "
+        "counts half:{p_end}")
+    add("{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(1000) "
+        "decay(negexp) half(500)}{p_end}")
+    add("{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(1000) "
+        "decay(lognormal) half(2000)}{p_end}")
+    add("")
+    add("{pstd}Overshoot - what to do with the ring that carries the "
+        "neighbourhood past k. {cmd:whole} takes the whole ring, so N "
+        "exceeds k; {cmd:proportional} takes the same fraction of "
+        "every cell in it, so N equals k exactly. The difference is "
+        "largest where this work matters most - small k, large cells, "
+        "and at boundaries:{p_end}")
+    add("{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(100) "
+        "overshoot(proportional)}{p_end}")
+    add("")
+    add("{pstd}The new variables are named in {cmd:r(varlist)}, so "
+        "they can be used directly:{p_end}")
     add("{phang}{cmd:. regress income `r(varlist)'}{p_end}")
     add("")
     add("{marker author}{...}")

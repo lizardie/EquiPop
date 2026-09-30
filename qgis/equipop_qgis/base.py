@@ -82,6 +82,51 @@ def _doors():
     return D
 
 
+def _newer(a, b):
+    """Is version a newer than b? Numeric compare, not string.
+
+    "1.44.0" < "1.5.0" as text, which would give exactly the wrong
+    advice at the next minor bump.
+    """
+    def parts(v):
+        out = []
+        for piece in str(v).split("."):
+            digits = "".join(c for c in piece if c.isdigit())
+            out.append(int(digits) if digits else 0)
+        return out
+    try:
+        return parts(a) > parts(b)
+    except Exception:                               # pragma: no cover
+        return False
+
+
+def matrix_cells(alg, parameters, name, context):
+    """A QGIS matrix as a list of clean strings.
+
+    AN UNTOUCHED CELL IS PyQGIS's NULL, AND str(NULL) IS THE FOUR
+    CHARACTERS 'NULL'. Not an empty string, not None. Every door that
+    read a matrix wrote its own stripping, and every one of them
+    handled "" and missed this - so machines 1, 4 and 5 each refused
+    an untouched table, in three different messages, and only machine
+    5's was ever reported (BACKLOG 265).
+    Trailing blanks are dropped and an all-blank table becomes empty,
+    because "leave it empty" must be an acceptable answer.
+    """
+    out = []
+    for v in (alg.parameterAsMatrix(parameters, name, context) or []):
+        s = "" if v is None else str(v).strip()
+        if s.upper() == "NULL":
+            s = ""
+        out.append(s)
+    # THE LENGTH IS PRESERVED. An earlier version dropped trailing
+    # blanks, which suits a two-column table and BREAKS a
+    # three-column one, where "Ageing index / 70- / (blank)" is a
+    # complete row whose last cell is empty on purpose. Only an
+    # ENTIRELY blank table becomes empty; each door checks its own
+    # row width.
+    return [] if not any(out) else out
+
+
 def check_versions(channel):
     """Say when the two halves are from different releases.
 
@@ -96,12 +141,30 @@ def check_versions(channel):
         from . import __version__ as plugin_version
         pkg = getattr(equipop, "__version__", "unknown")
         if pkg != plugin_version:
+            # THE MESSAGE CANNOT KNOW WHETHER A VERSION IS
+            # PUBLISHED, so it must offer both routes. Claude first
+            # made this say "install the wheel" whenever the plugin
+            # was ahead, on the assumption that a newer plugin means
+            # an unpublished build - and was WRONG on the very case
+            # that prompted it: 1.44.0 was on PyPI all along.
+            # John's actual problem was simpler and is now named
+            # first: `pip install equipop` does NOTHING when any
+            # version is already present. It needs --upgrade.
+            newer = "plugin" if _newer(plugin_version, pkg) else "package"
             channel.warning(
-                f"The EquiPop plugin is version {plugin_version} but "
-                f"the equipop package in QGIS's Python is {pkg}. They "
-                "usually ship together - if something behaves as it "
-                "did before an update, run:  python -m pip install "
-                "--upgrade equipop  and restart QGIS.")
+                f"The EquiPop plugin is {plugin_version} but the "
+                f"equipop package in QGIS's Python is {pkg} - the "
+                f"{newer} is ahead. Two ways to match them:\n"
+                "  published release:  python -m pip install --upgrade "
+                "equipop\n"
+                "      (--upgrade is required; plain `pip install` "
+                "does nothing when a version is already there)\n"
+                "  local build:  python -m pip install --no-deps "
+                f"--force-reinstall equipop-{plugin_version}"
+                "-py3-none-any.whl\n"
+                "Then restart QGIS. If the plugin is the newer half "
+                "and pip says it is already up to date, that release "
+                "is not published yet - use the wheel.")
     except Exception:
         pass
 
@@ -446,8 +509,31 @@ class EquipopAlgorithm(QgsProcessingAlgorithm):
         out_fields = QgsFields()
         for f in source.fields():
             out_fields.append(f)
+        # BACKLOG 316. A REPEATED NAME USED TO BE APPENDED BLIND. QGIS
+        # writes a NEW layer each run, copying the source's fields and
+        # then the results - so feeding a previous run's output back
+        # in, which is exactly what comparing walk against drive
+        # requires, produced TWO FIELDS OF ONE NAME and left OGR to
+        # resolve it however it liked.
+        # There is no overwrite to choose here, so keeping both is
+        # simply correct and this door needs no box. Pro, which
+        # appends to the input, offers the choice on its dialog.
+        try:
+            from equipop.doors.fields import (keep_both,
+                                              keep_both_message)
+            taken = {f.name() for f in source.fields()}
+            mapped, renamed = keep_both({n: n for n in order}, taken)
+            if renamed:
+                self.channel(feedback).info(keep_both_message(renamed))
+        except Exception:                            # pragma: no cover
+            mapped, renamed = {n: n for n in order}, {}
+        # `order` STAYS THE RESULT KEYS. The loop below reads
+        # result[name], so renaming `order` itself would have looked
+        # up a key that does not exist - caught before it shipped, and
+        # exactly the shape of a rename that half-lands.
         for name in order:
-            out_fields.append(QgsField(name, QMetaType.Type.Double))
+            out_fields.append(QgsField(mapped.get(name, name),
+                                       QMetaType.Type.Double))
 
         sink, dest = self.parameterAsSink(
             parameters, self.OUT, context, out_fields,
@@ -458,6 +544,17 @@ class EquipopAlgorithm(QgsProcessingAlgorithm):
                 "results.")
 
         n = len(self._features)
+        # BACKLOG 291. COUNT WHAT THE SINK TOOK, not what was offered.
+        # addFeature() returns False when the sink rejects a feature -
+        # a field type it will not hold, a shapefile's 255-field or
+        # 10-character limits, a full disk - and the return value was
+        # discarded. The log then reported `n`, THE INTENDED COUNT,
+        # so a run that wrote fewer rows than it was given announced
+        # complete success. That is the shape of the unexplained
+        # output complaints in BACKLOG 224 and 232; it is not a
+        # diagnosis of them, and it is one mechanism that can no
+        # longer be the answer.
+        written, refused = 0, []
         for i, f in enumerate(self._features):
             nf = QgsFeature(out_fields)
             if f.hasGeometry():
@@ -469,10 +566,27 @@ class EquipopAlgorithm(QgsProcessingAlgorithm):
                             (isinstance(v, float) and np.isnan(v))
                             else float(v))
             nf.setAttributes(vals)
-            sink.addFeature(nf)
+            ok = sink.addFeature(nf)
+            # a sink that returns None predates the checked contract;
+            # only an explicit False is a refusal
+            if ok is False:
+                if len(refused) < 5:
+                    refused.append(i)
+            else:
+                written += 1
             if n and i % 5000 == 0:
                 feedback.setProgress(100.0 * i / n)
+        if written != n:
+            raise QgsProcessingException(
+                f"The output kept only {written:,} of {n:,} rows - "
+                f"{n - written:,} were refused by the destination "
+                f"(first at row {refused[0] if refused else '?'}). "
+                "This is usually a shapefile limit (255 fields, "
+                "10-character names) or a full disk. NOTHING HAS "
+                "BEEN REPORTED AS SUCCESSFUL: an output missing rows "
+                "is not a smaller answer, it is a wrong one. Try a "
+                "GeoPackage destination, or fewer k values.")
         self.channel(feedback).info(
-            f"Wrote {n} rows with {len(order)} new columns: "
+            f"Wrote {written} rows with {len(order)} new columns: "
             + ", ".join(order))
         return dest

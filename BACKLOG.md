@@ -18,69 +18,75 @@ costs. 71 and 74 were the same duplication. Items 38/42/43/45/49
 appeared twice; the weaker copy is gone.*
 
 ## What next — in priority order
-1. ~~**139**~~ — DONE, unreleased. A diagonal move now costs sqrt(2); iso-effort contours are round, not square
-2. ~~**99**~~ — DONE v1.30. THE OVERSHOOT, closed at both doors; ~~**162**~~ and ~~**163**~~ travelled with it
-2b. ~~**164**~~ — DONE v1.30.1. John's field test: a new feature class received every result ONE ROW EARLY, silently, since v1.20
-3. **161** — Pro will not offer a barrier raster from the map. John field-found it: he had to drag and drop. Small, and it makes the barrier box behave the way the DEM box and all of QGIS already do
-4. **102** — QGIS has no bandwidth boxes, so the 1.17 headline feature is missing from the teaching door
-4. ~~**128**~~ — STATA HALF DONE v1.37 (`equipop doctor`). Pro and QGIS still to do; the dependency story is the adoption risk
-5. **129** — version the output SEMANTICS, not just the structure. 1.29.5 changed what Dist_k MEANS and said nothing
-6. **117** — one validated run specification, used by the package and every door
-7. **120** — move reference and treatment construction into shared package code
-8. **133** — a fourth door (R, SPSS). GATED BEHIND 120: every door is another copy of the logic that produced 108
 
-9. **CONTINENTAL RUNS / 38** — segmentation and tiling as its own machine; John's destination, and machine 3 waits behind it. UNPAUSED by John, 1.29.3+
-10. **118** — weighted statistics without person expansion. BLOCKER for the continental machine
-11. **119** — resume must validate its parameters and fingerprint its input
-12. **93** — the WORKING FRAME (choose by extent, offer WGS84 with great-circle). It decides what 38's numbers MEAN, so it is settled before 38 is coded
-13. **149** — suggest_projection splits a 2-degree extent because it straddles a zone boundary; one zone costs 0.17%
-14. **92** — the continental DATA path: name the files instead of fetching the zip, cache populated cells once
-15. **137** — WorldPop is per COUNTRY and 92 assumes one; concatenate the extracted cells, never mosaic the rasters
-16. **124** — fetch caches by filename only; WorldPop filenames repeat across countries
-17. **125** — QGIS runs cannot be cancelled; needed before continental GUI work
-18. **97** — a decayed denominator is not a count; machine 3's standard errors need the effective sample size. RULED IN by John 1.29.5
-19. **106** — decay for machine 2; engine work, and the same job as 97
-20. **98** — mortality by differencing: keep the raw negatives, report the count. Clamping inflates mortality up to 11.8x. RULED by John 1.29.5
-21. **82** — machines must be DISCOVERED, not hard-coded; 38 is itself a machine and machine 3 waits behind it, so the doors stop counting to two
-22. **90** — the decay-truncation box steps by 1 in QGIS: a stray click turns 0,000001 into 1,000001 and the run succeeds. A silent wrong answer, and a cheap fix
-23. **67** — QGIS barriers are simulator-proved only - an evening of John's, not a release of Claude's
-24. **58** — same evening: a GeoPackage barrier layer has still never been run
-25. **88** — and polygon barriers have never been run in PRO; same subject, same evening
-26. **42** — the illustrated manual still never describes variable-bandwidth decay - a WRITING session
-27. **81** — the Book has a chapter for the Pro door and none for QGIS, which is the door being taught with; travels with the next BOOK run
-28. **44** — the suspected one-line cause of 34; they travel together
-29. **34** — Pro renders the help page empty; needs one field cycle to confirm
-30. **87** — the simulated arcpy is WRONG rather than sparse, and makes a real Pro dialog route untestable
-31. **101** — the suite writes run manifests into the working directory; on Windows that is a real C:\Data\
-32. **91** — RULED already: short decay labels in both doors; travels with the next release that touches the doors
-33. **89** — the output-table rule refuses a run that has already said where its output goes
-34. **49** — extend the conformance reference beyond counts and stats - a second door now proves the mechanism
-35. **45** — small, but these files ship inside every release zip
-36. **62** — the shapefile-in-a-map warning may be too eager; John's eye decides
-37. **100** — MedDist_k as its own column, computed exactly from the rings rather than as r/sqrt(2). Never folded into Dist_k
-38. **41** — the reconstructed 1.17 MANUAL row has never been checked against what shipped
-39. **43** — CITATION.cff still says 1.0.0 - the author's to set, not Claude's
-40. **77** — the rest of the neutral-vocabulary pass, to be shown before it lands
-41. **59** — does QGIS refresh GeoPackage fields properly? one look answers it
-42. **61** — whether the rungs READ well in Pro is John's call, not the simulator's
-43. **55** — same: the simulator honours category and enabled, only Pro can say they read well
-44. **54** — Gridby has no missing data, so the missing-data rules rest on small fixtures
-45. **57** — retire the old single-table path once John confirms no saved tool needs it
-46. **40** — one sentence in the Gridby README
-47. **4** — heights / third dimension - design can precede data, and there is no data yet
-48. **3** — hexagons: the principled fix for 139, and hex.py already exists; the 6-neighbour friction graph is the missing piece
-49. **80** — run the stub audit in a live QGIS every release that touches the QGIS door
-50. **66** — not a task: a standing caution about editing multi-line Python
+*Rewritten in full, 1.47.6. The list this replaces STOPPED AT ITEM
+164: everything from 165 to 293 — machines 3, 4 and 5, the registry,
+all four providers, the OSM lattice work, the eight external-review
+HIGHs — never entered it. The file opens by promising that its top
+answers "what next?" without reading the rest, and for eleven
+releases it could not. Two independent readers found the same thing
+in the same week, which is how long a stale index survives before it
+costs somebody a session.*
 
-51. **107** — MANIFEST.in omits the demo scripts, so they have never shipped in an sdist
-52. **123** — run metadata records absolute paths and machine details
-53. **126** — a text category is lost whenever any value in the column parses as a number
-54. **127** — Value Statistics skips the version warning and shadows `wanted`
-55. **130** — Stata is not SSC-ready: no .sthlp, contradictory version headers, treat() wrongly mandatory
-56. **134** — a golden dataset with expected results, one per host
-57. **132** — a public ArcGIS Online item; the .pyt is already the right artifact
-58. **158** — hex self-potential uses a square-cell area, overstating the radius by 7.5%
-59. **159** — RunLog is not the progressive record the manual promises
+**The rule for this list: an entry that is struck leaves it.** Done
+items live in the detail below and in the manual's version history,
+not here. A list of completed work is not a plan.
+
+### Now — the Machine 5 arc (one outcome, several releases)
+1. **248–265, 268, 278, 284** — a data BROWSER, not more message
+   fixes. One complete WorldPop path and one complete Geofabrik path
+   first; GHSL's dependent tuples and HDX's paged search follow on the
+   same contract. Needs John in the loop testing the dialog, so it
+   should not share a release with work that does not.
+2. **280, 282, 283 + 269** — the two finished engines with NO DOOR.
+   The OSM lattice join is reachable only from run_osm_friction.py;
+   doors/inventory.py is reachable from nothing at all. Both are QGIS
+   dialog work and belong with the browser.
+
+### Next — reachability and trust
+3. **293** — RunLog is dead code and it is item 2. Analysis runs have
+   no provenance record, which is why neither `overshoot` nor the new
+   `originrule` can be written to one. Needs its own release and a
+   decision about which door writes the sidecar.
+4. **118** — the statistics path still rounds weights and expands
+   rows into persons though the engine has carried fractional weights
+   since 1.29. (205, a Stata door for machine 2, was RULED OUT in
+   session 12: Stata does weighted statistics natively and better,
+   and what it cannot do is build the neighbourhood. Each tool does
+   its own part.)
+5. **119** — resume compares parameters but not input CONTENT. The
+   same cell count and the same settings are not proof of the same
+   data. Not ready for an unattended world-scale run.
+6. **128, 80, 87, 198–199, 288** — a real-host release gate: small
+   recorded end-to-end runs in live QGIS and Pro, matching
+   plugin/engine version checks, cancellation, a copyable diagnostic.
+
+### Then — analytical capability already half-built
+7. **102 + 42** — QGIS variable bandwidth and its explanation.
+8. **117 + 120** — shared validation and construction, as those paths
+   are touched. 120 is confined to machine 1; machines 3, 4 and 5 have
+   none of it, so it gates changes to counts and nothing else.
+9. **158** — hex self-potential uses a square-cell area, overstating
+   the radius by 7.5%.
+10. **134, 132** — a golden dataset per host; a public ArcGIS Online
+    item.
+
+### Waiting on John, not on code
+- **224, 232** — need the exact inputs, versions, choices and output
+  table from a run where the symptom appears. No speculative
+  arithmetic. (291's addFeature fix removes ONE possible mechanism;
+  it does not diagnose either.)
+- **210** — zip rasters measured 3.5x slower and the penalty does not
+  amortise. Needs a ruling on which wins when a folder holds both.
+- **216** — vital-event rasters, and the circularity caveat already
+  recorded there. A methodological exercise, not a menu entry.
+- **257** — PAUSED by John, session 12. Four providers work; a fifth
+  is capability, not a gap.
+
+### Ruled out, recorded so they are not raised again
+- **203** — a radius run reports no distance. That is the design.
+- **100** — see 203.
+
 ## Still to do — detail, in the order above
 
 - ~~95~~ | DONE v1.29.5 | SELF-POTENTIAL, shipped. equipop/selfpot.py holds the rule once so the two engines cannot drift; both apply it; both doors offer `selfpot` and BOTH ARE CHECKED ON VALUES, not names. Default 1.0, John's ruling. Guards broken on purpose six ways before being trusted - including the Pro one, whose FIRST version passed against a deliberate break because it drove _run_tool and skipped the dialog hop where `or 1.0` eats a falsy 0. Rewritten through execute(). s=0 reproduces pre-1.29.5 numbers exactly, asserted not assumed.
@@ -696,7 +702,7 @@ appeared twice; the weaker copy is gone.*
   nothing had been skipped; and the verdict named the count. A
   do-file-only fix, so the Stata freeze holds.
 
-- 203 | OPEN, QUESTION FOR JOHN | SHOULD A RADIUS RUN REPORT A
+- 203 | ~~RULED OUT~~ SESSION 12 | SHOULD A RADIUS RUN REPORT A
   DISTANCE AT ALL? 202 establishes that Dist_r would be the constant
   the user typed, which is useless. But two OTHER distances inside a
   fixed radius are not constant and are not currently offered:
@@ -706,6 +712,27 @@ appeared twice; the weaker copy is gone.*
   the second is the natural companion to Dist_k. Not a defect and not
   urgent - a method question, and John's to rule on. Do not build
   before he does.
+  JOHN'S RULING, SESSION 12, BOTH HALVES REFUSED: "radius is radius
+  and good enough so let us not persue neither (a) or (b)".
+  SO A RADIUS RUN REPORTS NO DISTANCE, AND THAT IS THE DESIGN, not an
+  omission. The next session to notice the asymmetry - k gives
+  Dist_k, r gives nothing - should read this entry and stop, rather
+  than raise it a third time.
+  THE ARGUMENTS THAT DID NOT WIN, recorded so they are not rebuilt
+  from scratch. (a) was nearly free: the engine already computes the
+  position of the last included cell and discards the distance, so
+  the maximum is one lookup already in hand, and it is the SAME
+  STATISTIC as Dist_k under 115 - the maximum extent of the accepted
+  ring - with the stopping rule swapped from k people to r metres.
+  (b) was not: a population-weighted running total of distance
+  through the inner loop of both engines, both doors and Stata, and
+  it is CELL-RESOLUTION DEPENDENT in a way a maximum is not -
+  everyone in a cell shares one distance, so the 225 aliasing rides
+  in the mean and mostly not in the max, and the self-potential
+  radius would have to be honoured or the mean moves with cell size.
+  None of that outweighed the ruling, and the ruling is the shorter
+  answer: the radius IS the neighbourhood definition, and a run does
+  not owe a second description of it.
 
 - ~~204~~ | DONE v1.40.7 | equipop_showcase.do CRASHED AT SECTION 6 AND
   HAD DONE FOR MANY RELEASES. Found because John ran the wrong file by
@@ -727,7 +754,7 @@ appeared twice; the weaker copy is gone.*
   refuses the None-store pattern, and compiles every `python:` block;
   both guards were broken on purpose and both caught it.
 
-- 205 | OPEN, REAL GAP | THE STATA COMMAND CANNOT REACH MACHINE 2 AT
+- 205 | ~~RULED OUT~~ SESSION 12 | THE STATA COMMAND CANNOT REACH MACHINE 2 AT
   ALL. There is no stats() or values() option in equipop.ado's syntax
   line - mean, median, quantiles and Gini over a neighbourhood are
   unreachable from Stata except by hand-written python: blocks, which
@@ -737,6 +764,24 @@ appeared twice; the weaker copy is gone.*
   careless, they were reaching for the only handle the door offers. A
   user with a continuous variable has nowhere correct to put it. QGIS
   and Pro both expose machine 2. Sizeable, and NOT for this week.
+  JOHN'S RULING, SESSION 12: "machine 2 door from stata is not
+  necessary (at least for now) since stata is a statistics software
+  we can rely on the built in functions instead."
+  THE REASONING IS BETTER THAN THE FEATURE. Machine 2 computes
+  weighted means, medians, percentiles and Ginis over a
+  neighbourhood. Stata computes weighted statistics natively and
+  better than we will - `summarize [aweight=]`, `_pctile`, `ineqdeco`
+  - and what it CANNOT do is build the neighbourhood. So the right
+  division is: EquiPop hands Stata the neighbourhood (N_k, T_k, R_k,
+  Dist_k) and Stata does the statistics on it. That is not a gap
+  being tolerated; it is each tool doing the part it is good at.
+  "AT LEAST FOR NOW" IS THE OPERATIVE PHRASE. If a measure arrives
+  that Stata cannot express over a k-neighbourhood, this reopens.
+  NOTE FOR ANYONE COUNTING DOORS: machine 2 therefore has three doors
+  (Python, QGIS, Pro) BY DESIGN and not by omission. A reachability
+  check must record the ruling, or it will report this as a hole
+  every time it runs.
+
 
 - ~~118~~ | HALF DONE, engine side | FRACTIONAL WEIGHTS NO LONGER
   ROUND. build_cells(weights=...) carries a weight column into
@@ -1602,6 +1647,2285 @@ appeared twice; the weaker copy is gone.*
   better one. The prediction was wrong and the test records the
   observed behaviour, not the guess.
 
+- 240 | HALF DONE, engine + runner | MACHINE 5: FETCHING. Built to
+  John's ruling and the standing rule in HANDOVER 13 section 3c -
+  download into a folder, write a MANIFEST, and STOP. A test asserts
+  the module never imports the engine, because the moment it does the
+  rule is broken and reproducibility goes with it.
+  THE PUBLISHED WORLDPOP DOCS ARE STALE AND BUILDING FROM THEM WOULD
+  HAVE FAILED ON JOHN'S MACHINE. The 2022 pages list FOUR projects;
+  the live API returns EIGHTEEN, and age_structures - the one this
+  project needs - is not in the docs at all. The docs show
+  ftp://ftp.worldpop.org.uk download URLs; the live API returns
+  https://data.worldpop.org, and JOHN'S FTP IS BLOCKED. Both were
+  caught only because he pasted two real responses, which are now
+  committed as fixtures and are what the tests run against.
+  PROVENANCE COMES FROM THE PROVIDER: the API returns doi, citation
+  and licence per record, so the manifest states what WorldPop says
+  rather than what EquiPop assumed.
+  REFUSES TO OVERWRITE, and distinguishes two cases: a file already
+  present whose checksum MATCHES is reused and reported; one whose
+  checksum DIFFERS stops the run and is named, because whatever was
+  computed from it was computed from THAT file.
+  verify_folder() re-checks a folder against its manifest, which is
+  the point of recording checksums - a year later it answers "is this
+  the same data the paper used" without trusting a filename.
+  CLAUDE CANNOT TEST THE DOWNLOAD LEG. Every WorldPop host is 403 from
+  the sandbox - hub, data and www, all verified. So the transport is
+  two small functions, everything else is tested with John's captured
+  JSON, and the runner ASKS FIRST: it lists what it would fetch and
+  stops unless --go is passed.
+  AND CLAUDE'S OWN STAND-IN WAS TOO LOOSE AT FIRST: it matched URLs by
+  fragment and ignored ?iso3=, so a request for a nonexistent country
+  returned Burundi's records and a correct refusal looked like a bug.
+  Same fault as the QGIS simulator accepting a bare int for a WKB type
+  (221) - a stand-in looser than the real thing certifies the wrong
+  behaviour.
+  REMAINING: the QGIS door (John: QGIS first, Pro later), and the
+  first real fetch, which only John can run.
+
+- ~~241~~ | DONE | A RUNNER WAS SHIPPED WITHOUT THE MODULE IT DRIVES.
+  run_fetch.py was delivered importing equipop.doors.fetching, which
+  existed in the working tree and in NO WHEEL - 1.43.1 was built
+  before it. John's first command was ModuleNotFoundError.
+  "It works in my tree" IS NOT SHIPPING. The standing delivery rule
+  (HANDOVER 13 section 3b) says four artefacts every session and it
+  was followed - but the artefacts were built BEFORE the new module,
+  and nothing checked that the loose files handed over alongside them
+  could actually run against what was built.
+  test_every_module_a_shipped_runner_imports_is_in_the_wheel now walks
+  every top-level run_*.py, extracts its equipop imports, and checks
+  the package provides each one. Verified by hiding fetching.py, which
+  makes it fail, and restoring it, which makes it pass.
+  AND THE TEST ITSELF FAILED FIRST, on ROOT.glob - ROOT is a str in
+  test_packaging.py, not a Path. Claude assumed the type instead of
+  reading the file. Fourth time this session that an edit was written
+  against unread text.
+
+- ~~242~~ | DONE | A CATEGORY LIST OFFERED A CHOICE THAT CANNOT BE
+  MADE. John ran `--project pop` and the refusal correctly listed 17
+  categories - constrained against unconstrained, 100 m against 1 km,
+  three release generations - which is exactly right, because they are
+  DIFFERENT DATASETS and picking one silently would have been the
+  wrong kindness.
+  But the first line was BLANK: a catalogue entry whose alias is empty
+  and whose name is a bare DOI stub, WP00643. It cannot be passed to
+  --category, so listing it is worse than a shorter list. Entries
+  without a usable alias are now dropped.
+  WORTH REMEMBERING FOR OTHER PROVIDERS: a public catalogue contains
+  rows that are not offers. The adapter's job is to present only what
+  the user can act on.
+
+- ~~243~~ | DONE | THE TOOL CONTRADICTED ITSELF IN TWO CONSECUTIVE
+  LINES. A --go run printed "NOTHING HAS BEEN DOWNLOADED. Pass this
+  plan to run_fetch..." and then downloaded on the next line, because
+  plan_fetch said it unconditionally and the runner called plan then
+  run. Visible in John's own output.
+  Harmless to the data and corrosive to trust: a reader who sees a
+  tool say something false about itself stops reading its output, and
+  this project's tools say a great deal that matters - the aliasing
+  warning, the Dist_k sentence, the field guide.
+  plan_fetch now takes will_download and says "Downloading now"
+  instead.
+
+- ~~244~~ | DONE, IT WORKS END TO END | MACHINE 5 PROVEN ON REAL DATA.
+  John fetched 60 age-sex rasters for Burundi 2026 and the SHA-256 of
+  a fetched file matched his hand-downloaded copy EXACTLY:
+  54c1f80d6de2c6c484db4d8a3f438fe3dc18a0f0a0e809e421096d4c0bfad111.
+  Not "looks right" - the same bytes.
+  THE VERIFIER WAS SEEN TO FIRE. He appended a byte to one file and
+  --verify reported 59 unchanged, 1 CHANGED, naming it. A guard that
+  has only ever said "fine" is not a guard.
+  THE REUSE PATH WORKS: deleting one file and re-running gave "1
+  downloaded, 59 already present" - recognised by checksum, not
+  re-downloaded.
+  CATEGORY NAMING IS REGULAR: G2_{CN|UC|MOS}_Age_{R25A|R24B}_{100m|1km}.
+  A friendlier shorthand is possible later. NOTE THAT THE ALIAS IS
+  MORE TRUSTWORTHY THAN THE NAME: G2_CN_Age_R25A_100m is described as
+  "Individual countries" while G2_UC_Age_R24B_100m says
+  "Unconstrained" - the CN prefix survived into R2025A but the word
+  dropped out of the description. The manifest records both.
+  AND THE YEAR FILTER MATTERS MORE THAN IT LOOKS: R2025A spans
+  2015-2030, so without --year one country would have offered ~960
+  files instead of 60.
+
+- ~~245~~ | DONE | "HOW TO OPEN IN Q?" - a fair question with no good
+  answer. A tiled run writes PARQUET TILES, which are TABLES, not a
+  spatial format: QGIS reads them only through the GDAL Parquet driver
+  and even then they carry no geometry, so a user must build points
+  from columns by hand. The runner said "read it back with
+  load_tiled(...)", which is advice for a programmer.
+  run_raster_folder.py now takes --csv FILE and prints the three
+  things QGIS asks for: X field, Y field, and THE CRS. The CRS line
+  matters more than it looks - the coordinates are METRES in the
+  working projection and a UTM southern zone carries a false northing
+  of 10,000,000 m, so read as anything else the layer lands off the
+  top of the world, which is exactly what happened to John's first
+  machine 4 result (227).
+  TWO OF CLAUDE'S OWN TEST ERRORS, both familiar: ROOT assumed to
+  exist in a file that only defines FIX - THIRD time this session an
+  edit was written against unread text - and exact float equality
+  asserted on a CSV, where one row of 3,162 returns 5.7e-14 from 500
+  after a round trip through text. The values were right and the test
+  was wrong.
+
+- ~~246~~ | DONE | MACHINE 5 HAS A QGIS DOOR, and it is the first
+  tool in the toolbox that produces NO LAYER. That is the standing
+  rule made visible: it writes a FOLDER, because a tool that both
+  downloads and analyses makes every result taken through it
+  unreproducible offline. A test forbids the module from referencing
+  the engine or a FeatureSink at all.
+  DOWNLOAD IS OFF BY DEFAULT. Run it once to see what would be
+  fetched; tick the box to fetch. An empty dataset box LISTS the
+  datasets rather than refusing - an empty box should be a question,
+  not a dead end. A temporary output folder is refused for a real
+  download, because it would be deleted and the manifest with it, and
+  the manifest is what makes the download citable.
+  FOUND BY EXECUTING IT: run_fetch bound its transport as a DEFAULT
+  ARGUMENT, captured when the function is defined - so a test that
+  believed it had replaced the network went to the REAL network and
+  got a 403. The transport is now late-bound everywhere, which is
+  also what a future provider adapter will need.
+
+- ~~247~~ | DONE | GEOPACKAGE FROM THE COMMAND LINE, and QGIS already
+  had it. John asked for a csv/GeoPackage choice in the doors - but
+  machines 3 and 4 write to a QgsProcessingParameterFeatureSink, whose
+  [...] button already offers GeoPackage, Shapefile, GeoJSON, CSV or a
+  temporary layer, chosen per run; Pro's DEFeatureClass does the same.
+  The gap was the RUNNER, which only wrote CSV. --gpkg added.
+  THE REAL ADVANTAGE IS NOT FILE SIZE: a GeoPackage CARRIES ITS OWN
+  CRS. A CSV is numbers, so QGIS must be TOLD the projection and can
+  be told wrongly - and a UTM southern zone's false northing of
+  10,000,000 m then puts the layer off the top of the world, which is
+  what happened in 227. A GeoPackage cannot be misread that way.
+
+- ~~248~~ | DONE | ASKING WHAT IS AVAILABLE WAS TREATED AS A FAILURE.
+  Machine 5's box says "leave blank to list them". John left it blank,
+  the list printed correctly - all 18 datasets - and then the tool
+  RAISED, so QGIS painted the run red and reported "Execution failed
+  after 0.29 seconds" after doing exactly what the label invited.
+  A blank box is a QUESTION. Both the dataset and the version box now
+  answer it and finish cleanly. The version listing also says WHY
+  there is no default: they are different datasets - constrained or
+  not, 100 m or 1 km, different releases - not different formats.
+
+- ~~249~~ | DONE | THE VERSION WARNING GAVE ADVICE THAT CANNOT WORK,
+  THREE TIMES. It always said "run: python -m pip install --upgrade
+  equipop". That is useless when the PLUGIN is the newer half, which
+  it normally is during development: a plugin installed from a zip is
+  ahead of anything published, and PIP ONLY SEES PUBLISHED RELEASES.
+  John followed it across 1.42, 1.43.2 and 1.44 - pip correctly
+  fetched the newest release each time, which was never the one he
+  had, and he reported it three times as "I don't seem to get a new
+  version".
+  CLAUDE'S FIRST FIX WAS ALSO WRONG, AND WRONG ON THE VERY CASE THAT
+  PROMPTED IT. He made the message say "install the wheel" whenever
+  the plugin was ahead, ASSUMING a newer plugin means an unpublished
+  build - and asserted to John that "1.44.0 is not on PyPI" without
+  checking. IT WAS. John said so, and PyPI confirmed it.
+  JOHN'S ACTUAL PROBLEM WAS SIMPLER and visible in his own screenshot:
+  he ran `python -m pip install equipop` WITHOUT --upgrade, and pip
+  replied "Requirement already satisfied ... (1.43.4)". Plain pip
+  install does nothing when any version is present.
+  THE MESSAGE CANNOT KNOW WHAT IS PUBLISHED, so it now offers BOTH
+  routes and names the real cause first: --upgrade for a published
+  release, saying explicitly that plain install does nothing; the
+  wheel for a local build; and a closing line for the case where pip
+  says it is already up to date.
+  THE LESSON IS THE ASSERTION, NOT THE MESSAGE. Checking PyPI takes
+  one call and Claude had done exactly that check twice before in
+  this same session.
+  AND THE COMPARISON IS NUMERIC, NOT TEXTUAL. As strings "1.44.0" <
+  "1.5.0", so a string compare would have given exactly the wrong
+  advice at the next minor bump - a bug scheduled for a future date.
+
+- ~~250~~ | DONE | A LIST OF CHOICES THE USER COULD NOT TYPE BACK.
+  John left both boxes blank, was shown "bic Individual countries",
+  typed exactly that, and was refused. Entirely reasonable: the line
+  LOOKS like one string, and nothing said which half was the answer.
+  His own fix, and the right one: NUMBER THEM. The listing now puts
+  the alias in its own column and numbers every line, and resolve()
+  accepts the NUMBER, the alias, or THE WHOLE LINE PASTED BACK -
+  because pasting back what you were just shown is the most natural
+  thing a user can do and it should not be an error.
+  A number out of range says how many there are; an unknown name
+  reprints the numbered list rather than a bare refusal.
+
+- ~~251~~ | DONE | "CHECK THE ISO3 CODE AND THE YEAR" WHEN THE CODE
+  WAS FINE. John's log: births/bic for BDI in 2001 refused with advice
+  to check both, sending him hunting for a country that was correct.
+  THE ANSWER WAS ALREADY IN HAND - the records for BDI had been
+  fetched and their years discarded. Now the two cases are separated:
+  a country with nothing at all is told the code should be the
+  three-letter one; a country whose YEAR is wrong is shown THE YEARS
+  IT DOES HAVE.
+  THE PATTERN, worth remembering for every refusal in this project: if
+  the code already knows the right answer, a refusal that only names
+  the problem is a wasted trip.
+
+- ~~252~~ | DONE | THE NUMBER WE ASKED FOR WAS SENT STRAIGHT TO THE
+  PROVIDER. John typed 5, as invited, and got "Could not list the
+  versions of '5': HTTP Error 500". The door listed that dataset's
+  versions using the RAW BOX TEXT, so it requested /rest/data/5.
+  plan_fetch resolves numbers - but only AFTER the door had already
+  used the unresolved value. The door now resolves first.
+  THE SHAPE: a convenience added in one layer (numbers) was not known
+  to the layer above it, which had its own reason to use the value.
+  Adding a friendly input format means finding EVERY place the value
+  is consumed, not just the one that validates it.
+  And box 1c stayed empty for John not because listing was broken but
+  because the run DIED before reaching it - one fault presenting as
+  two.
+
+- ~~253~~ | DONE | A REFUSAL OFFERED A CHOICE FROM AN EMPTY LIST.
+  dahi records carry no popyear, so the year filter removed
+  everything and the message read "The years it does have: BDI:"
+  followed by nothing. Now a product with no years says so and tells
+  the user to CLEAR the year box; a mixed set says "no year recorded"
+  beside the country it applies to.
+  253 IS 251 UNDERSPECIFIED. That fix assumed a wrong year meant
+  OTHER years existed. It did not check the case where there are
+  none, so a good improvement produced a nonsensical message one day
+  later.
+
+- ~~254~~ | DONE, IN THE TREE, NOT RELEASED | A GLOBAL PRODUCT WAS
+  BLAMED ON THE COUNTRY CODE. John picked version 5 of `pop` -
+  G2_MOS_POP_R25A_1km, "Global mosaics" - asked for BDI, and was told
+  "Check the ISO3 code - it is the three-letter one, such as BDI". His
+  code was BDI. A global mosaic holds no single country and never
+  will.
+  THE CATALOGUE SAYS WHICH IS WHICH in plain words - "Global
+  mosaics", "Whole Continent", "Individual countries" - and the code
+  was not reading it. is_per_country() now does, and the refusal names
+  the offending product, says why it can never work, and LISTS THE
+  PER-COUNTRY VERSIONS. His two-step becomes one.
+  THIRD TIME IN THREE DAYS a refusal has blamed the wrong thing: 251
+  (the year, when the code was fine), 253 (the year box, when there
+  were no years), and now the code when the product was global. THE
+  PATTERN IS ALWAYS THE SAME - the information needed to give the
+  right answer was already in hand and was not consulted.
+
+- 255 | OPEN, WON'T FIX AS ASKED | "COULD WE LOOK FOR AVAILABILITY AT
+  ALL SETTINGS AND NOT JUST THE FIRST?" John, after hitting a global
+  product and then, one step later, an unavailable year.
+  PARTLY IMPOSSIBLE: the checks are DEPENDENT, not parallel. The
+  category list cannot be fetched until the dataset resolves; the
+  years cannot be known until the country's records are fetched; and
+  the records cannot be fetched from a global product at all. So
+  "check everything at once" cannot be done in general.
+  WHAT WAS DONE INSTEAD, and it covers his actual case: 254 removes
+  the two-step by naming the per-country versions in the same
+  refusal. Left open in case a second instance appears with a
+  different shape - if it does, the answer is probably to report the
+  independent checks together (dataset, category, country code) and
+  leave the dependent ones sequential.
+
+- ~~256~~ | DONE | THE FETCHING SPINE NO LONGER KNOWS WHAT A COUNTRY
+  IS. plan_fetch took project, category, iso3 and year as fixed
+  keyword arguments - WORLDPOP'S SHAPE, BAKED INTO THE MACHINE. GHSL
+  is tiled globally and has no iso3; Overture has no year; HDX has
+  neither. A rule shaped by one case and found when the second
+  arrives is this project's most repeated mistake (211 the naming
+  registry, 225 the cell-size default, 208 the manifest path), so this
+  time it was loosened BEFORE the second adapter, on John's ruling.
+  An adapter now declares FIELDS and implements plan(choices) ->
+  (entries, described). The spine does only what is common: refuse an
+  unknown provider, check declared fields are present, build the plan,
+  say what would happen. A test asserts the words iso3, popyear and
+  country DO NOT APPEAR in plan_fetch at all.
+  THE PROOF IS A FAKE SECOND PROVIDER shaped nothing like WorldPop -
+  releases and tiles, no countries, no years - and it immediately
+  found a leak the refactor had missed: run_fetch still named
+  plan["iso3"] and plan["year"] when writing the manifest, so any
+  other provider raised KeyError. The manifest now records whatever
+  the adapter described.
+  A FIELD MAY CARRY ITS OWN WORDING. Moving the required-field check
+  up a layer replaced "Which country? Give one or more ISO3 codes,
+  such as BDI" with "worldpop needs iso3 - Countries (ISO3)" - correct
+  and worse. Generalising a check must not cost the user the better
+  message.
+  DELIBERATELY NOT DONE: the QGIS door still has five fixed boxes
+  matching WorldPop. Designing generic boxes for providers that do not
+  exist yet would be the SAME MISTAKE IN REVERSE - a shape invented
+  from imagination rather than from a second real case. It waits for
+  adapter number two.
+
+- 257 | OPEN, PAUSED BY JOHN, SESSION 12 | THE NEXT FETCH ADAPTERS.
+  Written up in PROVIDERS_PLAN.md rather than left in a conversation,
+  because the WorldPop docs turned out FOUR YEARS STALE and building
+  from a half-remembered web page is how that happens.
+  PAUSED, session 12: "let us wait with the providers for now". Four
+  providers work; a fifth is capability, not a gap. Nothing here is
+  blocked on anything - it resumes when John says so.
+  TWO FINDINGS WORTH KNOWING BEFORE ANY CODE:
+  (a) MOST GHSL PRODUCTS ARE MOLLWEIDE (ESRI:54009) AND WORLDPOP IS
+  WGS84. Put both in one folder and the loader REFUSES them - which is
+  BACKLOG 239 working exactly as intended. But POP, BUILT-S and
+  BUILT-V are ALSO published in WGS84 at 3 and 30 arc-seconds, the
+  same grid family as WorldPop, so the two CAN share a folder if the
+  WGS84 variants are chosen. Whether the origins actually align is a
+  measurement nobody has made. The adapter should default to WGS84 and
+  say why.
+  (b) GEOFABRIK PUBLISHES .md5 SIDECARS, so a fetch can be verified
+  against WHAT THE PUBLISHER SAYS THE FILE IS, not merely against what
+  we happened to receive. That is stronger provenance than anything
+  else on the list, including WorldPop, and the adapter should use it.
+  GHSL HAS NO API - a predictable HTTPS tree under jeodpp.jrc.ec.
+  europa.eu and citations only on the web page, so the DOIs must be
+  written INTO the adapter and can therefore go stale.
+  GEOFABRIK IS TWO JOBS, NOT ONE: EquiPop cannot read .osm.pbf. Try
+  the .gpkg.zip format plus the lattice join before adding pyrosm or
+  pyosmium as a dependency.
+  ~~STILL NEEDED: one directory listing from the GHSL tree, one HDX
+  package_search response, and one feature from Geofabrik's
+  index-v1-nogeom.json (the file is ~1 MB, which is why pasting it
+  whole failed).~~
+  ALL THREE WERE OBTAINED AND THIS LINE WENT STALE. GHSL's URL was
+  confirmed against a real directory read on 2026-09-02 and the date
+  is in ghsl.json's `confirmed_against`; HDX was confirmed against a
+  real package_search response for Sweden (261); Geofabrik's index
+  was confirmed from the real file John supplied (259, 262). The line
+  was written before 260-262 landed and nobody struck it.
+  IT THEN COST A ROUND TRIP: session 12 read it and asked John for
+  three samples he had already supplied. A STALE "STILL NEEDED" IS
+  WORSE THAN NO LIST - it reads as current, and the reader has no way
+  to tell. Same shape as PROVIDER_NAMES = ["worldpop"] (263) and the
+  "what next" list that stops at 164: a note written once and true
+  once.
+  WHAT IS ACTUALLY UNKNOWN is different in kind and none of it is a
+  sample anyone can send: whether EOG nightlights requires a free
+  account (unconfirmed, and a login is what John wanted to avoid),
+  Copernicus requires registration, and Overture is not a file
+  download at all - global GeoParquet queried over the network, with
+  no artefact to checksum unless one is defined. That last is a
+  design decision and belongs last.
+
+- ~~258~~ | DONE | SEPARATE THE SITE-SPECIFIC
+  KNOWLEDGE FROM THE TOOL. John: "relying on http is tough of course
+  if they change the content structure all will need to be
+  reinstalled ... what if the site specific instructions could be
+  separated from the tool - so that if the user is running an old tool
+  and it doesn't work - just retrieving site specific instructions
+  from GIT would be enough - is that a dumb thought?"
+  NOT DUMB. IT IS THE PATTERN, and this project already has the
+  evidence: BACKLOG 211, the WorldPop naming registry, was written
+  from four sample files and failed on all 120 of John's real ones. It
+  was DATA baked into CODE, so fixing it needed a release, a build, a
+  PyPI upload and three host installs. As an external registry it
+  would have been a one-line edit pushed to GitHub, and John's next
+  run would have worked.
+  THE SEAM IS CLEAN. The MECHANISM is stable - fetch, checksum,
+  manifest, refuse to overwrite. The SITE KNOWLEDGE is volatile - URL
+  patterns, field names, which products exist, naming conventions.
+  Volatile things belong in data, stable things in code.
+  THREE CONDITIONS, and the first is not negotiable:
+  (a) DATA ONLY, NEVER CODE. URL templates and field declarations, no
+      Python, no eval. A tool that people install into QGIS must not
+      execute instructions fetched over the network.
+  (b) A BUNDLED COPY IS THE FALLBACK. The remote is an UPDATE, not a
+      dependency. Offline, the tool works with what it shipped with.
+  (c) THE MANIFEST RECORDS WHICH REGISTRY VERSION WAS USED. Otherwise
+      a fetch becomes unreproducible in a NEW way - "which rules were
+      in force?" - and reproducibility is the whole reason machine 5
+      exists.
+  Pin to a tag or record the commit, never a bare branch.
+
+- 259 | OPEN | THE GEOFABRIK INDEX, CONFIRMED FROM THE REAL FILE (John
+  supplied all 700 pages). properties: id, parent, name, urls,
+  iso3166-1:alpha2, iso3166-2. urls keys: pbf, shp, pbf-internal,
+  history, taginfo, updates.
+  TWO CORRECTIONS TO PROVIDERS_PLAN.md, WRITTEN ONE DAY EARLIER FROM A
+  SEARCH SNIPPET:
+  (a) THERE IS NO gpkg. The snippet listed .gpkg.zip among Geofabrik's
+      formats; the actual index offers pbf and shp only. The
+      no-new-dependency route is therefore the SHAPEFILE ZIP, which
+      QGIS and GDAL read natively - the route survives, for a
+      different reason than the one written down. DOCUMENTATION
+      DESCRIBED THE DATA AND THE DATA DISAGREED, for the second time
+      in this workstream after WorldPop's four-year-stale pages.
+  (b) iso3166-1:alpha2 CONTAINS "NA" - NAMIBIA. pandas reads that as
+      NaN by default, so Namibia vanishes silently from any country
+      list. Demonstrated: read_csv turns ['SE','NA','NO'] into
+      ['SE', nan, 'NO']. Use keep_default_na=False, or do not use
+      pandas for this file. A country disappearing without a word is
+      exactly this project's signature fault.
+
+- ~~260~~ | DONE | THE PROVIDER REGISTRY, AND GHSL AS ITS FIRST
+  ENTRY. equipop/providers/*.json, loaded by doors/registry.py.
+  GHSL IS NOW ENTIRELY DATA - no code at all. The URL, the DOI, the
+  citation and the licence obligations all come from a JSON file that
+  can be corrected and pushed without a release. Verified against the
+  real server: GHS_POP_GLOBE_R2023A/GHS_POP_E2020_GLOBE_R2023A_4326_
+  30ss/V1-0/..._V1_0.zip, built from the definition and matching
+  character for character.
+  RULE ONE IS ENFORCED, NOT DOCUMENTED. _check_safe() refuses any
+  definition containing __, import, eval, exec, lambda, os. or
+  subprocess, and a test runs it over every BUNDLED file - the rule
+  applies to what SHIPS, not only to what is loaded. EquiPop is
+  installed inside QGIS and ArcGIS Pro; a tool that executed
+  instructions fetched over the network would be a remote code
+  execution hole in a research instrument.
+  RULE TWO: definitions live INSIDE the package, so they travel in the
+  wheel. Claude first put them beside it, which would have shipped
+  them to nobody - the same fault as run_fetch.py importing a module
+  no wheel contained (241).
+  RULE THREE: registry_version reaches the manifest, both at the top
+  and per file. Without it a fetch is unreproducible in a NEW way -
+  which rules were in force when this ran?
+  A BROKEN DEFINITION IS SKIPPED AND NAMED, not fatal, for the same
+  reason the QGIS plugin loads when equipop is absent.
+  THREE FAULTS FOUND BY RUNNING IT, all of them the generalisation
+  overruling the thing it generalised:
+    the spine checked `required` BEFORE the adapter applied its own
+      defaults, so a definition that supplied one was refused for not
+      supplying it;
+    resolve() read "2020" as "the 2020th option" - the numbering
+      convenience from 250 colliding with a field whose choices ARE
+      numbers. A value that IS a choice now wins;
+    a QGIS test patched `projects` onto EVERY provider, and a
+      TemplateProvider has no catalogue to list. The test assumed
+      every provider looks like the first one, which is exactly what
+      256 was done to remove.
+
+- ~~261~~ | DONE | HDX IS THE THIRD PROVIDER, and its real response
+  broke an assumption written down one day earlier.
+  A CODE adapter, not a registry entry: a search must be issued and a
+  dataset chosen, so it cannot be NAMED from the user's choices. That
+  is the split the registry was designed around and it held.
+  EVERY RESOURCE CARRIES AN MD5 IN `hash`. Like Geofabrik, a download
+  can be verified against WHAT THE PUBLISHER SAYS THE FILE IS. Two of
+  three providers now offer this; WorldPop offers nothing of the kind.
+  THE ASSUMPTION IT BROKE: PROVIDERS_PLAN.md said the manifest would
+  record may_redistribute and share_alike per source. FOR HDX THAT IS
+  OFTEN UNKNOWABLE - the IATI dataset returns license_id "hdx-other",
+  title "Other", and PROSE pointing at a web page. Those fields are
+  now None when unresolved, the prose is carried verbatim, and the run
+  SAYS SO before fetching. Guessing "probably CC-BY" would have been
+  worse than admitting ignorance, and would have been exactly the kind
+  of plausible wrong answer this project keeps finding.
+  A KNOWN licence IS resolved: cc-by, cc-by-sa, odc-odbl and the rest
+  map to obligations; anything else is left undecided on purpose.
+  ONE DATASET MAY HOLD SEVERAL FILES, unlike GHSL where one set of
+  choices names one file - which is why the entries list, not a single
+  entry, is the unit.
+
+- ~~262~~ | DONE | GEOFABRIK IS THE FOURTH PROVIDER. Structure
+  confirmed against the real index-v1.json - all 700 pages, supplied
+  by John as a PDF after two plain pastes arrived empty.
+  ANY LEVEL IS DOWNLOADABLE, which is what John asked for: an empty
+  region box lists the continents, and a continent, a country or a
+  sub-region can each be named directly. A near miss suggests the real
+  one - 'swed' offers 'sweden'.
+  ODbL, AND IT IS THE FIRST SOURCE WITH SHARE-ALIKE. Recorded in the
+  manifest AND said out loud before every fetch, because EquiPop
+  exists to produce published derived surfaces and a share-alike
+  obligation may travel to them.
+  THE .md5 SIDECAR is recorded, so a download can be checked against
+  what GEOFABRIK says the file is. Three of four providers now offer a
+  publisher checksum; WorldPop still offers none.
+  NO gpkg, contradicting a search snippet - the real index has pbf and
+  shp only, so the no-new-dependency route is the SHAPEFILE ZIP.
+  NAMIBIA IS PINNED BY A TEST. Its iso3166-1:alpha2 is "NA", which
+  pandas turns into NaN by default; a country vanishing from a country
+  list without a word is this project's signature fault.
+  AND A THIRD TIME THE GENERALISATION OVERRULED THE THING IT
+  GENERALISED: the spine's required-field check fired before the
+  adapter could LIST the continents, so an empty box got a generic
+  message instead of the picker. Fields may now declare
+  lists_when_empty.
+
+- ~~263~~ | DONE | THE QGIS DOOR OFFERED ONE PROVIDER OUT OF FOUR.
+  John installed 1.44.5 and reported "still only worldpop". He had
+  missed nothing: PROVIDER_NAMES was ["worldpop"], written down in the
+  door when there was one provider and never updated.
+  THE SAME FAULT AS THE NAMING REGISTRY (211) - a list written from
+  what existed at the time - except THIS ONE WAS CREATED KNOWINGLY, to
+  keep the package out of initAlgorithm (218), and then forgotten.
+  Hard-coding for a good reason still needs a test that notices when
+  the world moves; there is one now, and it checks both directions.
+  AND ADDING THE NAMES ALONE WOULD HAVE GIVEN HIM A BROKEN DIALOG.
+  Boxes called Dataset, Version, Countries and Year are WORLDPOP'S
+  VOCABULARY: GHSL asks for product, release, epoch, crs, res;
+  Geofabrik for a region; HDX for a country group and a dataset.
+  So the four boxes became ONE SETTINGS TABLE, driven by the FIELDS
+  every adapter already declares. Leave it empty and the tool lists
+  exactly what the chosen provider asks for, with labels and whether
+  each is required - asking is not failing (248). A test asserts the
+  door contains no provider's vocabulary at all.
+  THIS IS THE DESIGN THAT WAS DELIBERATELY DEFERRED IN 256: generic
+  boxes were not invented for imagined providers, they were written
+  once four real ones existed and their needs were known. That was the
+  right call - the shape the table took could not have been guessed
+  from WorldPop alone.
+  Verified by driving GHSL and Geofabrik through the same door,
+  including the ODbL share-alike warning reaching the user.
+
+- ~~264~~ | DONE | "LEAVE IT EMPTY TO SEE THE OPTIONS" COULD NEVER BE
+  ACCEPTED. John left the settings table empty on ALL FOUR providers
+  and got the same refusal every time: "Box 1b has 1 cells, which is
+  not a whole number of rows of two".
+  AN UNTOUCHED QGIS MATRIX IS [''], NOT []. A list holding one empty
+  string - and a None parameter comes back the same way. The evenness
+  check therefore saw ONE cell and refused before the listing could
+  run, so the invitation printed on the box was impossible to take up.
+  THE SIMULATOR RETURNED [] AND SO EVERY TEST PASSED. THIRD TIME
+  tests/qgis_stub.py HAS BEEN MORE FORGIVING THAN QGIS - 221 accepted
+  a bare int for a WKB type, 223 accepted and DISCARDED the sink's
+  CRS, 231 lacked parameterAsEnum entirely. Every one of them let a
+  door ship broken with a green suite.
+  THE STUB IS STILL THE MOST DANGEROUS FILE IN THIS REPOSITORY. Every
+  door test is only as true as its imitation, and the imitation has
+  now been wrong four times in four different ways.
+  Fixed in both places: the stub returns [''] as QGIS does, and the
+  door drops trailing blanks and treats an all-blank table as no
+  table. Tested with [''], [], None, ['',''] and ['  '], across all
+  four providers, plus a real table with a trailing blank row - and a
+  genuinely ragged table is still refused, because the check had to
+  survive being made tolerant. Reverting the fix fails eight of them.
+
+- ~~265~~ | DONE | AN UNTOUCHED MATRIX CELL IS PyQGIS's NULL, AND
+  str(NULL) IS THE FOUR CHARACTERS 'NULL'. Not an empty string, not
+  None. John reported the same refusal TWICE, on all four providers:
+  "Box 1b has 1 cells". The first fix handled "" and None and missed
+  this, so his second report was the same error against a release that
+  was supposed to have fixed it.
+  THE SIMULATOR RETURNED "" AND THEN [] AND WAS WRONG BOTH TIMES.
+  FIFTH FIDELITY FAILURE in tests/qgis_stub.py - after a bare int
+  accepted for a WKB type (221), the sink's CRS accepted and DISCARDED
+  (223), parameterAsEnum missing entirely (231), and [] for an empty
+  matrix (264). Every one let a door ship broken with a green suite.
+  MAKING THE SIMULATOR HONEST FOUND TWO MORE LIVE FAULTS IMMEDIATELY.
+  Machine 4's index table and machine 1's reference and treatment
+  tables read a matrix their own way and each handled "" and missed
+  NULL - so all THREE tools would have refused an untouched table on
+  John's machine, in three different messages, and only machine 5's
+  had ever been tried.
+  ONE READER NOW, base.matrix_cells(), used by all three. The fault
+  appeared three times independently because the reading was written
+  three times.
+  AND THE SHARED HELPER BROKE MACHINE 4 ON ITS FIRST OUTING: it
+  dropped trailing blanks, which suits a TWO-column table and
+  destroys a THREE-column one, where "Ageing index / 70- / blank" is a
+  complete row. Length is preserved now and each door checks its own
+  width. FOURTH TIME a generalisation has overruled the thing it
+  generalised - 256 the defaults, 250 the numbering, 262 the listing,
+  and now this.
+
+- ~~266~~ | DONE | THE LISTING GAVE FIELD NAMES AND NO VALUES. John:
+  "how should the user know what to enter - I have field names
+  (possibly) but I don't have the alternatives."
+  AND IT WAS WORSE THAN INCOMPLETE. Three GHSL fields - release, crs,
+  res - have DEFAULTS and were announced as "(required)". That is not
+  a gap, it is a FALSE STATEMENT, and it sent him hunting for values
+  he could have omitted. The definition knew both the defaults and the
+  allowed values and printed neither.
+  The listing now shows every allowed value, what each MEANS where the
+  definition explains it - "4326 WGS84 degrees, the same family as
+  WorldPop" and "54009 will NOT mix" - which of the fields have
+  defaults and can be left out, and a COPYABLE EXAMPLE holding only
+  what must be filled, because an optional field in a worked example
+  reads as compulsory.
+  WHAT WAS ASKED FOR AND CANNOT BE DONE, said plainly rather than
+  quietly dropped: a Processing matrix's default is fixed when the
+  DIALOG IS BUILT, before a provider is chosen, so the table cannot
+  pre-populate; and its widget is plain free text, so there are no
+  per-cell dropdowns. The listing has to carry the information
+  instead.
+  AND THE SETTINGS TABLE HAD QUIETLY BROKEN WORLDPOP'S OWN LISTING.
+  "Leave the dataset blank to see the list" was unreachable, because
+  the spine's required-check refused before the adapter could list.
+  project and category are marked lists_when_empty now. A feature
+  removed by accident during a redesign, noticed only because someone
+  asked a different question about the same screen.
+
+- ~~267~~ | DONE | HANDOVER 14 WRITTEN. HANDOVER 13 ended at 1.41.0
+  and the tree is at 1.44.9 - eighteen releases, 57 backlog items
+  closed, 12 open. Machines 3, 4 and 5, the provider registry and four
+  providers all arrived after 13 was written, so a fresh session
+  reading 13 would have been badly misled about what exists.
+  ITS CENTRE IS THE FOUR PATTERNS THAT REPEATED, because they cost
+  more than any single defect and EVERY ONE RECURRED AFTER BEING
+  WRITTEN DOWN:
+    the simulator kinder than QGIS - FIVE times
+    a generalisation overruling what it generalised - FOUR times
+    a refusal blaming the wrong thing - THREE times
+    a rule written from one sample - THREE times
+  Writing them down is demonstrably not sufficient. Each needs a test
+  that fires, and 14 says so rather than repeating the advice that
+  already failed.
+  ALSO RECORDED: handovers 9 and 10 have never been in the tree. 13
+  flagged it and they are still absent, so two sessions exist only in
+  downloads if at all.
+
+- ~~268~~ | DONE | FOUR FAILED ATTEMPTS IN ONE SITTING, FOUR
+  SEPARATE FAULTS, ALL CLAUDE'S. John: "the messages are not fully
+  helpful and somewhat confusing ... it is unclear if I should enter
+  'product Which layer (required)' as Setting. And see year - first
+  asked for then rejecting it later."
+  (a) THE KEY AND ITS LABEL DISAGREED. The field was named `epoch` and
+  LABELLED "Year", and its refusal said "Which year?" - the label's
+  word for a key that did not exist. He typed `year`, which was the
+  only sensible move, and was refused. Renamed to `year` IN THE
+  DEFINITION, one line of JSON and no code, which is exactly what the
+  registry was built for. WorldPop already used `year`, so one word
+  across providers beats matching JRC's own vocabulary.
+  (b) 'Product' WAS REFUSED FOR A CAPITAL LETTER. A setting name is
+  not data. Matched case-insensitively now.
+  (c) '1' WAS REFUSED WITH NO HELP - and he typed it because options
+  are NUMBERED everywhere else in this tool. Unknown settings now
+  SUGGEST the nearest, matching on the label too, so "year" would have
+  found "epoch" even before the rename.
+  (d) THE LAYOUT LEANED ON ALIGNMENT. "product   Which layer
+  (REQUIRED)" gave no clue where the Setting column ended - and QGIS's
+  log COLLAPSES whitespace, so the two columns became one sentence.
+  Names and values are QUOTED now, which survives any mangling, and a
+  test asserts the listing still reads correctly with all whitespace
+  collapsed.
+  THE PATTERN: every one of these is the tool describing itself in
+  words that do not match what it will accept. A message is part of
+  the interface and must be tested against the shape the user
+  actually sees, not the shape it has in the source.
+
+- ~~269~~ | ENGINE DONE v1.45.0, DOORS DONE v1.47.6 | THE INVENTORY:
+  WHAT IS IN A FOLDER.
+  IT WAS MARKED DONE FOR TWO RELEASES WHILE REACHABLE FROM NOWHERE.
+  No GUI, no runner, no Stata - only by writing Python, which the
+  person this project is built for does not do. "DONE" meant the
+  engine worked. It is the first of the five unreachable things found
+  in session 12 and the reason tests/reachability.py now exists: the
+  suite asked whether the thing worked and never whether anyone could
+  get to it.
+  v1.47.6 gives it TWO DOORS. "6. What is in this folder? (reads,
+  changes nothing)" in QGIS and in Pro - numbered 6 because machine 5
+  is fetching and this reads a folder already on disk. One row per
+  file or layer, and the LATTICE COLUMN is the point: a folder
+  holding more than one lattice says so loudly.
+  THE TEST THAT MATTERS IS test_4. Three rasters, same CRS, same cell
+  size, one offset by HALF A CELL - indistinguishable in any file
+  listing, and merging them by index silently misaligns every value.
+  BACKLOG 239 is the version of that which merged rasters 3,300 km
+  apart.
+  THREE SPARSE-SIMULATOR GAPS FOUND BUILDING IT, all real API the
+  stub had never needed: QMetaType.Type.LongLong, the DETable
+  datatype, QgsWkbTypes.NoGeometry. Every EquiPop output until now
+  carried points, so a table with NO GEOMETRY had never been asked
+  for. Same family as the polygon barrier of 1.29.3: a sparse
+  simulator does not fail loudly, it narrows what a door may ask and
+  the narrowing reads as a mistake in the door.
+  AND make_help_xml.py's TOOL LIST WENT STALE A THIRD TIME - 294
+  replaced two names with four one release ago, and a fifth tool made
+  it wrong again at once. It reads Toolbox().tools now.
+  CLAUDE WROTE _rows() FROM MEMORY of what an inventory ought to look
+  like - nested layers, rec["path"], rec["pixel_x"] - when the
+  package returns FLAT records with rec["file"] and a two-element
+  rec["pixel_size"]. The engine was thirty lines away.
+  ORIGINAL ENTRY: John's idea -
+  save a short description with each download so a later merge can
+  offer dropdowns instead of making the user hunt.
+  TWO OBJECTS, AND ONLY ONE IS MACHINE 5'S. The MANIFEST records
+  PROVENANCE and machine 5 writes it WITHOUT OPENING ANYTHING,
+  because a fetcher downloads and stops. The INVENTORY records
+  CONTENTS - layers, fields, CRS, geometry, extent, class values -
+  which needs the files READ, so it belongs on the analysis side.
+  Putting it in machine 5 would have broken the standing rule for
+  convenience.
+  THE LATTICE IS THE POINT. Files are grouped by grid identity, and
+  the key is the CRS, the pixel size, and THE ORIGIN MODULO THE PIXEL
+  SIZE - not the origin, because two rasters covering different areas
+  of one grid are the same lattice. More than one lattice is said out
+  loud, because merging across grids needs a decision and BACKLOG 239
+  exists from one being made silently.
+  CLASS VALUES COME FROM THE DATA, NOT FROM DOCUMENTATION. fclass and
+  its kin are read from the user's own extract, so the grouping
+  dropdown is right for Sweden and right for Burundi without a list
+  written from a schema PDF - the fault that broke the WorldPop naming
+  registry on all 120 of John's files (211). A column with more than
+  60 distinct values is reported as an identifier rather than listed,
+  so street names cannot bury fclass.
+  IT READS THE CLASS COLUMN ONLY, never the geometry, so a country
+  extract is inventoried without loading it.
+  AN UNREADABLE FILE IS RECORDED WITH ITS ERROR, not skipped - and
+  that is how Claude's own bug was found rather than losing two
+  shapefiles silently: pyogrio returns `fields` as a NUMPY ARRAY, so
+  `info.get("fields") or []` evaluates an array's truthiness and
+  raises. Written from habit without reading what read_info returns.
+
+- ~~270~~ | DONE | THE DROPDOWN SAID NOTHING. John: "the info in the
+  dropbox looks like spelling errors". Quite so - worldpop, ghsl, hdx,
+  geofabrik are internal keys, shown raw, saying nothing about what
+  they hold. Labelled now, WITH THE LICENCE, because Geofabrik's
+  share-alike obligation matters BEFORE the download and is the one
+  thing that can follow a published result home.
+
+- ~~271~~ | DONE | GEOFABRIK DEFAULTS TO SHAPEFILE, NOT pbf. John:
+  "the file format when opening is very slow - 10 s just to open".
+  GDAL builds a temporary index database the first time it opens a
+  .osm.pbf, and pays it again on every open. THE FIX IS NOT TO
+  OPTIMISE THE OPEN - it is not to use that format. The free
+  shapefile zip is already split into thematic layers carrying
+  fclass, opens in a second, and needs no new dependency: pyogrio,
+  which geopandas already uses.
+  DECIDED AGAINST pyrosm and pyosmium (new dependencies) and against
+  osgeo (present in QGIS, ABSENT in Stata's Python and standalone).
+
+- ~~272~~ | DONE, HIGH | GRID INDICES WERE ADDED TO THE POPULATION.
+  External review of 1.44.10, with an exact reproduction. This is
+  JOHN'S BACKLOG 232, which he reported weeks ago and Claude twice
+  failed to reproduce - because he never combined sum_cohorts with
+  keep_index, and the reproduction needs both.
+  A 2x2 grid holding 10 people per cell returned [10, 11, 11, 12] -
+  44 people instead of 40. On a continental grid an index DWARFS the
+  population it corrupts.
+  THE RULE WAS WRITTEN THREE TIMES as "everything except lon, lat,
+  iso3". keep_index later added gx and gy, and one of the three was
+  not updated. AN EXCLUSION LIST IS A PROMISE ABOUT EVERY COLUMN THAT
+  WILL EVER EXIST, and it was broken by the next column added. One
+  definition now, used three times.
+  The sum also DROPPED gx and gy afterwards, so the sum option and the
+  exact lattice join could not be used together - fixed as well.
+  Pinned with and without indices, on a larger grid, and with two
+  countries.
+
+- ~~273~~ | DONE, HIGH | A RESULT THAT DEPENDED ON WHICH OTHER FILES
+  WERE PRESENT. The selected year filtered the numerator and
+  denominator, but the REFERENCE POPULATION summed the f_ and m_
+  columns of EVERY year in the folder. Analysing 2020 changed once
+  2030 had also been downloaded: measured here, mean Dist 34.60 m
+  against 24.37 m - a 30% change in the neighbourhood - with the
+  selected year's data identical. The review measured radii moving up
+  to 55 m and the sex ratio by 0.073.
+  THE YEAR WAS NEVER PASSED DOWN. run_indices knew it, used it to
+  pick cohorts, and did not give it to the loader; run_folder and
+  load_folder did not accept it at all - so machine 3's own door
+  could not confine a year either. Wired through all three.
+  The run now SAYS when it leaves columns out, because that is a
+  decision the user must see.
+  PERMANENT REGRESSION TEST, as the review asks: "adding an unrelated
+  year leaves this year's output unchanged", for two indices. THIS IS
+  THE ONLY KIND OF DEFECT THAT MAKES A PUBLISHED COMPARISON WRONG FOR
+  A REASON NOBODY CAN SEE IN THE OUTPUT.
+  AND CLAUDE ASSUMED A KEY NAME AGAIN while writing the test -
+  INDICES entries have `code`, not `short`. Third time this session an
+  edit was written against unread structure.
+
+- ~~274~~ | DONE, HIGH | A FILENAME COLLISION ATTRIBUTED OLD BYTES TO
+  A NEW SOURCE. Review finding 5, reproduced. Reuse matched on
+  BASENAME ALONE: fetching productB/population.tif after productA's
+  kept A's bytes on disk and wrote B's URL into the manifest. ONLY A
+  WAS EVER DOWNLOADED, and the manifest said otherwise.
+  Reuse now requires the RECORDED URL to match the requested one, and
+  an existing file with no manifest entry is refused rather than
+  adopted - attributing it to the requested URL would invent a
+  provenance that was never observed.
+
+- ~~275~~ | DONE, HIGH | A SECOND FETCH ERASED THE FIRST'S PROVENANCE.
+  Review finding 6. The manifest was rewritten with only the current
+  plan, so fetching a second country left the first files on disk and
+  REMOVED THEIR ENTRIES.
+  THE CONSEQUENCE IS THE POINT: tampering with the forgotten file then
+  verified as "1 unchanged, 0 CHANGED, 0 missing". THE VERIFIER SAID
+  ALL WAS WELL ABOUT A FOLDER IT HAD FORGOTTEN HALF OF - and machine 3
+  reads the whole folder regardless, so the untracked file is analysed
+  anyway.
+  The manifest ACCUMULATES now, keeps a per-fetch history, and is
+  written ATOMICALLY so an interrupted write cannot destroy the
+  provenance of everything already fetched. verify_folder also reports
+  UNTRACKED files, because a file nobody fetched still reaches the
+  analysis.
+
+- ~~276~~ | DONE, HIGH | A RESUMED RUN SILENTLY RETURNED AN EARLIER
+  ANALYSIS. Review finding 7, reproduced: k=100, then k=200 into the
+  same folder. THE SECOND CALL COMPLETED SUCCESSFULLY and returned
+  N_100, with no N_200 column and no warning.
+  Tiles were skipped on FILENAME AND EXISTENCE ALONE. The manifest had
+  RECORDED the parameters all along and nothing ever read them - the
+  identity existed and was ignored.
+  Resume now compares the full run identity - k, radii, decay, tile
+  size, dtype, unit size, cell count - and refuses a mismatch by name,
+  saying which parameter differs and what each side holds. A matching
+  resume still works, and a test guards that too, because a check
+  must not break the feature it protects.
+  A RUN THAT SILENTLY ANSWERS AN EARLIER QUESTION IS THE WORST KIND OF
+  WRONG: nothing in the output says so, and the columns look
+  plausible.
+
+- ~~277~~ | DONE, HIGH | THE GEOGRAPHIC CONTRACT WAS ONLY PARTLY
+  ENFORCED. Review finding 4. BACKLOG 239 closed the mixed-CRS hole;
+  three more remained, and one produced COORDINATES THAT WERE SIMPLY
+  WRONG.
+  A raster with NO CRS was accepted and recorded as the string
+  "None" - now refused, because guessing would place the result
+  somewhere plausible and wrong.
+  A ROTATED raster was accepted and ITS ROTATION DISCARDED. The true
+  first centre was 30.000500, -1.997000 and EquiPop returned
+  30.000417, -1.997083. Not missing metadata - an arithmetic error,
+  silent, in every coordinate. Now refused, with the QGIS menu path
+  for warping it north-up.
+  A PROJECTED folder was accepted and then reprojected AS IF IT WERE
+  DEGREES, because three places assumed EPSG:4326: the transform
+  source, the QGIS points-only stamp, and the field message. GHSL's
+  Mollweide and any UTM folder are legitimate inputs, so the fix is
+  not to refuse them but to USE THE FOLDER'S OWN CRS - and to skip
+  suggest_projection entirely, since it reads lon and lat as degrees
+  and refuses anything beyond +/-90.
+  CLAUDE INVENTED A HELPER THAT DID NOT EXIST while fixing this
+  (_cells_from) and had to undo it. Writing code against a function
+  never checked for is the same fault as editing text never read.
+
+- ~~278~~ | DONE | CHECKSUMS WERE RECORDED MORE STRONGLY THAN THEY
+  WERE VERIFIED. Review finding 8. HDX's publisher_md5 and
+  Geofabrik's .md5 sidecar were attached to every entry and NEVER
+  CHECKED - so the manifest promised more than it had established. A
+  local SHA-256 says what bytes are here; it says nothing about
+  whether they are the right ones.
+  A deliberately wrong publisher MD5 was accepted. A transport
+  declaring 1,000 bytes and returning 5 had those five PROMOTED to
+  the final file.
+  Both refused now, and the bad file REMOVED rather than left. The
+  transport checks Content-Length and cleans up its .part on any
+  failure - the QGIS message had been claiming nothing partial was
+  kept while .part files were being left behind.
+  THE SIZE IS MEASURED FROM DISK, not taken from the transport's own
+  report. Comparing a transport against the number it supplied would
+  always agree with itself - the first version of this fix did
+  exactly that and passed.
+
+- ~~279~~ | DONE, HIGH - LAST OF THE REVIEW'S HIGHS | AN INCOMPLETE
+  MEASURE WORE A COMPLETE MEASURE'S NAME. Review finding 3. The
+  planner checked each side had AT LEAST ONE matching column, never
+  that the bands the measure NEEDS are present.
+  A folder holding f_00, f_15 and f_65 was accepted as a DEPENDENCY
+  RATIO and computed (under-one + 65-69) / 15-19, keeping the general
+  label and the general explanation. THE ARITHMETIC WAS RIGHT AND THE
+  NAME WAS A LIE - the hardest kind of fault to see, because nothing
+  is wrong with the number, only with what it is called.
+  Refused now, naming EVERY missing band. A deliberately restricted
+  study stays legitimate through allow_incomplete=True, and is then
+  RECORDED on the plan, so it is CHOSEN rather than arrived at by
+  absence.
+  THE MOVED BOUNDARY, the second half of the finding: asking for 0-17
+  selects whole bands 0 to 14 and drops ages 15, 16 and 17. Whole
+  bands are right for banded data; discovering it in a footnote is
+  not. The plan now carries asked-versus-covers per side and the run
+  says "the boundary moved". IT ALSO REVEALED THAT 18-64 COVERS
+  20-64, which nobody had noticed.
+  AND CLAUDE WROTE THE BAND RULE OUT A SECOND TIME. expected_bands
+  first had its own loop, and it DISAGREED with columns_for: 0-17 gave
+  five bands in one and four in the other, so the completeness check
+  would have demanded a band the selector never picks. Both use
+  _bands_from now. ONE RULE WRITTEN TWICE IS EXACTLY HOW 272 HAPPENED,
+  three days ago, in the same file's neighbour.
+
+- ~~280~~ | DONE | LINES AND POLYGONS REACH THE LATTICE. The missing
+  half of John's OSM plan: points already landed on the grid, lines
+  and polygons did not, and LINES ARE WHAT FRICTION NEEDS -
+  features_to_friction(), load_friction_table() and run_knn_friction()
+  have existed for months waiting for exactly this input.
+  A ROAD IS DIVIDED BETWEEN THE CELLS IT CROSSES, not assigned to one.
+  250 m spanning three cells appears as 50 + 100 + 100, and total
+  length is conserved to floating point - the property that matters,
+  because anything lost at a boundary is lost invisibly.
+  THE UNIT IS THE MEASURE, which is John's own observation: "if we
+  declare that the longest road stretch in the unit defines the
+  friction value we need to know WHERE it is the longest". So
+  length_top is the longest-wins rule stated directly, and it is
+  computed PER CELL - a class can win in one cell and lose in the
+  next.
+  POLYGONS REPORT A SHARE, 0 to 1, not an area: water and buildings
+  are coverage and barriers rather than friction, and a raw area would
+  depend on the cell size and stop being comparable between runs.
+  GROUPING IS A DEFINITION THE USER SUPPLIES - cafe plus restaurant
+  plus fast_food as "eateries" - and an UNGROUPED value keeps its own
+  name, because a class vanishing from a classification is this
+  project's signature fault. A value in two groups is refused, since
+  the totals would count it twice.
+  THE BOUNDARY IS HELD: EquiPop reduces geometry to VALUES ON A
+  LATTICE and is not becoming a GIS. Intersect, within and buffer as
+  general operations stay in QGIS.
+  CLAUDE PREDICTED A REFUSAL THAT CANNOT HAPPEN: features on a distant
+  lattice origin are not "elsewhere" - the grid is built AROUND them,
+  so the origin only shifts the INDICES. The test now records that,
+  which matters more than the refusal would have: the indices are what
+  a join matches on, so the same road on two lattice origins joins to
+  nothing.
+
+- 281 | OPEN, NEXT VERSION, MINOR | "Value: many" DOES NOT SAY WHICH
+  COLUMN IT MEANS. John, testing geofabrik: every other line quotes
+  its name - Setting 'region', Value 'POP' - but a field whose options
+  come from a live catalogue prints "Value: many - give this setting
+  alone and run to see the list", with no quotes and no column named.
+  He worked it out and said so anyway, which is the useful kind of
+  report: HE COULD READ IT AND STILL FOUND IT UNCLEAR.
+  The fix is to keep the same shape as the quoted lines - name the
+  Value column explicitly - so the listing reads the same way whether
+  the options are known in advance or fetched.
+
+- ~~282~~ | DONE | LENGTH IN A GEOGRAPHIC CRS IS DEGREES, NOT METRES.
+  Found while writing John's test instructions, which is the only
+  reason it was found at all: 1.46.0 shipped a day earlier with a
+  docstring promising metres.
+  WORLDPOP'S LATTICE IS EPSG:4326, so the case that matters most was
+  the broken one - a 1 km road measured 0.009, and every friction
+  value derived from it would have been wrong by a factor of about
+  100,000. GEOPANDAS WARNED, into a log nobody was reading.
+  Lengths and areas are now measured ON THE ELLIPSOID when the
+  lattice is geographic, which is exact and needs no projection
+  choice. 1001.3 m for that road.
+  AND THE CELL'S OWN AREA IS MEASURED PER CELL, because a 30
+  arc-second cell is 860,000 m2 at the equator and 440,000 at 60
+  degrees - one figure for the grid would have made every share wrong
+  except in the middle. Pinned at the equator AND at 60 N, which is
+  the test that would have caught a single global value.
+  THE PATTERN: the tests used a PROJECTED lattice throughout, because
+  that is what the friction machinery expects - and the real data is
+  geographic. A test suite that never uses the shape of the actual
+  input is a suite that agrees with itself.
+
+- ~~283~~ | DONE | A RUNNABLE RECIPE FOR THE OSM WORK, and it says
+  where to run it: THERE IS NO QGIS TOOL FOR THIS YET. The engine
+  works and nothing wraps it, so run_osm_friction.py drives it from
+  the QGIS Python console, the OSGeo4W Shell or Anaconda.
+  Written and RUN end to end here on data shaped like John's -
+  WorldPop 1 km rasters plus a Geofabrik-style roads layer over the
+  same ground - before being handed over. 60 roads, 194 cells, seven
+  classes.
+  equipop/providers/osm_road_groups.json ships the group defaults
+  John asked for, with illustrative friction values and a note saying
+  plainly that NOBODY HAS CALIBRATED THEM and that a published result
+  needs his own. Seven OSM classes collapse to five groups.
+
+- ~~284~~ | DONE | "THE LOG IS NOT GIVING ME ENOUGH INFO TO EVEN
+  DOWNLOAD WHAT I DOWNLOADED BEFORE." John, after SEVEN failed
+  attempts in five minutes on a fetch he had already done.
+  THE TOOL SAID "No such dataset: None". None is not a value he
+  typed - it is the ABSENCE of a row he did not know to add, printed
+  as though it were his mistake. It now says "No dataset was given.
+  Add a row with 'project' in the Setting column", and lists the
+  choices.
+  AND IT NAMED THE DESCRIPTION, NOT THE KEY: "add a row with
+  'dataset'" when the setting is called `project`. THE SAME FAULT AS
+  268, where he was told the field was "Year" and the key was
+  `epoch`. A message must use the words the tool accepts, and this is
+  the second time that rule has been broken in the same file.
+  HIS FIFTH ATTEMPT HAD THE RIGHT VALUE IN THE WRONG BOX -
+  age_structures, a DATASET, placed in the version row - and the tool
+  KNEW it was a dataset and refused without saying so. It now says
+  which row it belongs in.
+  TWO OF CLAUDE'S OWN GUARDS CAUGHT HIM WHILE FIXING IT. The door's
+  no-provider-vocabulary test fired TWICE - once for naming WorldPop's
+  fields in the check, once for naming them in the COMMENT explaining
+  the first fix. And osm_road_groups.json, shipped a day earlier into
+  equipop/providers/, was picked up by the registry loader as a
+  malformed provider definition. providers/ is for provider
+  definitions; it moved to equipop/tables/.
+
+- ~~285~~ | DONE | A 33-CHARACTER NAME THREW AWAY A COMPLETED RUN.
+  John: 646,766 cells, three widened passes, both k values - and then
+  "T_h72004_africanamericanalone_100 is 33 characters - Stata allows
+  32. Use a shorter prefix() or shorter treatment variable names."
+  THE ARITHMETIC WAS DONE. Only the label was too long, and the tool
+  answered by discarding the work and telling him to rename his data.
+  Names are SHORTENED now, and what is cut is THE MIDDLE: the prefix
+  says which measure and the tail says which k, both carry meaning and
+  both are short. His four names fit at exactly 32 with the k intact.
+  COLLISIONS ARE CHECKED and a disambiguating digit added, because two
+  long names can truncate to the same thing. EVERY RENAME IS
+  ANNOUNCED - a silently renamed column is how somebody publishes the
+  wrong variable.
+  AND A WARNING NOW COMES BEFORE THE COMPUTATION. The ado cannot know
+  every column the engine will make, but the LONGEST is predictable -
+  prefix, the longest treat variable, and the largest k - so it says
+  so first. A ten-minute run must not die at the labelling step.
+
+- ~~286~~ | DONE | THE HELP'S EXAMPLES, and one of them was wrong.
+  John asked for pop(), self-potential, decay and overshoot. Written -
+  and CLAUDE WROTE overshoot(shares) FROM MEMORY. The real values are
+  `whole` and `proportional`; `sampled` exists in the engine and is
+  NOT offered by the Stata door. A user copying the help would have
+  been refused by the command the help documents.
+  He also asked what [fweight=] is FOR when pop() exists. They mean
+  the same thing - "this row stands for N identical observations" IS a
+  population count - and the command refuses both together. fweight
+  demands WHOLE NUMBERS and pop() takes fractional counts, which is
+  what gridded population needs. Now said in the help rather than
+  discoverable only from the source.
+  TWO TESTS NOW CHECK EVERY EXAMPLE: every option against the syntax
+  line, and every VALUE against the inlist() the command validates
+  with. The second is the one that would have caught this.
+
+- ~~287~~ | DONE | THE RENAME WAS ANNOUNCED AND NOT APPLIED. One
+  release after 285. The names were shortened correctly, PRINTED TO
+  JOHN correctly - twelve of them, exactly right - and then the
+  writing loop rebuilt each name from `res` and created the ORIGINAL.
+  Stata refused with "invalid varname" AFTER the rename had been
+  shown on screen.
+  THE NAMES WERE RIGHT ON SCREEN AND WRONG IN THE DATA, which is the
+  worst arrangement of the two: the log said the problem was solved.
+  A mapping was computed and never carried to the point of use. That
+  is the same shape as BACKLOG 252 - the number resolved in one layer
+  and consumed raw in another - and as 272, where one rule was written
+  three times and one copy went stale.
+  THE TESTS NOW EXECUTE THE SHIPPED BLOCK rather than reading it. The
+  broken version passed every reading test it had, because the
+  announcement was correct; only the writer was wrong. Reverting the
+  fix fails them.
+  72 names checked at once, three prefixes, eight k values: all within
+  32, all distinct, short names untouched, the k always preserved.
+
+- ~~288~~ | DONE, JOHN'S RULING | BATCH RELEASES TO WHEN HE WILL
+  TEST. He asked whether the last few days had been "limited progress
+  and a lot of repair". Counted honestly: 6 new capabilities, 8 real
+  defects found by external review, 6 reports from his own use, and
+  SEVEN REPAIRS OF WORK SHIPPED DAYS EARLIER - three of them the same
+  issue twice.
+  The delivery rule says four artefacts per SESSION. Claude had been
+  reading it as per MESSAGE, which put John on an install treadmill.
+  264+265 and 285+287 would each have been one round trip.
+  AND THE DIAGNOSIS, which matters more than the rule: five of the
+  seven had ONE CAUSE - the test never met the real shape. The stub
+  returned [] where QGIS returns NULL. The vector tests used a
+  projected lattice and the data is geographic. The Stata tests READ
+  the naming code instead of running it. A suite that never meets the
+  real input is a suite that agrees with itself.
+  Both written into HANDOVER 14 as standing rules.
+  THE EXTERNAL REVIEW WORK WAS NOT CHURN and the record should say so:
+  grid indices added to the population, a result that changed
+  depending on which other files were on disk, a resumed run silently
+  returning an earlier analysis. Those were producing wrong numbers
+  before this week.
+
+- ~~289~~ | DONE, JOHN'S RULING | HANDOVERS 9 AND 10 ARE GONE, AND THE
+  GAP IS NOW RECORDED. Asked in HANDOVER 13, asked again in HANDOVER
+  14 §5b, ruled by John in session 12: "record the gap".
+  Written into HANDOVER 14 §5b, which is where a future session will
+  look when it counts the files and finds 6, 7, 8, 11, 12, 13, 14. The
+  jump is not a bad unzip and not a missing delivery - those two
+  handovers were written and never committed.
+  THE BACKLOG IS THE RECORD FOR THAT STRETCH and it is continuous
+  across it, item numbers included, because items were appended as
+  they arose regardless of which session was writing. Nothing else
+  survives from 9 and 10.
+  THE LESSON IS THE REASON TO WRITE IT DOWN RATHER THAN DROP THE
+  QUESTION: a handover that is delivered but not committed does not
+  exist. Two sessions of reasoning were lost to a step that takes a
+  minute. From 14 onward the handover enters the repository root in
+  the same act as the release.
+  AND THE VERY NEXT RELEASE BROKE THAT RULE. Session 12 wrote this
+  entry and then shipped 1.47.0, .1 and .2 with no HANDOVER_15,
+  until John noticed the delivery was short. WRITE THE HANDOVER
+  BEFORE BUILDING THE ARTEFACTS - it is the only ordering in which
+  forgetting is impossible, and "in the same act as the release" was
+  too vague to be followed by the session that wrote it.
+
+- ~~290~~ | DONE v1.47.6 | IS THE ORIGIN ITS OWN NEIGHBOUR? John's
+  ruling: two rules, i=j and i!=j, and `include` STAYS THE DEFAULT.
+  THE PACKAGE ALREADY HELD TWO ANSWERS and called both "the
+  neighbourhood". autocorr.build_weights() has always excluded self -
+  its diagonal sums to exactly 0.0 - while the counting machines have
+  always included it, with selfpot.py existing precisely because the
+  origin's people sit at distance 0. The Tartu slides say "self is
+  never its own neighbour", which was true of the estimator and false
+  of every other machine.
+  CONFIRMED IN THE FIELD BY JOHN, session 12, and this is the
+  anchor the release turns on. Run in Stata on CaliData2010 over
+  78,208 populated blocks of five-county Los Angeles, weighted by the
+  group, against the R_ column the 2014 software left in the file:
+      2014 software  mean 0.2752264  sd 0.2464846  min 0.0004955
+      EquiPop 1.47   mean 0.2752264  sd 0.2464846  min 0.0004955
+      same, i!=j     mean 0.2378486  sd 0.2482518  min 0.0000000
+  IDENTICAL TO SEVEN DECIMALS on four statistics. Figure 4 of the
+  2015 paper reads ~0.28. Excluding the origin lowers the index
+  13.6%.
+  THE MINIMUM IS WHAT PROVES IT IS A COMPUTATION AND NOT A COPY. An
+  exact seven-digit match is also what a copied column looks like,
+  and 1.46.3 and 1.46.4 were both naming-and-writing faults in this
+  same path - names right on screen, wrong in the data - so the match
+  alone was not enough to bank. Under i=j a block with any African
+  American residents CANNOT score zero, because its own people are in
+  its own neighbourhood; under i!=j it can hold them and have none
+  among its neighbours, and that is a true zero. No copy produces
+  that.
+  CLAUDE'S OWN FIGURES WERE WRONG AND THE EVIDENCE WAS IN THEM. The
+  bench run said 0.2765 and -13.4%, measured with the neighbour
+  search capped at 48 cells, which never reaches k for remote blocks.
+  The same measurement reported a median per-block difference of
+  0.00000 alongside an index off by 0.0013 - which is the signature
+  of a cap, not of a real difference - and it was read as a real
+  difference anyway. FIELD NUMBERS REPLACE BENCH NUMBERS wherever
+  both exist, and a bench number should carry its cap.
+  THE SHIFT IS NOT UNIFORM AND THAT IS THE POINT. Minority members
+  live disproportionately where their group is concentrated, so their
+  own block is a large part of their measured isolation; for a 63%
+  majority the neighbourhood is White either way.
+  IT ALSO BENDS THE SCALE PROFILE, which is the more serious finding.
+  Across k = 100, 200, 400, 800: African American isolation falls
+  0.0240 with the origin in and 0.0037 with it out - SIX TIMES LESS
+  DECLINE. Over that range the origin block shrinks from roughly all
+  of the neighbourhood to about a seventh, so most of the slope at
+  small k is THE ORIGIN BLOCK BEING DILUTED, not the surroundings
+  changing. Mean block population there is 113 and 35.6% of blocks
+  hold 100 or more, so at k=100 the "hundred nearest neighbours" IS
+  the origin block for over a third of the region. None of this
+  touches the 2015 paper's macroscale conclusions - by k=6,400 the
+  origin block is negligible - but it qualifies the microscale end.
+  A THIRD RULE WAS DESIGNED, TESTED AND DROPPED: remove one AVERAGE
+  resident, n-1 and t - t/n. It preserves the cell's balance exactly
+  (10 people of whom 1 treated give 0.1000, not 1/9 = 0.1111), it IS
+  the expectation of suppressing a random individual (0.0999 over
+  200,000 draws), and the same formula collapses correctly on
+  individual rows where n=1 and the row vanishes. Dropped because it
+  does nothing: on the LA blocks it moved isolation from 0.2765 to
+  0.2764. Removing one person from a unit of 113 is noise - the
+  contamination is your CELL-MATES, not you. Recorded so the next
+  session finds the measurement instead of repeating the work.
+  SHIPPED IN: equipop/selfrule.py, all three engines, both QGIS
+  algorithms, both Pro tools, Stata's originrule(), doors/help.py.
+  Named `originrule` in the doors rather than `selfrule` because
+  Stata already has SELFpot and SELFPOTName and a third self... option
+  risked an abbreviation clash that cannot be tested from here.
+  TWO OF ITS OWN TESTS COULD NOT FAIL and the house practice caught
+  both. The crossing-ring test was wrong twice: first the origin was
+  never IN the crossing ring (rings are equal-distance groups, the
+  origin sits at 0, and with its mass removed the crossing moves
+  outward - it can only be in that ring when another cell SHARES ITS
+  COORDINATES); then, with the fixture fixed, asserting on the SHARE
+  still could not catch an unmasked ring total, because the ring
+  fraction scales numerator and denominator alike and `proportional`
+  pins N_k to k by construction. Only T moves - 15 to 5 - while N_30
+  stays exactly 30 and R_g stays exactly 0.5. A share and a count
+  that both look right while the total is a third of what it should
+  be. Both reasons are in the test's docstring.
+
+- ~~291~~ | DONE v1.47.6 | THE DOWNLOAD DEFECTS FROM THE EXTERNAL
+  REVIEW OF 1.46.4. Eight claims were checked against this tree
+  before anything was changed; all eight held and ONE WAS WORSE THAN
+  REPORTED.
+  THE MD5 SIDECAR. `md5_url` appeared exactly TWICE in 1.46.4: the
+  line that wrote it, and a comment above the checksum block claiming
+  BACKLOG 278 had fixed it. Nothing ever read it. 278 covered HDX,
+  which supplies publisher_md5 inline, and left Geofabrik entirely
+  unverified while the comment read as though both were done - so
+  every Geofabrik file in every manifest since then carried a
+  provenance record STRONGER THAN ITS EVIDENCE. Now fetched, parsed
+  (`<32 hex>  name`, several lines, optional `*`), checked, and the
+  outcome recorded per file as publisher_check.
+  THE OTHERS, each with a test that fails when the old behaviour is
+  restored: HDX asked rows=100 with no `start` and stopped, so
+  Turkey's 175 datasets could not be reached past 100 - Sweden has 98
+  and fitted, which is why a Sweden-only fixture kept it invisible;
+  the manifest was written only after the LAST entry, so a failure at
+  file 2 left file 1 with no provenance and a retry then refused it;
+  untracked files were compared by BASENAME, so nested/a.tif hid
+  behind a tracked a.tif - the one thing a verify exists to notice;
+  an HTTP 200 carrying an HTML sign-in page was checksummed,
+  manifested and reported as done; WorldPop's suffix filter ran
+  endswith() against the WHOLE URL, discarding a valid
+  `...tif?download=1` with no message.
+  A SECOND DEFECT FROM THE SAME QUERY STRING, found while fixing the
+  first: os.path.basename() of the whole URL produced a file named
+  `swe_pop.tif?download=1` - refused outright by Windows, and on
+  Linux a file no importer recognises by extension.
+  THE FORMAT CHECK WAS NARROWED AFTER BEING WRITTEN. The first
+  version carried a magic-bytes table per extension and refused
+  anything that did not match. It broke twenty existing tests and,
+  worse, would have refused .csv, .json, .pbf, .shp and whatever the
+  next provider serves. Inventing a rule from an incomplete list is
+  how the four-years-stale WorldPop docs and GHSL's prose-only CRS
+  constraint both hurt this project. It now catches only the failure
+  actually observed - a web page where a file should be - and leaves
+  truncation and corruption to the declared length and the publisher
+  checksum, which are the right instruments for those.
+  ALSO: qgis/base.py discarded addFeature()'s return value and then
+  reported the INTENDED row count, so a run that wrote fewer rows
+  than it was given announced complete success. The simulator always
+  returned True, so the one thing that could have caught it agreed
+  with the code; tests/qgis_stub.py can now refuse a row. This is ONE
+  MECHANISM that could produce the unexplained output complaints in
+  224 and 232. It is not a diagnosis of them - those still need
+  John's logs - but it can no longer be the answer.
+
+- ~~292~~ | DONE v1.47.6 | THE SOURCE ARCHIVE SHIPPED NO RUNNERS.
+  run_fetch.py, run_raster_folder.py and run_osm_friction.py were all
+  absent from equipop-1.46.4.tar.gz. MANIFEST.in had gained
+  `include demo_*.py` for BACKLOG 107 and nothing for the runners, so
+  the miss its own comments describe three times happened a FOURTH.
+  IT MATTERED MOST FOR run_osm_friction.py. BACKLOG 283 records that
+  it is THE ONLY WAY to reach the OSM lattice engine, because no door
+  wraps it - so the source archive carried the headline feature of
+  1.46.0 and 1.46.1 with no way to run it.
+  Fixed by one line, and guarded by a test that reads the run_*.py
+  files OFF DISK, so a runner added later is covered without anyone
+  remembering to come back.
+  A SECOND THING THE ARCHIVE NEVER CARRIED, found the same way when
+  John's Pro tooltip came back empty: arcgis/EquiPop.<Tool>.pyt.xml,
+  the sidecars Pro reads for the comment beside every parameter box.
+  Never in MANIFEST.in, never in an sdist, never in a delivery. They
+  are build outputs, so they are kept OUT of the repository (45) and
+  put INTO the archive - both statements are correct and the
+  distinction is the point. See 34.
+  AND THE GUIDE THAT TELLS PEOPLE WHICH FILES TO KEEP WAS WRONG.
+  arcgis/ARCGIS_GUIDE.md said "Keep these FOUR files together" and
+  then listed THREE, under a heading stamped v1.16.8, and told the
+  reader that "Two tools appear" when four do. A user following it
+  replaces the toolbox and keeps the sidecars, which is EXACTLY what
+  happened to John at 1.47.6. The instruction, not the packaging, is
+  what produced the empty box.
+
+- ~~295~~ | DONE v1.47.6 | make_help_xml.py COULD NOT BE RUN WHERE IT
+  IS SHIPPED. It has been one of the five Pro files since 1.44.4 and
+  it imports test_arcgis_stub, which lives in the repository's tests/
+  directory and is NOT one of the five. ModuleNotFoundError,
+  immediately, every time, for the whole life of the delivery.
+  FOUND BECAUSE THE INSURANCE WAS UNINSURED. 1.47.6 wrote the Pro
+  parameter comments as escaped HTML on an untested hypothesis (34)
+  and offered `--plain` as the ten-second way back. John pasted the
+  command, it failed, and only then did anyone check whether it could
+  have worked. It could not. THE ESCAPE HATCH FOR AN UNTESTED CHANGE
+  WAS ITSELF UNTESTED - which is worse than the change, because it
+  was the reason the change felt safe to ship.
+  He also pasted it into Pro's embedded Python WINDOW rather than the
+  Python Command Prompt, which is a separate and entirely reasonable
+  mistake: the guide said "run this from the repository root" to
+  somebody who has no repository.
+  FIXED by falling back to REAL arcpy, which is what Pro's Python
+  Command Prompt has, so the script now runs in the two places it is
+  ever run from and says so when it is in neither. The guide gives
+  both invocations and names the window that is not a prompt.
+  FOURTH INSTANCE THIS SESSION of shipped-but-unreachable, after
+  inventory.py, vectorjoin.py and RunLog (293). The first three were
+  capabilities nobody could get to. THIS ONE WAS THE RECOVERY PATH
+  FOR A KNOWN RISK, which makes it the one worth remembering.
+
+- ~~294~~ | DONE v1.47.6 | MACHINES 3 AND 4 HAD NO HELP TEXT AT ALL,
+  IN ANY DOOR. ContinentalRasters and SpatialDemography are
+  registered in the Pro toolbox and executed by the suite, and
+  THIRTEEN of their parameters had no entry in doors/help.py: folder,
+  crs, weight, sumcohorts, pattern, tiles, out, indices, year,
+  settings.
+  THAT IS WHY make_help_xml.py COVERED ONLY TWO OF THE FOUR TOOLS. It
+  refuses to write a sidecar with a gap in it - correctly - so rather
+  than a partial file it produced none, and both tools showed "There
+  is no description for this item", "There is no usage for this tool"
+  and "There is no explanation for this parameter" against every box,
+  in every release.
+  THEIR SUMMARY AND USAGE TEXT EXISTED THE WHOLE TIME - 738 and 436
+  characters for machine 3, 580 and 447 for machine 4, sitting in
+  help.py and reaching the Pro dialog's own description. It could not
+  reach the '?' page for want of a file that thirteen missing
+  parameter entries prevented being written. A whole tool's
+  documentation held back by the smallest part of it.
+  CLOSED BY JOHN'S SCREENSHOT, session 12. He sent the '?' page for
+  machine 3 as evidence that the panel text was "mostly missing" -
+  which it was, and for this reason rather than for BACKLOG 34's.
+  THE FIX: thirteen entries in the house style, grounded in what the
+  parameters actually do rather than in their dialog labels, and all
+  four tools added to make_help_xml.py. FIVE files now travel to Pro,
+  not three. The guard counts REGISTERED TOOLS from the toolbox
+  rather than expecting a number, so a fifth machine cannot ship
+  unhelped the way these two did.
+
+- ~~295b~~ | DONE v1.47.6 | THE REACHABILITY MATRIX. John's request,
+  session 12: "can a person get to this, and from which door?" - and
+  his memory of a functions-by-doors table from the early Stata work.
+  THAT TABLE DOES NOT SURVIVE. Every .md in the tree was searched;
+  the MANUAL narrates door parity at length and no matrix exists.
+  tests/door_parity.py is its living descendant - it holds the BOX
+  NAMES both GIS doors must offer, and it has earned itself twice
+  this session - but it compares two doors to each other and cannot
+  see a capability with no door at all.
+  SO: tests/reachability.py, one row per capability and one column
+  per door, every cell either evidence or an explicit reason. Five
+  checks, each verified by breaking it: a door's evidence must still
+  exist in the file it names; a capability must be reachable from
+  somewhere; a missing door must give a reason longer than a shrug; a
+  cited backlog number must exist; AND EVERY MODULE IN THE PACKAGE
+  MUST APPEAR - as a capability with doors, or in INTERNAL as
+  machinery. That last is the one that would have caught all five of
+  this session's finds.
+  IT IS DECLARED, NOT DERIVED, AND THE FIRST ATTEMPT PROVED WHY. A
+  grep of each door for the engine function it calls was WRONG IN
+  BOTH DIRECTIONS: machine 1 showed as absent from QGIS and Pro,
+  because both reach it through stata_bridge.dispatch rather than by
+  name, and the lattice join showed as PRESENT in QGIS because
+  alg_continental.py imports join_to_points for something else. A
+  matrix that guesses is worse than none - that one said the doors
+  were fine.
+  IT FOUND 296 WITHIN A MINUTE, in Claude's own declaration, and
+  refused a same_as reference pointing at a door that exists.
+  20 capabilities, 30 declared gaps, every one with a reason.
+  Read it with: pytest tests/test_reachability.py -s -k report
+
+- ~~297~~ | DONE v1.47.6 | TWO DEFECTS JOHN'S REAL OSM FOLDER FOUND,
+  neither of which any fixture would have shown.
+  (a) A SHAPEFILE IS ONE THING IN FIVE FILES. His Swedish extract
+  inventoried as 109 rows, of which 91 were .cpg, .dbf, .prj, .shx
+  and .lock - eighteen of each - burying the eighteen layers that
+  were the answer. Sidecars are now folded into their .shp row and
+  counted in a `sidecars` column. A .dbf is only folded away when its
+  .shp is PRESENT; alone it is a vector with no geometry, because
+  John notes it sometimes holds the data and can be rebuilt.
+  (b) THE HEADLINE FEATURE WAS SILENTLY OPTIONAL. Reading the class
+  values - the fclass vocabulary, the entire point of this tool on an
+  OSM folder - went through pyogrio.read_dataframe, WHICH NEEDS
+  GEOPANDAS even with read_geometry=False. Without it the values
+  vanished into a per-record `warnings` key that no door displayed,
+  so a folder inventoried with no fclass column at all and nothing
+  said why. They now come through pyogrio's Arrow reader, which needs
+  only pyarrow; geopandas is a fallback rather than the way in.
+  THAT SECOND ONE MATTERS BEYOND THIS TOOL. The lattice-join door was
+  about to be designed around geopandas as an accepted dependency,
+  with a loud refusal and an install line, on the strength of machine
+  3's rasterio precedent. It turns out the dependency was never
+  needed: friction.paths_to_friction is explicitly "geopandas-FREE",
+  written for the Pro clone that cannot grow it. A DEPENDENCY WAS
+  ABOUT TO BE ADOPTED BECAUSE NOBODY CHECKED WHETHER THE PACKAGE
+  ALREADY DID THE JOB WITHOUT IT.
+  AND A LATTICE COLUMN THAT IS EMPTY FOR EVERY ROW. Machine 6 was
+  built around "which files share a grid", which is right for
+  machine 3's rasters and vacuous for OSM: John's folder reported 0
+  lattices, because only rasters have one. The column stays - it is
+  the point for rasters - but the tool is not only for them.
+
+- ~~298~~ | DONE v1.47.6 | VECTOR ONTO THE LATTICE, John's model.
+  MACHINE 3 ALREADY JOINED VECTOR TO THE RASTER GRID and took the
+  CENTROID of every feature - right for shops and stops, badly wrong
+  for a road network: a street crossing forty cells was counted once,
+  wherever its midpoint fell. The box also declared types=[0], so a
+  line layer could not even be chosen.
+  JOHN'S MODEL, session 12: presence, not length. A barrier's cost is
+  the cost of CROSSING it - a river that clips a corner still has to
+  be crossed, and one running corner to corner is crossed once too -
+  so length-weighting would be the wrong rule wearing the clothes of
+  precision. Values come from A FIELD THE USER PREPARES IN GIS, not
+  from a table in the dialog, which keeps the vocabulary where the
+  vocabulary is.
+  THE REFINEMENT THAT MADE IT WORK: each CLASS once, not each
+  FEATURE. OSM cuts one street into many records wherever a tag
+  changes; John's Swedish extract holds 2,139,630 road features and
+  his screenshot shows `unclassified` three times and `trunk_link`
+  twice inside ONE JUNCTION, all one street. Charged per feature that
+  junction costs 7; charged per class it costs 3, which is the number
+  John wrote by hand. Per-feature would have made the friction partly
+  a fact about how the data was cut - worst in cities, where
+  segmentation is densest.
+  THREE FIDELITIES, user's choice, class-present the default: centroid
+  only, each class once, length or share. Plus add / largest /
+  smallest / average for what happens when charges meet.
+  NO GEOPANDAS, AND THAT WAS NEARLY MISSED. The door was about to be
+  designed around geopandas as an accepted dependency, justified by
+  machine 3's rasterio precedent, with a loud refusal and an install
+  line. friction.paths_to_friction is explicitly "geopandas-FREE",
+  written for the Pro clone that cannot grow it. A DEPENDENCY WAS
+  ABOUT TO BE ADOPTED BECAUSE NOBODY CHECKED WHETHER THE PACKAGE
+  ALREADY DID THE JOB WITHOUT IT. The hundred lines of Liang-Barsky
+  clipping are now EXTRACTED as friction.feature_cells and shared,
+  rather than written a second time - BACKLOG 120's standing lesson.
+  THE LATTICE-SPACE TRICK. feature_cells cuts on a unit grid anchored
+  at zero; a raster lattice has an arbitrary origin and a negative e.
+  Rather than generalise the clipping and risk it drifting from the
+  barrier path that shares it, the COORDINATES are transformed so the
+  lattice becomes that unit grid. Cell (i, j) then IS (gx, gy), and a
+  clipped polygon area IS the share of the cell.
+  POINTS ARE DETECTED, NOT ASKED ABOUT. A point has no length and no
+  area, so the three rules coincide; demanding a class field for a
+  layer of bus stops would be a box asking a question the geometry
+  cannot answer. It also broke every existing point join the moment
+  the default changed, which is how it was found.
+  MACHINE 3 NOW READS THE INVENTORY machine 6 writes, reports which
+  classes were charged and what each was worth, and warns when one
+  class carries two values - because under class-collapse only the
+  first feature in a cell is charged, so which value wins would
+  otherwise depend on feature order.
+  TWO COMPOUNDING SIMULATOR GAPS FOUND HERE, the most consequential
+  of the five this release. QgsCoordinateReferenceSystem had no
+  __eq__, so two identical EPSG:4326 objects compared UNEQUAL and
+  every join built a transform it did not need; then QgsGeometry(other)
+  was not a copy constructor, so that needless reprojection turned
+  every line into an empty geometry and the door reported "no usable
+  line or polygon geometry" about a layer full of them. A confident,
+  wrong error message, produced entirely by the thing meant to catch
+  wrong behaviour.
+
+- ~~299~~ | DONE v1.47.6, RECORD CORRECTED BY JOHN | PRO'S
+  MACHINE 3 HAD NO JOIN BOX AT ALL.
+  THE FIRST VERSION OF THIS ENTRY SAID "Pro's join box still takes
+  the centroid only", which implies a box exists. It does not.
+  ContinentalRasters in the toolbox has NINE parameters - folder, k,
+  unit, crs, weight, sumcohorts, pattern, tiles, out - and not one of
+  them is a layer to join. John opened the dialog on his first test
+  and asked; the answer took one grep.
+  CLAUDE WROTE THE ENTRY FROM THE QGIS DOOR'S SHAPE, assuming the two
+  machines matched because they are the same machine. Same fault as
+  _rows(), as lat["pixel"], and as the Stata friction door in the
+  reachability matrix: FOUR TIMES THIS SESSION a claim was written
+  from what the code OUGHT to look like with the answer a grep away.
+  The matrix caught one of those. It could not catch this one,
+  because a reason is prose and prose is not checked.
+  WHAT IS ACTUALLY TRUE: the join is QGIS-only and always has been.
+  298 gave QGIS three fidelities; Pro has zero, so the gap is a whole
+  capability rather than a difference of behaviour. The engine is
+  shared and geopandas-free, so this is dialog work - the layer box,
+  four settings, the geometry reader, the point auto-detection.
+  door_parity does not catch it because the box is absent from BOTH
+  its CORE lists; it was never part of the shared contract.
+  FIXED IN v1.47.6. Six boxes, worded identically to QGIS and pinned
+  by a test that compares the two modules' lists directly. The arcpy
+  geometry reader was EXTRACTED from the barrier path, which had done
+  multipart lines and polygon-rings-split-on-None since 1.15 and was
+  about to be written a second time - BACKLOG 120 again. _mode()
+  learned a `default` argument, because machine 3's join defaults to
+  rung 1 and an unset box would otherwise have fallen silently to
+  rung 0 and taken the centroid.
+  AND THE FIRST ATTEMPT AT THE PARAMETERS DID NOTHING. The edit used
+  replace() WITHOUT AN ASSERT against an anchor that did not match,
+  so it reported success and changed nothing; the boxes were absent
+  until the test asked the toolbox what it actually had. Assert the
+  anchor, then check the result - not one or the other.
+
+- ~~307~~ | DONE v1.47.9 | A DECAY RUN'S TIME DEPENDED ON THE
+  HALF-LIFE, WHICH IT SHOULD NOT. John, session 12, reading the
+  exercise-3 timings: "the time difference worries me".
+  HE WAS RIGHT AND THE REASONING IS HIS. The neighbourhood is fixed
+  by PLAIN k - reach 800 actual people - and decay only re-weights
+  what is inside it. So the work is the same whatever the half-life.
+  auto_m_neighbors still sized the fetch window from the decay
+  TRUNCATION RADIUS, carrying a comment that said "a DECAYED sum must
+  reach its truncation distance". That was TRUE UNTIL BACKLOG 185
+  removed the unbounded sums (ND_inf and siblings) in v1.40. After
+  that nothing reads past k - and fastcounts' deferral test was
+  corrected at the time. THE WINDOW SIZING WAS NOT, and nothing
+  compared the two.
+  MEASURED ON LA COUNTY, half-life 2000 m, eps 1e-3: truncation
+  radius about 20 km, window 11,159 cells where 697 satisfied k=800.
+  138 seconds against 14, every second of it fetching neighbours that
+  would never be read.
+  AFTER: 9.5 s at half-life 2000 m and 9.8 s at 500 m - the time no
+  longer depends on the half-life at all - and EVERY NUMBER
+  IDENTICAL. RD 0.3109, R 0.3105, ND median 753.6 before and after.
+  ALSO CONFIRMED, because John asked: N_k stays EXACTLY k, ND_k is
+  the decayed sum over those same people and never exceeds it, and
+  RD - R has mean -0.00014 with sd 0.011 - so decay is very slightly
+  NEGATIVE on average, which is the opposite of the naive
+  expectation, and moves individual blocks by about a percentage
+  point either way. Both now have tests.
+  THE SHAPE: a fix landed in one place and a second place kept the
+  old assumption alive in a COMMENT that read as a justification.
+  185 corrected the consumer and left the producer.
+
+- ~~309~~ | DONE v1.47.10 | THE FIELD VERIFICATION READ A CACHED
+  SCHEMA AND REPORTED RESULTS MISSING THAT WERE THERE. John, teaching:
+  "the run is successful, but there is no data appended... BUT when I
+  remove the file and reimport it - the material has been generated".
+  arcpy.ListFields() reads a CACHED field list. On a GeoPackage or
+  SQLite workspace Pro caches hard enough that fields written seconds
+  earlier are invisible, so the run announced "7 result fields are NOT
+  in the target" about seven fields that were all present.
+  A WRONG VERIFICATION IS WORSE THAN NONE. It tells a user their
+  results are missing when they are not, and the obvious next move is
+  to run the whole thing again - 5 minutes 24 seconds, in this case.
+  FIXED: ClearWorkspaceCache first, then read the fields from the
+  CATALOG PATH rather than the layer object, which carries its own
+  stale view. And when the target is NOT a file geodatabase the
+  warning now says the fields may well be there and how to confirm,
+  instead of implying failure.
+  THE GEOPACKAGE ITSELF IS SOUND, checked rather than assumed:
+  gpkg_contents with data_type 'features', the geometry column
+  registered as POINT in EPSG:26945, an rtree spatial index and the
+  extension registered. John noticed it "missing the typical icon in
+  ArcCatalog" - the tell is the `main.` prefix Pro puts on the layer
+  name, which is how it names tables in a GENERIC SQLITE workspace.
+  Pro is not treating it as a GeoPackage feature class at all, and
+  that explains the icon, the five-minute write and the cache.
+  THE TEACHING MATERIAL NOW SAYS SO: read from the GeoPackage, write
+  to a file geodatabase. 48 seconds against 5 minutes on the same
+  data.
+
+- ~~310~~ | DONE v1.47.11 | catalogPath POINTED AT A DATASET THAT
+  DOES NOT EXIST, AND WE HANDED IT STRAIGHT TO ExtendTable. Confirmed
+  by John at the Pro prompt: ListFeatureClasses on his GeoPackage
+  returns ['main.la_blocks'], and Describe("la_blocks_1") raises
+  OSError "does not exist". Yet the layer in his map is called
+  main.la_blocks_1 - the _1 appended on the FIRST drag, against no
+  duplicate - and Describe(layer).catalogPath follows the LAYER name.
+  Pro opens a GeoPackage as a GENERIC SQLITE workspace (the `main.`
+  prefix is the tell) and this is one of the consequences.
+  TRUST, THEN VERIFY. catalogPath stays the first choice - for a
+  GeoPackage it is the only workable form, which 1.22.1 established
+  the hard way - but a path arcpy.Exists denies is not an answer.
+  Three recovery routes, each independently tested: the dataSource
+  connection string, which carries Dataset=main.la_blocks, the one
+  fact catalogPath got wrong; stripping a trailing _N; and asking the
+  workspace, accepting only a SINGLE unambiguous match.
+  AND "cannot open" IS NO LONGER A LOCK. It matched none of the lock
+  patterns yet John got the full lock message - attribute tables, edit
+  sessions, OneDrive - after a five-minute run. Missing target is now
+  its own case.
+  THREE OWN GOALS WRITING THE FIX, all the same shape: a test that
+  passed through the WRONG ROUTE (two recovery paths, one fixture, so
+  deleting either left it green); os.path.dirname, which does not
+  split Windows paths on the Linux test machine, so the whole recovery
+  was dead and invisible; and then `import ntpath as os` followed by
+  os.path.dirname, an AttributeError swallowed by the same broad
+  except. A BROAD `except` TURNED A BUG INTO A PLAUSIBLE RESULT three
+  times in one fix.
+
+- ~~311~~ | DONE v1.47.11 | AN UNREADABLE LAYER EMPTIED THE FIELD
+  BOXES, AND THE TOOL THEN BLAMED THE USER. John filled the dialog,
+  pressed Run, and was told "the treatment population ... needs the
+  group count fields - but that box is empty". It was empty because
+  we had cleared it between his filling it and his pressing Run.
+  _clear_stale_fields drops field picks Pro remembered from ANOTHER
+  layer, by comparing them against the layer's field list. It guarded
+  the case where reading RAISES - and treated an EMPTY LIST as "none
+  of these fields exist" rather than "I could not read this layer".
+  ListFields returns [] rather than raising for a layer Pro cannot
+  resolve (310), so the except never fired.
+  NOT READABLE IS NOT NOT-PRESENT. Nothing is cleared when the layer
+  cannot be enumerated.
+  THIS IS PROBABLY ALSO THE VANISHING k VALUES of 305, which were
+  recorded as unexplained.
+  THE FAMILY, NOW THREE DEEP AND WORTH AN AXIOM: 309 read a stale
+  schema and said the fields were not written; 310 read a bad path
+  and said something was holding the data; 311 read an empty field
+  list and said the user's choices were invalid. EVERY TIME A FAILED
+  OR EMPTY READ WAS REPORTED AS A DEFINITIVE FACT ABOUT THE USER'S
+  DATA. The engine was right in all three. A READ THAT FAILS TELLS
+  YOU ABOUT THE READ, NOT ABOUT THE DATA.
+
+- ~~312~~ | DONE v1.47.12 | AN EMPTY FRICTION VALUE NOW MEANS NO
+  OBSTACLE. John's ruling, after hitting it on 735,098 OSM roads with
+  six classes filled: "perhaps we should allow missing values and
+  assign these the default = 0 value automatically".
+  He is right and the old strictness was the wrong trade. Friction is
+  additive and a cell costs 1 + friction, so 0 is UNAMBIGUOUSLY
+  "nothing here" - and requiring seven hundred thousand features to
+  say so was a tax charged for a purity that helped nobody.
+  THE CASE THE STRICTNESS WAS REALLY PROTECTING AGAINST IS KEPT, and
+  it is Claude's addition rather than John's: create the field, forget
+  to populate it, run. Every value empty, every value 0, NO BARRIER AT
+  ALL - and the tool reports "barrier applied", takes its several
+  minutes, and returns exactly what a plain run returns. ALL-EMPTY IS
+  REFUSED; some-empty is filled and counted.
+  AND THE RUN NOW SAYS WHAT IT CHARGED: the distinct values found and
+  how many features carry each, so a typo or a missed class is visible
+  BEFORE the several minutes rather than after.
+  THE MESSAGE WAS ALSO MISLEADING. "non-numeric or missing values"
+  led John to ask whether floats were forbidden. They are not - -0.9
+  is a motorway. It now names which fault it found and says fractions
+  are fine.
+  A MISSING COORDINATE STAYS FATAL. A point with no place is not a
+  barrier anywhere.
+
+- ~~313~~ | DONE v1.47.12 | TWO COORDINATE-SYSTEM GUARDS, John's
+  rulings. "vector projected on read, DEM should not, add a loud
+  error to that; no crs should not be silent - a loud error there".
+  VECTORS ALREADY DID THE RIGHT THING and nobody knew: the barrier
+  reader passes spatial_reference=main_sr to the cursor, so arcpy
+  converts on read, exactly. That is why it is right for vectors and
+  wrong for rasters - transforming a coordinate is exact, resampling
+  a raster is not.
+  THE DEM NOW REFUSES a coordinate system that differs from the
+  analysis. Reprojecting a raster means choosing a resampling method
+  and a cell size and accepting interpolation error, and a slope
+  computed from a resampled DEM is not the slope of the original.
+  That is an analytical decision disguised as a formatting step and
+  it is the user's, not ours.
+  AN UNDEFINED COORDINATE SYSTEM IS REFUSED rather than assumed.
+  arcpy's spatial_reference= can only TRANSFORM; it cannot invent a
+  source. A dataset with no .prj has its numbers passed through
+  untouched to land wherever they land, and NOTHING DOWNSTREAM CAN
+  DETECT IT - which is the whole argument for refusing.
+  ON DATUMS, which John asked about: a CRS has a datum (where the
+  earth is anchored) and a projection (how it is flattened).
+  Transforming between different datums has several published
+  methods. NAD83 to WGS84 differ by about a metre; NAD27 to NAD83 by
+  up to a hundred, which would put a barrier a block away. Silent is
+  fine when the datums match and not when they differ - naming the
+  transformation used is the remaining piece, and is NOT built here.
+
+- ~~314~~ | DONE v1.47.12 | THE TOOLBOX NOW SAYS ITS OWN VERSION, AND
+  SHOUTS WHEN IT DISAGREES WITH THE PACKAGE.
+  Pro CACHES .pyt MODULES. Replacing the file does not replace what
+  runs; only a full restart reloads it. John lost most of an evening
+  to that: the file on disk had the 311 fix, the module in memory did
+  not, and THE ONLY WAY EITHER OF US COULD TELL WAS BY COUNTING LINES
+  IN A TRACEBACK - 3503 against 3617.
+  The manifest has always recorded the PACKAGE version and never the
+  TOOLBOX version, and this entire episode is the gap between those
+  two. Every run now opens with both, and warns loudly when they
+  differ, naming the restart as the fix.
+  THE GUIDE SAID "remove the toolbox from the project and add it
+  again, OR restart Pro". The "or" is wrong: removing and re-adding
+  does NOT reload a cached module. Tightened.
+
+- ~~315~~ | DONE v1.47.12 | THE BUMP TOOL WAS FALSIFYING THE HISTORY
+  IT PASSED OVER - and it is the tool written six items ago to stop a
+  different kind of drift.
+  It did a blanket string replace of the old version with the new
+  across every file. A code comment written during 1.47.4 saying
+  "v1.47.4, BACKLOG 299" became 1.47.5, then .6, and by 1.47.11 the
+  toolbox claimed item 299 landed in 1.47.11 when it landed in
+  1.47.6.
+  BACKLOG.md AND MANUAL.md WERE ALREADY EXCLUDED FOR EXACTLY THIS
+  REASON - "historical version numbers are facts about the past" -
+  and the same reasoning was never applied to CODE COMMENTS, which
+  are full of them. WORSE THAN THE ORIGINAL PROBLEM, because the
+  backlog drift was visible and this was not.
+  Now targeted: eleven declaration sites, each with a pattern that
+  matches the declaration and nothing else, and it REPORTS A
+  DECLARATION IT COULD NOT FIND rather than passing over it.
+  The two falsified comments were repaired from the backlog's own
+  record, which is the only surviving account of when each item
+  actually landed.
+
+- ~~318~~ | DONE v1.48.0, FOUND BUILDING 317 | PRO DROPPED THE DECAY
+  MODEL WHENEVER THE HALF-LIFE CAME FROM A FIELD.
+  _run_tool forwarded decay_model into the engine's keywords ONLY when
+  a fixed half-life was given. A half-life taken from a field
+  (hlfield) or from each point's own Dist_k (hlfromdist) went down a
+  different branch that never set it - so the engine fell back to its
+  default and RAN NEGEXP, whatever model the user had chosen, with
+  nothing in the messages to say so.
+  PROVED BEFORE FIXING: expsqrt through a half-life field gave exactly
+  the negexp result (0.354512 both), and 0.358794 once the model was
+  passed.
+  FOUND ONLY BECAUSE 317 NEEDED THE SAME FORWARDING. Adding the
+  calibration meant asking where the model travels, and the variable
+  branches turned out not to carry it at all.
+  THE SHAPE IS NOW FAMILIAR: 307 fetched a window sized for a setting
+  that no longer applied, the 317 bin loop would have dropped the
+  calibration had it not been caught, and here the model itself was
+  dropped. A SETTING HONOURED ON ONE ROUTE AND LOST ON ANOTHER. The
+  fix sets model and calibration once, for every route that decays,
+  instead of per branch.
+  PRO ONLY. Stata passes the whole Decay object, so the model rides
+  with it; QGIS has no variable half-life. It had no test at all -
+  now it has one, and breaking the fix fails it.
+
+- ~~317~~ | DONE v1.48.0 | HALF-LIFE vs
+  HALF-PROBABILITY: CURRENT EquiPop SILENTLY DEPARTED FROM THE
+  PUBLISHED METHOD, AND THE PUBLISHED LOG-NORMAL WAS WRONG.
+  John had carried this for several sessions: "it has been bugging
+  me". Settled in session 12 against the paper itself - Östh, Lyhagen
+  and Reggiani (2016), EJTIR 16(2):344-363, which old EquiPop
+  implemented.
+
+  THE TWO READINGS, named in the paper's own Appendix D:
+    HALF-LIFE (HLM)        the median splits the 1-D AREA under the
+                           decay curve in half. THE PAPER ADVOCATES
+                           THIS, and old EquiPop used it.
+    HALF-PROBABILITY (HPM) the weight is 0.5 at the median. CURRENT
+                           EquiPop does this, for every model.
+  They coincide ONLY for the exponential. For the other models current
+  EquiPop does not replicate old EquiPop - a departure nobody chose
+  and nobody recorded.
+  CLAUDE GOT THIS WRONG ONCE ON THE WAY: before the paper arrived it
+  told John that w(h)=0.5 "already implements your median
+  calibration". Appendix D shows that is the reading the paper
+  considered and set aside.
+
+  VERIFIED AGAINST THE PAPER: all five published betas reproduce
+  Table 1 to the last printed digit (m = 6010 m). Then the test the
+  method rests on - share of the 1-D area before the median:
+      exponential   50.00%   correct
+      exp-normal    50.00%   correct
+      exp-sqrt      50.00%   correct
+      log-normal +  75.00%   NOT a half-life
+      log-normal -  25.00%   NOT a half-life
+
+  THE LOG-NORMAL ERROR, and it is easy to see how it happened. For the
+  exp-normal the integral starts at x = 0, the CENTRE of a half-
+  Gaussian, so the area share is erf(.) directly and erf = 0.5 IS the
+  half point. That logic was carried to the log-normal - but there
+  u = ln x sends x = 0 to u = -infinity, the integral starts at the
+  FAR LEFT of a full Gaussian, and the share is (1+erf)/2. Setting
+  erf = 0.5 finds the THREE-QUARTER point; the +/- gives its mirror at
+  one quarter. The half point is erf = 0, which has ONE root:
+      beta = -1 / (2 ln m)            (exact, for ln(d))
+  The plus/minus pair were never two solutions to the half-life
+  problem; they are the quartiles either side of it.
+  THE EMPIRICAL RESULTS STAND. Log-normal (plus) had the best
+  correlation in both datasets (0.631, 0.737): a good kernel, just a
+  three-quarter-life rather than a half-life one. The paper's case for
+  half-life models does not rest on the log-normal.
+
+  JOHN'S DECISIONS, session 12:
+    - DEFAULT: HALF-LIFE. It is what the paper advocates, it matches
+      what users actually hold - a median from a survey - and it
+      restores what old EquiPop did.
+    - THE CHOICE APPEARS ONLY WHEN IT MATTERS. For negexp (the
+      default) the two readings give the same beta, so no box. It
+      appears when a user DELIBERATELY picks expnormal, expsqrt or
+      lognormal - someone already making a methodological choice.
+    - THE QUESTION, verbatim, as agreed:
+          Your distance is...
+          half of all trips are shorter than this
+              (half-life - use for a survey median)
+          a neighbour at this distance counts half as much
+              (half-probability)
+    - LOG-NORMAL: THE CORRECTED FORM, not the published roots.
+    - LOG-NORMAL USES ln(d+1), as now. ln(d) puts the weight at zero
+      when d = 0; the +1 avoids that.
+    - POWER: EXCLUDED FROM HALF-LIFE. Its area diverges for any
+      beta > -1 - the paper says so too - so no median exists.
+
+  THE FORMULAS TO BUILD (half-life, 1-D area, m the median):
+      negexp      beta = ln(0.5) / m                 (= half-prob)
+      expnormal   beta = -( erfinv(0.5) / m )^2      erfinv(0.5) =
+                                                     0.4769362762
+      expsqrt     beta = -s / sqrt(m),   s = 1.678346990
+                  s solves (1+s)e^(-s) = 0.5 exactly; the paper's
+                  1.67835 is this, correctly rounded
+      lognormal   SOLVE NUMERICALLY with ln(d+1). The closed form
+                  -1/(2 ln(m+1)) is exact only for ln(d); with the +1
+                  the log-space integral starts at 0, not -infinity.
+                  Measured error of the closed form: 0.94% at
+                  m = 100 m, 0.32% at 500 m, 0.07% at 6010 m. Use it
+                  as the root-finder's starting guess, never as the
+                  answer.
+      power       not defined - refuse, and say why.
+
+  AND ALWAYS: REPORT BOTH BETAS in the run messages, so the difference
+  is visible even to a user who kept the default.
+
+  RELEASE NOTE REQUIRED. For expnormal, expsqrt and lognormal,
+  results CHANGE from current versions. Say so plainly: the current
+  behaviour was itself an unrecorded departure from the published
+  method, so this restores the record rather than breaking it - but
+  anyone who ran those models on 1.30-1.47 needs to know.
+
+  BUILT, v1.48.0: engine (decay.py, both tables, the exact
+  log-normal solver on math.erf, power forced to half-probability with
+  a message); Stata (calibration(halflife|halfprob), both betas in the
+  log, r(decay) r(calibration) r(halflife) r(beta), the help file in
+  synopsis, options and stored results); QGIS (the box beside the
+  half-life, guarded so a missing package cannot kill the plugin);
+  Pro (greyed unless expnormal, expsqrt or lognormal). The bin loop
+  now copies the calibration, and has a test. halflife()'s own help
+  text in both Stata and QGIS said "the distance at which a neighbour
+  counts half as much" - the half-probability meaning, WRONG under the
+  new default - and was rewritten.
+  THE TEST THAT HAD ENCODED THE DEPARTURE. test_decay_half_life_
+  property asserted weight(h) == 0.5 for EVERY model: it defined
+  half-life AS half-probability, and would have failed any attempt to
+  restore the published method. Split into one test per reading, plus
+  one that checks each half-life by INTEGRATING the area rather than
+  trusting the formula - since the published formula was itself wrong.
+  Six fixes, each broken deliberately; each failed a test.
+
+  RECORDED, NOT BUILT - THE DISC. All of the above is the 1-D area
+  (the x/y diagram), as in the paper. On the DISC, where a ring at
+  distance d has circumference 2*pi*d, the coincidence MOVES: there
+  it is the Gaussian (expnormal) whose half-probability equals its
+  half-life, not the exponential. There is a real argument that an
+  OBSERVED median commute corresponds to the disc - trips reach real
+  ground, and ground grows with d - but it only holds if
+  opportunities are spread evenly, which they never are. A third
+  option would make the tool harder to use for a distinction few
+  users could act on. Kept as a methodological note.
+
+- ~~319~~ | DONE v1.48.1 |
+  `equipop setup` FAILS IN A VIRTUAL ENVIRONMENT, AND ITS MESSAGE
+  GIVES THE WRONG ADVICE WHEN PIP IS MISSING.
+  Stata was pointed at /Users/<name>/StataPython/bin/python - a
+  virtual environment made for Stata, which is a sensible thing to do.
+  Setup ran `python -m pip install --user --upgrade equipop` and got
+  "No module named pip". TWO DEFECTS, both in _equipop_setup_py:
+  (a) THE MESSAGE ANSWERED A QUESTION PIP DID NOT ASK. Whatever pip
+      said, setup printed the SAME advice: if it mentions an externally
+      managed environment, install a plain Python from python.org. For
+      "No module named pip" that sends the user to replace their whole
+      Python when the fix is one line: `python -m ensurepip --upgrade`.
+  (b) `--user` IS ALWAYS PASSED, AND A VIRTUAL ENVIRONMENT REFUSES IT:
+      "Can not perform a '--user' install. User site-packages are not
+      visible in this virtualenv." So even after pip is fixed, setup
+      fails again - on precisely the users careful enough to give Stata
+      its own environment.
+  REPRODUCED EXACTLY before recording: a venv made --without-pip gives
+  her error; ensurepip fixes it; --user then fails as above; installing
+  WITHOUT --user succeeds and `import equipop` reports 1.48.0. equipop
+  1.48.0 is on PyPI, so the plain install is all that is needed.
+  THE FIX: detect a virtual environment (sys.prefix != sys.base_prefix)
+  and drop --user there; and read pip's stderr and advise on WHAT IT
+  SAID - "No module named pip" -> ensurepip; "externally managed" ->
+  the python.org advice; anything else -> quote pip without guessing.
+  THE FAMILY: the same shape as 309-311 - a failure reported as if it
+  were a different, more familiar failure. A message that guesses is
+  worse than one that quotes, because it is believed.
+  BUILT v1.48.1: a virtual environment is detected and --user dropped
+  there, with a line saying so; and the failure now dispatches on what
+  pip SAID - no module named pip -> ensurepip with the exact command;
+  externally managed -> the python.org route; a --user refusal inside
+  a venv -> named as such; no matching distribution -> network, proxy
+  and Python version. ANYTHING ELSE IS QUOTED AND LEFT ALONE, with
+  "we do not recognise that message, so we will not guess at it".
+  The first version of the test only checked that the word ensurepip
+  appeared, so disabling the branch that offers it still passed; it
+  now pins the dispatch itself.
+
+- ~~320~~ | DONE v1.48.1 |
+  NORWEGIAN MACHINES: THE LOCALE FIX WENT TO PRO AND NEVER TO QGIS,
+  AND THE CSVs WE WRITE ARE UNREADABLE IN A NORWEGIAN EXCEL.
+  John, after the LA County lecture: everyone got it working, but the
+  students whose machines were set to Norwegian hit "some issues".
+
+  (a) QGIS PARSES TYPED NUMBERS WITH BARE int() AND float().
+      alg_counts.py: k_values uses int(v), r_values and tau_values use
+      float(v), straight on the text the user typed. A student typing
+      a radius as 500,5 - which is how a Norwegian keyboard and a
+      Norwegian Windows write it - gets the raw Python message
+      "could not convert string to float: '500,5'", with nothing
+      saying that a decimal comma is the problem.
+      PRO HAS BEEN PROTECTED SINCE 1.16.7, when this was found on a
+      SWEDISH machine: _to_float and _numlist take 12,5 and 12.5 alike
+      and explain themselves when they cannot. THE FIX WAS NEVER
+      CARRIED ACROSS - a door-parity gap of exactly the kind
+      test_door_parity exists to catch, which it did not, because it
+      compares which BOXES the doors offer and not how they READ them.
+      Fix: move _to_float/_numlist into equipop/doors/ so both doors
+      call one implementation, and extend the parity test to parsing.
+
+  (b) THE CSVs ARE UTF-8 WITHOUT A BOM. _EquiPop_run.csv and
+      _EquiPop_fields.csv are both written encoding="utf-8". Excel on
+      Windows, with no BOM, falls back to the ANSI codepage, so a path
+      or field name holding ae/oe/aa renders as mojibake - verified
+      against cp1252, "andel_fodt_i_Norge" comes out
+      "andel_fXdt_i_Norge" with the vowel replaced. One-word fix:
+      encoding="utf-8-sig".
+
+  (c) THE CSV DELIMITER IS A COMMA, and Excel splits on the SYSTEM
+      list separator, a semicolon on a Norwegian machine, so even with
+      the BOM the file opens as one column. No fix is free: a
+      semicolon breaks English Excel and a "sep=," first line breaks
+      every programmatic reader. Probably keep the comma and say so in
+      the message. JOHN'S CALL.
+
+  WHAT IS NOT AT FAULT, checked: dates - the manifest writes ISO UTC,
+  which no locale touches. Pro's own numeric boxes are Pro's to parse.
+  Python's float() and str() are locale-independent by language
+  design, so nothing in the engine is exposed.
+  NOT CHECKED, WORTH TESTING: field names carrying ae/oe/aa through
+  the shapefile 10-character shortener, where the DBF encoding is a
+  separate question from the CSV one.
+  BUILT v1.48.1: (a) equipop/doors/numbers.py now holds ONE reader -
+  to_float, to_int, numlist, intlist - and both doors call it. QGIS
+  raises QgsProcessingException with the message; Pro wraps it as
+  arcpy.ExecuteError, keeping a local fallback so the toolbox still
+  works against an older package. to_int REFUSES a fractional k
+  rather than rounding it, because a silently rounded k is a wrong
+  answer that looks right. (b) both CSVs are utf-8-sig.
+  (c) THE DELIMITER STAYS A COMMA - John's ruling: Excel's import
+  wizard covers it, and the encoding was the real fault.
+  THE PARITY TEST NOW COVERS PARSING, not only which boxes exist -
+  it reads alg_counts.py and fails if bare int()/float() on typed
+  text returns.
+  AND THE REACHABILITY MATRIX CAUGHT THE NEW MODULE UNPROMPTED,
+  exactly as it was built to: doors.numbers had to be declared before
+  the suite would pass. That is the guard written after inventory.py
+  and vectorjoin.py shipped with no way to reach them, working on its
+  own author.
+
+- 321 | OPEN, PROPOSED 23 SEPTEMBER 2026 | WHAT OF PETER'S BURDEN
+  METRICS COULD GO IN TOOL 4, AND WHAT MUST NOT.
+  John asked which measures from the eBoD literature could be added to
+  machine 4 with little fuss. TOOL 4'S OWN DOCSTRING DECIDES MOST OF
+  IT: it computes RATIOS OF TWO AGE-SEX GROUPS over a k-neighbourhood,
+  and already excludes TFR, ASFR, CBR, CDR and life expectancy on the
+  stated ground that "they need vital events and an age-sex folder
+  carries stock, not flow".
+  BY THAT RULE, ALMOST NOTHING FROM THE LIST BELONGS:
+    DALY, QALY, WALY, YLD  need disability or utility weights and a
+                           disease model. Not demography, and not
+                           ours - they belong with the epidemiology
+                           partner, as PROPOSALS.md already says.
+    YLL / YPLL             needs DEATHS BY AGE, which is flow. Out for
+                           the same reason CDR is out. Adding it would
+                           break tool 4's own boundary, and that
+                           boundary is why the tool is coherent.
+  WHAT COULD GO IN, AND IS GENUINELY LITTLE FUSS:
+    (1) EXPECTED COUNTS UNDER A SUPPLIED RATE SCHEDULE. Give tool 4 a
+        rate per age band - deaths per 1000, dispensations per 1000,
+        from a published table or the user's own - and it returns
+        sum(pop_band * rate_band) over the k-neighbourhood. Pure
+        arithmetic on stock, NO new data layer, and the machinery is
+        the one already there: tool 4 sums arbitrary band sets into a
+        group, so this weights each band instead of counting its
+        membership.
+        THIS IS INDIRECT STANDARDISATION, and it is the thing every
+        burden study needs before it starts. With expected counts the
+        user computes SMR or SIR downstream as observed/expected.
+    (2) THE AGE COMPOSITION AS COLUMNS - population per band over the
+        neighbourhood. The input to any standardisation, and the same
+        sums tool 4 already forms, emitted rather than divided.
+  WHAT IS NOT AVAILABLE, and the distinction is worth stating because
+  it is easy to get wrong: DIRECT standardisation needs EVENTS BY AGE
+  WITHIN EACH NEIGHBOURHOOD, which is flow again. Indirect works on
+  stock alone. So indirect is cheap and direct is impossible here.
+  WHY IT MATTERS BEYOND THE PROPOSAL: a crude rate over a bespoke
+  neighbourhood mostly measures WHERE OLD PEOPLE LIVE. Age
+  standardisation is not an optional extra for a neighbourhood health
+  rate - it is what makes one mean anything. That argument holds for
+  the EquiEXPOSE prescription work directly.
+  NOT BUILT. Awaiting John's ruling on whether tool 4 takes a rate
+  schedule, and on what the box should be called.
+
+- ~~327~~ | DONE v1.49.1, FOUND BY JOHN IN THE FIELD | A CSV INPUT
+  COULD NOT WRITE A NEW FEATURE CLASS.
+  John gave Pro the Northern Ireland 1 km grid as a CSV, chose
+  Output = New feature class, named it TrialRun - and the dialog
+  refused with "Table input has no feature class to append to - set
+  the output table (.csv)" while the feature-class box sat filled in
+  directly above the complaint.
+  The check asked ONLY whether the INPUT was a table. It never looked
+  at the output mode, so the one obvious thing to do with a table of
+  coordinates - turn it into points - was unreachable. THE MESSAGE WAS
+  TRUE OF APPENDING AND FALSE OF THE RUN.
+  FIXED: the .csv is demanded only when the mode is Append to input,
+  where there genuinely is nowhere else for results to go, and the
+  refusal now says why - "a table input cannot be appended to, a .csv
+  on disk is not a feature class" - and names both ways out.
+  A TEST THAT COULD NOT FAIL, AGAIN. The first version read
+  pm["outtable"].message; the simulator stores (kind, text) pairs in
+  .messages and has no .message at all, so the assertion read an
+  attribute that is always empty and would have passed however the
+  code behaved. THIRD TIME THIS WEEK - after the ensurepip test in
+  1.48.2 and the two 306 grep-tests in 1.49.0. Caught by breaking the
+  fix, which is the only thing that catches it.
+
+- ~~328~~ | DONE v1.49.1, JOHN'S RULING FROM THE FIELD | A GROUP
+  LARGER THAN ITS POPULATION IS NOW REPORTED, NOT REFUSED.
+  John: "this is a bit odd the treatment variable is greater than the
+  numerator - that is unusual I agree, but not a cause for reject - it
+  is the choice of the user - we should be able to have ratios on the
+  basis of say 77/66 and not only 55/66".
+  HIS OWN DATA IS THE COUNTER-EXAMPLE, and it is a good one. The
+  Northern Ireland 1 km grid holds TOTAL_HOUSEHOLD, which counts
+  HOUSEHOLDS, and ECONOMICALLYACTIVE, which counts PEOPLE. Two
+  working adults in one household and the ratio passes 1
+  legitimately: R is then economically active persons per household -
+  a real measure, and on the full file its median is 1.333, which is
+  right for Northern Ireland.
+  THE NUMERATOR WAS NEVER REQUIRED TO BE A SUBSET OF THE
+  DENOMINATOR. R_k = T_k / N_k is a ratio; the subset assumption was
+  about typical use, not about the arithmetic.
+  THREE PLACES SAID IT, AND ONE OF THEM WAS FOUND LAST:
+    validate_treatment()        raised on the way in
+    check_results_are_possible() raised on the way out
+    a bare print() in knn_to_rows, which STILL called it "a data
+    error" after the other two had been corrected - found by running
+    John's real file end to end, not by any test. A SECOND VOICE
+    CONTRADICTING THE FIRST IS WORSE THAN NO VOICE AT ALL, so it is
+    gone; validate_treatment already says this, with the ratio.
+  THE OUTPUT BACKSTOP'S PREMISE WAS FALSIFIED. It was ruled in "on
+  the reasoning that no correct run can trip it". A correct run trips
+  it whenever the two count different units. It still reads the
+  number the user is about to be handed - that is why it exists - but
+  it reports, and it no longer calls the result "impossible", which
+  was the word a counter-example could not leave standing.
+  WHAT THE NOTE MUST GIVE, and does: the RATIO. That is how a user
+  tells a legitimate different-units measure from two variables the
+  wrong way round - John's case reads 1.33, a genuine swap of
+  total_pop and a group reads 8.33. The magnitude does the
+  diagnosing, so the number is reported and the user judges.
+  ONE HALF OF THE OLD MESSAGE WAS ALSO WRONG: it offered "or it is a
+  0/1 marker and needs treatmode(flags)". A 0/1 marker can only
+  exceed the population where the population is ZERO, so that is
+  almost never the cause of this trip. Removed rather than repeated.
+  STILL REFUSED, and rightly: a NEGATIVE count. A census no-data code
+  like -666666666 read as a count is a wrong answer, not a choice.
+  AND MY OWN NOTE LEAKED A NUMPY WARNING. The ratio divides by a
+  population that can be zero, so the explanation arrived with a
+  fragment of a RuntimeWarning attached. Suppressed, and tested with
+  warnings-as-errors.
+
+- ~~316~~ | DONE v1.49.0 | KEEP BOTH: A THIRD
+  CHOICE FOR "if result fields already exist".
+  THE GAP IS REAL AND EXERCISE 4 WALKS INTO IT. The box offers
+  "Overwrite" or "Stop with a message", so running the same k twice
+  with two different friction fields - walk and drive, which is the
+  whole point of that exercise - cannot be done in one file. The
+  second run destroys the first.
+  JOHN'S DESIGN, session 12: a third option, and the columns get
+  LETTER SUFFIXES. The first keeps its canonical name, the second
+  takes `b`, the third `c`:
+      R_black_alone_333, R_black_alone_333b, R_black_alone_333c
+  HE RULED AGAINST A RUN-LABEL BOX, which Claude argued for on the
+  grounds that `b` is not self-describing and is order-dependent.
+  His reasoning is better: "it might be that we are running several -
+  walk, it may be very complex quickly, user that calls the option
+  will be sure to take note, and the log would tell the story". A
+  label box charges EVERY run a decision to solve a problem that
+  arises occasionally, and the provenance already has two homes - the
+  log and the manifest.
+  WHAT IT MUST DO, or it becomes this week's failure a seventh time:
+  SAY SO. "R_black_alone_333 already exists; wrote R_black_alone_333b
+  instead." A user who looks for their column, does not find it, and
+  concludes the run failed is exactly the pattern of 309, 310 and
+  311. And record the mapping in the manifest, beside the
+  shortened-name mapping already written to <output>_EquiPop_fields.
+  csv.
+  USER'S CHOICE, NOT AUTOMATIC. Claude offered comparing the recorded
+  settings and adding a column only when they differ; John chose the
+  explicit option. Re-running the same analysis to fix a typo is
+  normal and should overwrite, and deciding that by inference is the
+  kind of cleverness this project has been punished for.
+  BOTH REMAINING DETAILS RULED BY JOHN, session 12:
+    - SHAPEFILES CUT, and that is fine. The suffix is added FIRST and
+      the existing shortener then treats the suffixed name as any
+      other over-length name - which matters, because it already
+      resolves collisions with a disambiguating digit (1.46.3). So
+      R_black_alone_333 and R_black_alone_333b truncating to the same
+      ten characters is a case the shortener already knows how to
+      handle, PROVIDED it sees the suffixed name rather than being
+      run before the suffix is applied. ORDER OF OPERATIONS IS THE
+      WHOLE OF THIS DETAIL.
+    - PAST z, USE aa. Then ab, ac. No ceiling, no refusal. John:
+      "aa is a good solution". It costs nothing and removes a wall
+      somebody would otherwise hit at the least convenient moment.
+  NOTE THE EXISTING SCHEME IT MUST NOT BE CONFUSED WITH: 1.46.3
+  appends a DIGIT for collisions after shortening
+  (h72004_africanamericanalo1_100). Letters here keep the two
+  distinguishable, which is a point in favour of John's choice.
+
+- ~~306~~ | DONE v1.49.0 | MACHINE 1'S BARRIER
+  CHARGES PER FEATURE, NOT PER CLASS - so it still has the defect
+  298 removed from machine 3's join.
+  John's ruling in session 12 was that a cell should be charged once
+  per CLASS, because OSM cuts one street into a new record wherever a
+  tag changes. paths_to_cells() implements that and machine 3's join
+  uses it. Machine 1's barrier goes through barrier_to_friction() ->
+  paths_to_friction(), which charges ONCE PER FEATURE.
+  MEASURED ON REAL DOWNTOWN LA ROADS: 3,975 costed features in a 5 km
+  box produce cell costs from 1 to 166, where the friction table tops
+  out at 8. The number is mostly a fact about how OSM fragmented the
+  roads.
+  IT MATTERS BECAUSE EXERCISE 4 IS THE COURSE'S CENTREPIECE - a
+  motorway that blocks walking and carries driving - and it runs
+  through this path, not through machine 3's.
+  THE WORKAROUND WORKS AND IS IN THE EXERCISE: dissolve the roads by
+  fclass first, so each class is one multipart feature and is charged
+  once. That is a real GIS step and arguably worth teaching. But it
+  is a workaround.
+  THE FIX: a class-field box on the barrier input, routing to
+  paths_to_cells(fidelity="class") when it is set. The engine already
+  exists and is geopandas-free; this is door wiring plus the same box
+  in Pro.
+  WHY IT WAS MISSED: 298 was written against machine 3's join because
+  that is where John's question arrived. Nobody asked which OTHER
+  paths charge vector features onto cells. The reachability matrix
+  lists CAPABILITIES against DOORS; it has no notion of two paths
+  that do the same thing by different rules.
+
+- ~~305~~ | DONE v1.47.8 | NEITHER DOOR REFUSED A RUN WITH NO
+  NEIGHBOURHOOD, AND PRO DID NOT REFUSE IT AT ALL. John hit this on
+  the first run of Exercise 1: his k values had gone by the time he
+  reached the foot of Pro's dialog, Pro was content, and the failure
+  arrived forty lines into a traceback reading "give k_values and/or
+  r_values" - words naming ENGINE ARGUMENTS rather than boxes, so the
+  message did not even point at the dialog.
+  BOTH BOXES STAY OPTIONAL, John's ruling: "no need to restrict
+  missing k, think that there may be only r". A radius-only run is a
+  perfectly good question. What is required is ONE OF THE TWO, and
+  nothing said so.
+  Pro's updateMessages checked shapefile field limits and null
+  handling and never checked that the tool had a neighbourhood to
+  measure. QGIS did refuse - but inside processAlgorithm, AFTER Run,
+  so the answer came as a red exception rather than a blocked button;
+  it now implements checkParameterValues, which QGIS offers for
+  exactly this and which no door had ever used.
+  WHY THE VALUES VANISHED IS NOT OURS, as far as can be told. Every
+  place the Pro door clears a parameter was checked: the coordinate
+  trio when the layer changes, and machine 2's `measures`. Neither
+  touches k, which sits at index 14 and is read by name. The likely
+  cause is Pro resetting a cached dialog because THE PARAMETER LIST
+  CHANGED - originrule was added in 1.47.4 - which is what the
+  ArcGIS guide's "remove the toolbox and add it again" exists for.
+  Recorded as unexplained rather than guessed.
+  AND THE EXERCISE NAMED THE WRONG BOX. It said "Neighbourhood sizes,
+  in people", which is MACHINE 3's label; machine 1 in Pro says "k
+  values (space-separated, e.g. 200 1600)" and in QGIS "3 - k -
+  neighbourhood sizes in people". THREE NAMES FOR ONE CONCEPT across
+  two doors and two machines, which is how the wrong one got into the
+  document. door_parity checks that both doors HAVE a box called `k`;
+  it does not check that they call it the same thing to a human.
+  That gap is real and is not closed here.
+  ALSO: the simulator had no checkParameterValues at all, so a door
+  overriding it could not be tested - and one calling super() would
+  have died with AttributeError in the field while every test passed.
+  Sixth sparse-stub gap this release series.
+
+- ~~304~~ | DONE v1.47.7 | A ROUNDING ERROR BROUGHT BACK Dist_k = 0.
+  FOUND BY BUILDING THE TEACHING MATERIAL, on John's LA County
+  blocks: 1,213 of 75,109 reported the hundred nearest people as ZERO
+  METRES AWAY.
+  Under `proportional` the crossing cell contributes a FRACTION, so
+  the neighbourhood total arrives as 99.99999999999999 rather than
+  100. All three self-potential guards read `n >= k`, which is FALSE
+  for that float - so the correction never fired and the distance
+  stayed 0.
+  THIS IS BACKLOG 191's DEFECT RETURNING THROUGH A DIFFERENT DOOR.
+  A zero distance makes k stop distinguishing origins, which is the
+  whole reason self-potential was built in 1.29.5.
+  IT NEEDED DENSE DATA. LA County averages 131 people per block and
+  41% of origins reach k INSIDE A SINGLE CELL; no fixture in the
+  suite was dense enough to produce the rounding, which is why five
+  releases of self-potential work never saw it. The exercise asks a
+  student to sort by Dist_100 and find the smallest - they would have
+  found a zero on the first try.
+  Fixed in all three places (fastcounts, and twice in analysis) with
+  a 1e-9 tolerance, and guarded by a fixture whose FIRST assertion is
+  that it still produces the rounding - a test for a float problem
+  that stops producing the float stops being a test.
+  THE GENERAL SHAPE, AND IT IS THIS SESSION'S SIXTH: `>=` against a
+  value that arrives by summation is a comparison against a number
+  nobody computed exactly.
+
+- ~~303~~ | DONE v1.47.6 | THE GUARD WAS DEFEATED BY THE ROUTINE
+  THAT RAISES THE QUESTION. TEACHING.md and PROPOSALS.md each carry
+  `**Last updated: <version>**`, and a test compares it against
+  pyproject.toml so a release cannot pass while a planning document
+  has drifted. It was written this same session, with the priority
+  list's eleven stale releases as the reason.
+  IT COULD NEVER FIRE. Versions are moved with a blanket sed over
+  every file containing the old string - and that includes the "Last
+  updated" line. The one thing meant to prove A HUMAN HAD LOOKED was
+  being answered by the same command that asked the question. Found
+  when the bump to 1.47.6 left the test green on documents nobody had
+  read.
+  A CHECK THAT THE ROUTINE UPDATES AUTOMATICALLY IS NOT A CHECK.
+  Before trusting a guard, ask what the normal workflow does to it -
+  which is a different question from whether the guard is correct,
+  and this one was correct.
+  FIXED BY MAKING THE RULE EXECUTABLE: tools/bump_version.py moves
+  the version everywhere it must move and skips the status documents
+  by name, so their line moves only when somebody reads them. A test
+  asserts the NEVER list still holds both. The old blanket sed also
+  rewrote BACKLOG.md and MANUAL.md, where "DONE v1.29.5" is a FACT
+  ABOUT THE PAST and must not be rewritten; the tool skips those too.
+
+- ~~301~~ | DONE v1.47.6 | MACHINE 6 COULD NOT SEE A FILE
+  GEODATABASE. John supplied CalidataOSM.gdb - four OSM layers for LA
+  County, the format he actually uses in ArcGIS Pro - and the
+  inventory returned EIGHTY-SIX ROWS OF GARBAGE: a00000001.gdbtable,
+  a00000001.gdbtablx, the .lock files, all listed as "other", while
+  the four layers were never seen at all.
+  A .gdb IS A DIRECTORY AND os.walk YIELDS FILES. `.gdb` was already
+  in the VECT tuple, so the code LOOKED right; the check simply never
+  ran against a directory. Now matched from _dirs, pruned so the
+  internals are not walked, and sized by summing the folder. Four
+  rows instead of eighty-six.
+  EVERY FIXTURE UNTIL NOW WAS SHAPEFILES AND GEOTIFFS, and both of
+  those are files. The tool was built, tested, documented and shipped
+  in TWO DOORS without once meeting the format its author uses daily.
+  THE FIRST VERSION OF THE TEST COULD NOT FAIL. It wrote a real .gdb
+  with pyogrio and SKIPPED - no OpenFileGDB write support in this
+  environment - so the deliberate break sailed straight past. What is
+  being fixed is the WALK, not the reading, so the fixture is now a
+  directory with the right name and plausible internals. Whether GDAL
+  can open it is a separate question, and the answer being "no" is
+  part of the assertion: the row must still be ONE row and must carry
+  its error.
+
+- ~~302~~ | DONE v1.47.6 | THE GEOPANDAS-FREE JOIN WAS ONLY TESTED
+  WHERE GEOPANDAS WAS PRESENT. tests/test_vectorjoin.py calls
+  pytest.importorskip("geopandas") at MODULE level, so every test in
+  it - including two written for paths_to_cells, which needs neither
+  geopandas nor shapely - was skipped on exactly the machine where
+  the freedom matters.
+  A TEST THAT ONLY RUNS WHEN THE DEPENDENCY IS PRESENT CANNOT SHOW
+  THAT THE DEPENDENCY IS UNNECESSARY. Moved to
+  tests/test_vectorjoin_free.py, which imports neither, plus a guard
+  that reads its OWN imports with ast. The first version of that
+  guard scanned the source for the string "import geopandas" and
+  failed on its own list of banned words - a small lesson about
+  checking for a name by looking for its letters.
+  THE TESTS THEMSELVES ARE THE COURSE'S. John's exercise 3 has a
+  motorway BLOCKING WALKING and CARRYING REGIONAL TRAFFIC - same
+  feature, opposite signs - so the value field takes negatives, and
+  nothing had ever tried one. They work: +8/+8/+1 collapses to 9,
+  -5/-5/+1 to -4, and a cell whose charges cancel to exactly 0 KEEPS
+  ITS ROW rather than vanishing.
+
+- ~~300~~ | DONE v1.47.6 | pyproj WAS NEVER MENTIONED IN ANY INSTALL
+  GUIDE, and a student lost an evening to it.
+  INSTALL.md's rule ONE is "--no-deps, always", and it is right:
+  without it pip upgrades the host's numpy or scipy, which is what
+  broke QGIS's scipy and Stata's pyproj. THE RULE HAS A CONSEQUENCE
+  NOBODY WROTE DOWN: --no-deps also skips the dependencies that are
+  not already there, and there is exactly one - pyproj. ArcGIS Pro,
+  QGIS and Stata all ship numpy, pandas and scipy; none ships pyproj,
+  which the package requires.
+  THE STUDENT GUIDE MADE IT WORSE by verifying `import numpy, pandas,
+  scipy, pyproj` at the end of an install that never fetched pyproj,
+  and saying only that "the instructor must prepare those
+  separately" - without naming which. So the instructor could not
+  prepare it either. Mercy Lanz hit exactly this on 1.46.4: three
+  imports fine, the fourth missing, and she did the right thing and
+  asked before installing anything.
+  FIXED in INSTALL.md (all three hosts), in the student guide, and
+  guarded by a test that reads `dependencies` from pyproject and
+  requires every name to appear in INSTALL.md - so a dependency added
+  later cannot go unmentioned the same way.
+  A CLAIMED CONTRADICTION THAT WAS NOT ONE. Claude reported that
+  INSTALL.md told students to use --user while ARCGIS_GUIDE said
+  --user strands packages where Pro never reads. Both statements
+  exist; they are in DIFFERENT SECTIONS for DIFFERENT HOSTS - --user
+  is correct for QGIS's OSGeo4W and wrong for Pro, and the Pro
+  section already uses PYTHONNOUSERSITE and explains why. Claimed
+  from a grep hit without checking which section the line was in.
+  Fifth time in one session that a claim was written from what the
+  code ought to look like with the answer a line away.
+
+- 296 | ~~RULED OUT~~ SESSION 12, FOUND BY THE MATRIX | THE STATA
+  COMMAND CANNOT REACH FRICTION OR SLOPE, THOUGH THE BRIDGE CAN.
+  `stata_bridge` takes `engine="friction"` with a friction_file and
+  `engine="slope"` with a DEM and a walking model. `stata/equipop.ado`
+  mentions `barrier` ZERO times, `friction` ZERO times, `slope` ZERO
+  times; the single `dem` in the file is the word "demands" in a
+  comment. So the effort engines are finished, tested, reachable from
+  Python, QGIS and Pro - and the Stata command simply never grew the
+  options.
+  THE SIXTH UNREACHABLE THING FOUND THIS SESSION AND THE FIRST FOUND
+  BY A TOOL. The other five - inventory.py, vectorjoin.py, RunLog,
+  the Pro sidecars, make_help_xml.py - all turned up by accident, one
+  at a time, in a session that was not looking for them. This one was
+  found by tests/reachability.py within a minute of its first run,
+  and it was found IN CLAUDE'S OWN DECLARATION: the matrix was
+  written claiming a Stata door for both, from memory, and the check
+  refused it.
+  JOHN'S RULING, SESSION 12: "stata doors for friction and slope is
+  not needed - those are GIS features, and not needed in statistics".
+  A DIFFERENT REASON FROM 205 AND WORTH KEEPING SEPARATE. 205 was
+  ruled out because Stata does the job BETTER - it computes weighted
+  statistics natively. This is ruled out because the job is not
+  Stata's AT ALL: barriers and terrain are about how a landscape is
+  crossed, which is a question you ask of a map. The two rulings
+  together describe the division of labour this project settles on -
+  EquiPop builds neighbourhoods, GIS handles geography, Stata handles
+  statistics - and a future session proposing either door should read
+  both before raising it again.
+  SO THE MATRIX NOW RECORDS A DOOR DELIBERATELY NOT BUILT rather than
+  a capability missing, which is the distinction it exists to make.
+
+- 293 | OPEN, FOUND v1.47.6 | RunLog IS DEAD CODE, AND IT IS BACKLOG
+  ITEM 2. equipop/meta.py - "the per-run metadata log (backlog item 2,
+  design as agreed)" - is complete, documented, exported in __all__,
+  and CALLED BY NOTHING AND TESTED BY NOTHING. No door, no engine, no
+  runner constructs a RunLog.
+  FOUND while looking for somewhere to record the self rule of 290.
+  There was nowhere: analysis runs have no provenance record at all,
+  which is also why `overshoot` has never been recorded despite
+  moving every k-based number since 1.30.
+  NOT FIXED IN 1.47 DELIBERATELY. Building a provenance system inside
+  the self-rule item is the scope creep that produced engines without
+  doors in the first place. It needs its own release and its own
+  decision about which door writes the sidecar.
+  THIRD UNREACHABLE CAPABILITY FOUND THIS SESSION, after
+  doors/inventory.py (269, shipped 1.45.0) and vectorjoin.py
+  (280/282). This one is the oldest by a wide margin. The pattern is
+  now the project's characteristic failure: a thing is built, tested,
+  and never connected to a way of reaching it.
+
 - 194 | OPEN | THE 1.41 PLAN IN HANDOVER 11 CONTAINED TWO ERRORS THAT
   WOULD HAVE BEEN BUILT VERBATIM. Both found by the external review,
   neither would have raised an error.
@@ -1635,14 +3959,128 @@ appeared twice; the weaker copy is gone.*
   category/reference preparation helper from the GIS doors, then
   implement Stata through it.
 
-- 196 | OPEN, SMALL | `equipop setup` IS NOT VERSION-PINNED AND
+- ~~196~~ | DONE v1.48.2 | `equipop setup` WAS NOT VERSION-PINNED AND
   RETURNS SUCCESS ON A PIP FAILURE. It runs `pip install --upgrade
   equipop`, so a 1.40.4 command file can pull a newer engine after a
   later PyPI release - doctor detects the mismatch afterwards, but
   setup created it. And it prints "PIP FAILED" then returns normally,
-  so a scripted install has no failure code. FIX: pass the .ado
-  version in and install equipop==<that version>; return non-zero on
-  pip failure.
+  so a scripted install has no failure code.
+  DONE v1.48.2, WITH ONE CHANGE TO THE FIX THIS ENTRY PROPOSED. Not
+  `equipop==<version>`: an exact pin would stop an older ado ever
+  receiving a bug-fixed engine, which is the wrong failure. THE REAL
+  INVARIANT IS A FLOOR - the ado is the caller, the engine is the
+  library, so the library must be AT LEAST AS NEW as the caller:
+  `pip install "equipop>=<ado version>"`. That permits fixes and
+  forbids the case that actually breaks, an ado calling something its
+  engine does not have. The run now says which floor it asked for.
+  Both failing exits set a local the ado turns into `exit 601`.
+  RAISED IN PRIORITY BY THE SSC SUBMISSION, and that is the general
+  lesson: from GitHub the ado and engine arrived together from one set
+  of instructions, but on SSC they sit on SEPARATE UPDATE TRACKS -
+  adoupdate for the commands, `equipop setup` for the engine - so
+  drift stops being an accident and becomes the normal state. The same
+  item was cheap to ignore for months and became urgent the week the
+  distribution channel changed.
+
+- ~~322~~ | DONE v1.48.2, SAME RELEASE | THE UNKNOWN-SUBCOMMAND
+  MESSAGE SENT USERS TO A RAW GITHUB URL. It is printed at the exact
+  moment a confused user is reading carefully, and once the package is
+  on SSC it was the wrong instruction - `adoupdate` only knows about
+  packages installed from a site. SSC first now, GitHub kept below it
+  as the development route and as the answer while an SSC update is
+  still propagating. README_STATA.md had the same single route.
+  NOT IN THE BACKLOG BEFORE THIS RELEASE: found by reading the ado's
+  user-facing text with the submission in mind rather than by a test.
+
+- ~~324~~ | DONE v1.49.0, FOUND BUILDING 316 | THE QGIS DOOR APPENDED
+  A DUPLICATE FIELD NAME AND NOTHING DETECTED IT.
+  base.py's write() copies the source's fields and then appends the
+  result names - blind. QGIS writes a NEW layer each run, so feeding
+  a previous run's output back in, which is EXACTLY what comparing
+  walk against drive requires, produced TWO FIELDS OF ONE NAME in the
+  output and left OGR to resolve it however it liked.
+  316 was written about Pro, where the box offered Overwrite or Stop.
+  Nobody asked what the OTHER door does with a repeated name - the
+  same blind spot as 306, where the class rule was given to machine
+  3's join and never to machine 1's barrier. TWO DOORS DOING ONE
+  THING BY DIFFERENT RULES is now three findings deep (306, 320,
+  324) and the reachability matrix cannot see it: it lists
+  CAPABILITIES against DOORS, not the paths inside them.
+  FIXED: QGIS needs no box, because with a new layer every run there
+  is no overwrite to choose - keeping both is simply correct. Pro,
+  which appends to the input, keeps the explicit choice John ruled
+  for.
+  AND THE LOGIC LIVES IN equipop/doors/fields.py, not in either
+  door - the lesson of 320, where Pro had a locale-proof number
+  reader from 1.16.7 that QGIS never received because the code sat in
+  the .pyt.
+  CAUGHT ON THE WAY: renaming `order` in the write loop would have
+  broken the value lookup, since result[name] is read below it. The
+  written name and the result key are separate now.
+
+- ~~325~~ | DONE v1.49.0, FOUND BY BREAK-CHECKING 316 | keep_both()
+  HAD AN UNBOUNDED `while True`, SO A BAD SUFFIX WAS A HANG.
+  The loop asked letter_suffix for name after name until one was
+  free. That is correct only while letter_suffix keeps producing NEW
+  names - and a deliberate break that made it return a constant
+  turned the loop into an INFINITE ONE rather than a failure. The
+  break-check did not report a failing test; it reported a timeout.
+  A HANG INSIDE ARCGIS PRO IS A FORCE-QUIT AND LOST WORK, which is
+  worse than any error message. Bounded now, and it raises with the
+  reason instead of spinning.
+  THE LESSON IS ABOUT THE METHOD, NOT THE LOOP: breaking a fix on
+  purpose found a defect that the fix's own tests, all passing, could
+  not have found. A test suite checks that the code does the right
+  thing; breaking it checks what happens when it does the wrong one.
+
+- ~~326~~ | DONE v1.49.0 | TWO OF MY OWN TESTS WERE TOO WEAK, AND THE
+  BREAK-CHECK SAID SO.
+  The first version of the 306 tests asserted that the strings
+  "class_field" and "fidelity=CLASS" appeared SOMEWHERE in
+  barriers.py, and that "barrierclass" appeared somewhere in
+  alg_counts.py. Both survived a break in one place, because the
+  other occurrence of the same string was still there. Two of three
+  deliberate breaks passed.
+  REPLACED WITH A BEHAVIOURAL TEST that RUNS the QGIS barrier through
+  the simulator on John's own junction example - 'unclassified' three
+  times and 'trunk_link' twice - and asserts 30 per feature against
+  11 per class. All three breaks now fail it.
+  THE SAME WEAKNESS AS THE ensurepip TEST in 1.48.2, which only
+  checked that the word appeared. A GREP IS NOT A TEST: asserting a
+  string exists somewhere in a file proves nothing about whether the
+  path that uses it runs.
+  AND THE FIRST BEHAVIOURAL VERSION WAS REFUSED BY A GUARD THAT WAS
+  RIGHT: an 80 m barrier at 100 m cells "cannot block anything", said
+  the extent check, correctly. The test geometry was wrong, not the
+  code.
+
+- ~~323~~ | DONE v1.48.2 | MACHINE 3 COULD NOT BE IMPORTED ON THE
+  PYTHON ARCGIS PRO SHIPS, AND THE WHOLE SUITE PASSED ANYWAY.
+  pyproject promises `requires-python = ">=3.10"`.
+  equipop/doors/continental.py line 172 put a \u2019 escape INSIDE an
+  f-string expression, which Python refuses before 3.12 - PEP 701
+  lifted that restriction only there. So on Python 3.10 and 3.11 the
+  module raises SyntaxError at IMPORT: not a wrong answer, no answer
+  at all. ArcGIS Pro 3.3 and 3.4 ship Python 3.11.
+  HOW IT SURVIVED: every session until now ran Python 3.12, where the
+  interpreter accepts it. 1,272 tests passed over a module that could
+  not load on the floor the package advertises. FOUND ONLY BECAUSE THE
+  TEST CONTAINER CAME BACK AS 3.11 after a reset - by accident, not by
+  a guard.
+  THE FAMILY, AND IT IS A NEW MEMBER: 309-311 and 318 were all
+  failures reported as something else. THIS IS A FAILURE THE
+  ENVIRONMENT HID ENTIRELY. A test suite can only fail on the
+  interpreter it runs on, so a compatibility promise that nothing
+  checks is not a promise.
+  FIXED by lifting the string to a module constant, _OWN_CRS. GUARDED
+  by a test that compiles every module AND, while the declared floor
+  is below 3.12, refuses a backslash inside any f-string expression -
+  because a compile check on 3.12 cannot catch what 3.12 allows. The
+  test says to delete its second half, not itself, if the floor ever
+  rises.
+  WORTH DOING SEPARATELY: run the suite on the OLDEST declared Python
+  in CI, not merely on whatever the machine has. This release proves
+  the value and does not provide it.
 
 - 197 | OPEN, HOUSEKEEPING | THE COMPLETE ZIP CARRIES CACHE
   DIRECTORIES AND A STALE HANDOVER. .pytest_cache and seven
@@ -3207,24 +5645,81 @@ appeared twice; the weaker copy is gone.*
   ("two rulers", "doubling it quarters the work", "a finding, not a
   nuisance") is the model the queued naming pass should copy.
 
-- 44 | open v1.18.0 | `make_help_xml.py` still writes
-  `SyncOnce=TRUE`, the suspected cause of item 34 (summary/usage
-  rendering empty in Pro). Untouched this round: it needs one field
-  cycle to confirm, and this was a refactor release. Now a one-line
-  change in a single place whenever that cycle happens.
+- ~~44~~ | DONE v1.47.6, CONFIRMATION PENDING | `make_help_xml.py`
+  still writes `SyncOnce=TRUE`, the suspected cause of item 34
+  (summary/usage rendering empty in Pro). Untouched this round: it
+  needs one field cycle to confirm, and this was a refactor release.
+  Now a one-line change in a single place whenever that cycle happens.
+  THE ONE-LINE CHANGE IS MADE in 1.47.6:
+  SyncOnce=FALSE, which tells Pro the metadata is authored and not to
+  synchronise its own over the top. Struck because the change this
+  item describes is done - but it was ONE OF THREE faults found in the
+  same breath, and the other two (an unshipped sidecar, plain text
+  where escaped HTML belongs) are at least as likely to have been the
+  cause. See 34. Do not read this as proof that SyncOnce was the
+  problem.
 
-- 34 | open v1.16.8 | Tool help page: summary/usage sections render empty in Pro. Suspect `SyncOnce=TRUE` letting Pro regenerate over the authored text, plus missing `datatype` attributes and plain text where escaped HTML is expected. The per-parameter comments (dialogReference) DO work | Needs one field cycle to confirm
+- ~~34~~ | DONE v1.47.6, CONFIRMED IN THE FIELD | Tool help page:
+  summary/usage sections render empty in Pro. Suspect SyncOnce=TRUE
+  letting Pro regenerate over the authored text, plus missing
+  datatype attributes and plain text where escaped HTML is expected.
+  The per-parameter comments (dialogReference) DO work | Needed one
+  field cycle to confirm.
+  OPEN FROM v1.16.8 TO v1.47.6 - thirty releases - and closed by John
+  in session 12: "all good, ? page is good".
+  THE HEADLINE OF THIS ITEM WAS WRONG THE WHOLE TIME. Summary and
+  usage were never empty for the tools that had a sidecar. What was
+  empty was the per-parameter EXPLANATION COLUMN of the '?' page, for
+  text that was present in the XML and rendering perfectly in the
+  dialog flyout beside the same box. The item's own second sentence -
+  "dialogReference DOES work" - was half right and hid the other
+  half for thirty releases.
+  WHAT WAS CHANGED: SyncOnce TRUE -> FALSE (44), and the parameter
+  comments written as escaped <p> paragraphs instead of plain text -
+  which was this item's own guess, made in v1.16.8.
+  WHICH ONE FIXED IT IS NOT KNOWN. Both shipped together and John
+  reported the outcome, not the cause. `make_help_xml.py --plain`
+  regenerates without the markup and would settle it in one cycle if
+  anyone ever needs to know. RECORDED AS UNATTRIBUTED rather than
+  credited to the more interesting of the two - a fix whose cause is
+  guessed at is how 44 sat open for twenty-nine releases on a
+  suspicion nobody tested.
+  AND THE EVIDENCE THAT CLOSED IT ALMOST CLOSED THE WRONG ITEM.
+  John's first screenshot - an empty flyout - was recorded here as
+  the long-awaited field cycle. It was a STALE SIDECAR: his XML held
+  38 parameters and no `originrule`, because he had replaced the .pyt
+  and not the .xml, following a guide that said "FOUR files" and
+  listed three. His second - machine 3's '?' page, entirely blank -
+  was BACKLOG 294, a tool with no sidecar at all. Only the third
+  answered this item. THREE PIECES OF EVIDENCE, THREE DIFFERENT
+  CAUSES, and the first two both looked exactly like this one.
 
 - 49 | open | The reference covers counts and stats; friction,
   slope, fca and lisa are not in it. Now that a second door exists
   and the mechanism is proved, this is worth doing.
 
-- 45 | open v1.18.0 | (1.29.0 note: the BOOK build does it too - docs/book/build.sh leaves gamma_decay_figure.png in the repo ROOT, because examples/cookbook_01 writes relative to the working directory. Same fix, same item.) The simulated-arcpy tests write their output to
+- ~~45~~ | DONE v1.47.6 | (1.29.0 note: the BOOK build does it too - docs/book/build.sh leaves gamma_decay_figure.png in the repo ROOT, because examples/cookbook_01 writes relative to the working directory. Same fix, same item.) The simulated-arcpy tests write their output to
   the Windows-style catalog paths they pretend to use, so a test run
   on Linux leaves four literal files named `C:\Data\...csv` in the
   repo root (and one stray figure from the Book build). Harmless,
   untracked, and cleaned by hand this round - but they belong in
   pytest's tmp_path, and on Windows those paths are real. Small.
+  CLOSED v1.47.6, AND ONLY HALF OF IT WAS STILL TRUE. Measured by
+  running the suite on a clean tree: the four `C:\Data\...csv` files
+  did NOT recur and appear to have been fixed earlier without anyone
+  narrowing this entry. What DID recur was two files the item never
+  named - arcgis/EquiPop.CountsShares.pyt.xml and
+  EquiPop.ValueStatistics.pyt.xml, written on every run by
+  make_help_xml.py. Build outputs, neither committed nor shipped,
+  that the repo only ever held by accident.
+  make_help_xml.py now takes --out and the test passes tmp_path.
+  GUARDED BY RUNNING THE GENERATOR and looking at arcgis/ afterwards,
+  not by reading the call - a test that writes into the tree it is
+  testing can mask the change it exists to catch.
+  THE LESSON IS THE STALE HALF, not the fix. This entry described a
+  symptom that had already gone and missed one that was still there,
+  so anyone working from it would have fixed nothing. An item is only
+  as good as its last measurement.
 
 ### 1.18.0, second pass: the source archive
 
@@ -3242,10 +5737,19 @@ appeared twice; the weaker copy is gone.*
   validation record was deliberately NOT reconstructed: writing one
   would mean claiming validation nobody performed.
 
-- 43 | open v1.18.0 | CITATION.cff still says `version: 1.0.0` while
-  the package is at 1.18.0. Left alone deliberately - citation
-  metadata is the author's to set, and it matters more than usual
-  ahead of the Zenodo DOI at 2.0.0.
+- ~~43~~ | DONE v1.40.2, see the entry above | CITATION.cff still says
+  `version: 1.0.0` while the package is at 1.18.0. Left alone
+  deliberately - citation metadata is the author's to set, and it
+  matters more than usual ahead of the Zenodo DOI at 2.0.0.
+  THIS COPY WAS STALE AND IT COST A ROUND TRIP IN SESSION 12. Item 43
+  closed in 1.40.2: only the `version:` field moves, it is PINNED BY A
+  TEST against the package, and it is therefore a mechanical bump
+  rather than an author's decision. Reading this copy, Claude put it
+  to John as "author's call", John reasonably answered "no update for
+  now", and the release then failed its own citation test.
+  The author's part - the preferred-citation, the 2014 report, the
+  affiliation - is untouched by a version bump and remains John's
+  alone. Struck here so the file holds one answer.
 
 - 77 | open v1.29.0 | The vocabulary sweep. 1.29 made the shared
   `pop` entry neutral (John: a point may stand for services, jobs,

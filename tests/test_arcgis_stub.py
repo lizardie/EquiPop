@@ -222,7 +222,19 @@ def _install_fake_arcpy(table: pd.DataFrame):
                   # Pro datatypes; the simulator simply had never
                   # needed them, which is why the two tools could not
                   # be exercised and so were left unregistered.
-                  "DEFolder", "GPCoordinateSystem"}
+                  "DEFolder", "GPCoordinateSystem",
+                  # v1.47.11, machine 6. An inventory has NO GEOMETRY,
+                  # so its output is a standalone table and not a
+                  # feature class - inventing a point for ninety files
+                  # would stack them all on the map's origin. DETable
+                  # is an ordinary Pro datatype the simulator had
+                  # simply never needed, which is the SAME reason
+                  # DEFolder was missing until 235 and QMetaType had
+                  # no LongLong until this release. A sparse
+                  # simulator does not fail loudly; it narrows what a
+                  # door is allowed to ask for, and the narrowing
+                  # reads as a mistake in the door.
+                  "DETable"}
 
     class Parameter:
         def __init__(self, **kw):
@@ -1111,7 +1123,12 @@ def test_pyt_dialogs_construct_like_pro():
     m1 = {p.name: p for p in pyt.CountsShares().getParameterInfo()}
     assert isinstance(m1["layer"].datatype, list)      # the field bug
     assert m1["barriertable"].datatype == "GPValueTable"
-    assert len(m1["barriertable"].columns) == 2      # source + field
+    # BACKLOG 306: a THIRD column, the optional class field. Without
+    # it a cell is charged once per FEATURE, and OSM cuts one street
+    # into a new record wherever a tag changes.
+    assert len(m1["barriertable"].columns) == 3   # source, value, class
+    assert "lass" in str(m1["barriertable"].columns[2]), (
+        "the third barrier column is not the class field")
     # every value-table column must be a type Pro can marshal
     for p in list(m1.values()):
         for col in getattr(p, "columns", []) or []:
@@ -1260,6 +1277,11 @@ def test_pyt_dialog_time_validation_blocks_run():
                for e in all_errors)          # coordA/B not guessable
     ps2 = tool.getParameterInfo()            # a fine point layer:
     ps2[0].value = "people"
+    # v1.47.11: and a neighbourhood, because BACKLOG 305 added a check
+    # that a run has one. This test is about the COORDINATE trio; it
+    # has to satisfy the unrelated requirements or it stops testing
+    # what its name says.
+    {p.name: p for p in ps2}["k"].value = "100"
     tool.updateParameters(ps2)
     tool.updateMessages(ps2)
     assert not [1 for p in ps2 for k, _ in p.messages if k == "ERROR"]
@@ -1533,7 +1555,42 @@ def test_pyt_dialog_warns_about_shapefile_before_run():
     assert not errs2
 
 
-def test_help_xml_covers_every_parameter():
+def test_generating_the_help_does_not_dirty_the_working_tree(tmp_path):
+    """BACKLOG 45. The suite used to leave two untracked
+    EquiPop.*.pyt.xml files in arcgis/ on every run. They are build
+    outputs - not committed, not shipped - so the repo only ever held
+    them by accident, and a test that writes into the tree it tests
+    can mask the change it exists to catch.
+
+    Checked by RUNNING THE GENERATOR the way the suite does and
+    looking at arcgis/ afterwards, not by reading the call.
+    """
+    import subprocess
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    arc = os.path.join(root, "arcgis")
+    before = {f for f in os.listdir(arc) if f.endswith(".pyt.xml")}
+    gen = os.path.join(arc, "make_help_xml.py")
+    subprocess.run([sys.executable, gen, "--out", str(tmp_path)],
+                   check=True, cwd=root)
+    after = {f for f in os.listdir(arc) if f.endswith(".pyt.xml")}
+    assert after == before, (
+        f"generating the help wrote {sorted(after - before)} into "
+        "arcgis/ - it was given --out and ignored it")
+    written = {f for f in os.listdir(tmp_path) if f.endswith(".pyt.xml")}
+    # one per REGISTERED tool - read from the toolbox, not a fixed
+    # number, so adding a fifth machine cannot leave it unhelped
+    pyt_src = open(os.path.join(root, "arcgis", "EquiPop.pyt"),
+                   encoding="utf-8").read()
+    n_tools = len([t for t in re.search(
+        r"self\.tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
+        if t.strip()])
+    assert len(written) == n_tools, (
+        f"--out produced {sorted(written)} for {n_tools} registered "
+        "tools - a tool with no sidecar shows 'There is no "
+        "description for this item' in Pro")
+
+
+def test_help_xml_covers_every_parameter(tmp_path):
     """The sidecar help must stay in step with the dialogs: every
     parameter of both tools needs its own explanation, and the XML
     must parse."""
@@ -1541,15 +1598,21 @@ def test_help_xml_covers_every_parameter():
     import subprocess
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     gen = os.path.join(root, "arcgis", "make_help_xml.py")
-    subprocess.run([sys.executable, gen], check=True, cwd=root)
+    # BACKLOG 45. Into tmp_path, NOT into arcgis/. Running the suite
+    # used to leave two untracked EquiPop.*.pyt.xml files in the
+    # working tree every time - build outputs the repo held only by
+    # accident, and a test that writes into the tree it is testing
+    # can mask a change it was meant to catch.
+    outdir = str(tmp_path)
+    subprocess.run([sys.executable, gen, "--out", outdir],
+                   check=True, cwd=root)
     t = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
                       "SHAPE@Y": [0.0]})
     _install_fake_arcpy(t)
     pyt = _load_pyt()
     for cls, name in ((pyt.CountsShares, "CountsShares"),
                       (pyt.ValueStatistics, "ValueStatistics")):
-        path = os.path.join(root, "arcgis",
-                            f"EquiPop.{name}.pyt.xml")
+        path = os.path.join(outdir, f"EquiPop.{name}.pyt.xml")
         tree = ET.parse(path)
         helped = {p.get("name") for p in tree.iter("param")}
         assert {p.name for p in cls().getParameterInfo()} <= helped
@@ -2356,3 +2419,658 @@ def test_a_box_the_rung_does_not_read_is_announced_not_obeyed():
     assert "treatcatfield" in ignored
     said = "\n".join(msg.log)
     assert "IGNORED" in said and "treatcatfield" in said
+
+
+def test_the_help_generator_explains_itself_where_john_keeps_it():
+    """v1.47.11. make_help_xml.py has shipped as one of the five Pro
+    files since 1.44.4 and, until now, could not be run from the
+    folder it ships to: it imported test_arcgis_stub, which lives in
+    the repository's tests/ directory and is not one of the five.
+    ModuleNotFoundError, immediately, every time.
+
+    FOUND BECAUSE THE ESCAPE HATCH WAS UNUSABLE. --plain was offered
+    as insurance against an untested HTML change, and the one person
+    who might have needed it could not run the command.
+
+    It now falls back to REAL arcpy - which is what Pro's Python
+    Command Prompt has - and when neither route exists it says which
+    two places it can run, and that Pro's embedded Python WINDOW is
+    not one of them.
+    """
+    import importlib.util
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, "arcgis", "make_help_xml.py")
+    src = open(path, encoding="utf-8").read()
+    assert "def load_toolbox(" in src, (
+        "the generator no longer has a single place that loads the "
+        "toolbox, so the fallback cannot be relied on")
+    # the message must name the prompt that works and the one that
+    # does not - John pasted the command into the wrong one
+    assert "PYTHON COMMAND PROMPT" in src
+    assert "WINDOW is not a command prompt" in src
+    assert "python make_help_xml.py" in src
+
+
+def test_pro_refuses_a_run_with_neither_k_nor_r():
+    """BACKLOG 305, the Pro half. updateMessages checked shapefile
+    field limits and null handling and never checked that the tool had
+    a neighbourhood to measure - so Pro was happy to Run and the
+    engine refused afterwards.
+
+    Both boxes stay OPTIONAL, which is John's ruling: a radius-only
+    run is a perfectly good question.
+    """
+    import pandas as pd
+    t = pd.DataFrame({"OBJECTID": [1, 2], "SHAPE@X": [0.0, 100.0],
+                      "SHAPE@Y": [0.0, 0.0], "pop": [50.0, 50.0]})
+    _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    tool = pyt.CountsShares()
+    ps = tool.getParameterInfo()
+    pm = {p.name: p for p in ps}
+    pm["layer"].value = "lyr"
+    pm["pop"].value = "pop"
+
+    pm["k"].value = ""
+    pm["r"].value = ""
+    tool.updateMessages(ps)
+    said = " ".join(t for _kind, t in pm["k"].messages)
+    assert said, "Pro allowed a run with no neighbourhood"
+    assert "radius" in said.lower(), said
+
+    for k, r in (("100", ""), ("", "500"), ("100", "500")):
+        for p in ps:
+            try:
+                p.clearMessage()
+            except Exception:
+                pass
+        pm["k"].value, pm["r"].value = k, r
+        tool.updateMessages(ps)
+        assert not pm["k"].messages, (k, r, pm["k"].messages)
+
+
+def test_a_layer_pro_cannot_read_is_reported_as_itself():
+    """BACKLOG 308. Pro holds map layers as CIMPATH=Map/<name>.json,
+    and that reference DANGLES once the layer leaves the map - which
+    happens when a run rewrites the dataset the layer points at. The
+    box still shows a plausible name.
+
+    Describe() then fails, _kind() was never reached, and the dialog
+    fell through to "tables/attribute mode" - demanding X and Y
+    columns for a dataset that has geometry and needs none. John hit
+    this re-running on the previous lecture's output: the message sent
+    him looking for coordinate columns that do not exist.
+
+    UNREADABLE IS NOT "NO GEOMETRY". The error must name the layer.
+    """
+    import pandas as pd
+    t = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                      "SHAPE@Y": [0.0], "pop": [10.0]})
+    state = _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    tool = pyt.CountsShares()
+    ps = tool.getParameterInfo()
+    pm = {p.name: p for p in ps}
+
+    import arcpy as fake
+    real_describe = fake.Describe
+
+    def dangling(v):
+        if isinstance(v, str) and v.startswith("CIMPATH="):
+            raise RuntimeError("cannot open dataset")
+        return real_describe(v)
+
+    fake.Describe = dangling
+    try:
+        pm["layer"].value = "CIMPATH=Map/Lecture1Output.json"
+        pm["k"].value = "100"
+        tool.updateParameters(ps)
+        tool.updateMessages(ps)
+        said = " ".join(txt for _k, txt in pm["layer"].messages)
+        assert said, "an unreadable layer produced no message at all"
+        assert "no longer in the map" in said.lower(), said
+        # and the coordinate boxes must NOT be the thing complained at
+        for box in ("xfield", "yfield"):
+            assert not pm[box].messages, (box, pm[box].messages)
+    finally:
+        fake.Describe = real_describe
+
+
+def test_the_field_check_drops_pros_schema_cache_first():
+    """BACKLOG 309. arcpy.ListFields reads a CACHED schema. On a
+    GeoPackage or SQLite workspace Pro caches hard enough that fields
+    written seconds earlier are invisible, and the run then reported
+    "7 result fields are NOT in the target" for seven fields that were
+    all present - John confirmed by removing the file and re-importing
+    it.
+
+    A WRONG VERIFICATION IS WORSE THAN NONE: it tells a user their
+    results are missing when they are not, and the obvious next move
+    is to run the whole thing again.
+    """
+    import pandas as pd
+    t = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                      "SHAPE@Y": [0.0]})
+    _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    import arcpy as fake
+
+    cleared = []
+    if not hasattr(fake.management, "ClearWorkspaceCache"):
+        fake.management.ClearWorkspaceCache = lambda *a, **k: None
+    real_clear = fake.management.ClearWorkspaceCache
+    fake.management.ClearWorkspaceCache = (
+        lambda *a, **k: cleared.append(True))
+
+    real_list = fake.ListFields
+    stale = {"lyr"}
+
+    def caching(target):
+        # the LAYER object serves a stale view until the cache is
+        # dropped; the catalog path is always current
+        if target in stale and not cleared:
+            return []
+        return real_list(target)
+
+    fake.ListFields = caching
+    try:
+        got = pyt._fields_after_writing("lyr", "C:/x/y.gpkg/main.t")
+        assert cleared, "the workspace cache was never cleared"
+        assert got, "no fields found even after clearing the cache"
+    finally:
+        fake.ListFields = real_list
+        fake.management.ClearWorkspaceCache = real_clear
+
+
+def test_a_catalog_path_that_points_at_nothing_is_recovered():
+    """BACKLOG 310, from John's field test.
+
+    Pro opens a GeoPackage as a GENERIC SQLITE workspace. His
+    `main.la_blocks` drags into the map as a layer called
+    `main.la_blocks_1` - the _1 appended on the FIRST drag, against no
+    duplicate - and Describe().catalogPath follows the LAYER name
+    rather than the table. Catalog showed one table; Contents showed
+    two layers both called ..._1.
+
+    Handed to ExtendTable, that path gives "cannot open", which our
+    classifier then read as a LOCK. John spent a five-minute run and
+    a hunt for an open attribute table on a dataset that was never
+    locked and never named what we thought.
+
+    TRUST, THEN VERIFY: catalogPath stays the first choice, because
+    for a GeoPackage it is the only workable form - but a path that
+    does not exist is not an answer.
+    """
+    import pandas as pd
+    t = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                      "SHAPE@Y": [0.0]})
+    _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    import arcpy as fake
+
+    REAL = r"C:\x\la_blocks.gpkg\main.la_blocks"
+    BAD = r"C:\x\la_blocks.gpkg\main.la_blocks_1"
+
+    class Layer:
+        dataSource = (r"Instance=C:\x\la_blocks.gpkg,"
+                      r"Dataset=main.la_blocks")
+
+    lyr = Layer()
+    real_describe, real_exists = fake.Describe, getattr(
+        fake, "Exists", None)
+    fake.Describe = lambda v: types.SimpleNamespace(catalogPath=BAD)
+    fake.Exists = lambda p: str(p) == REAL
+    try:
+        got = pyt._ref(lyr)
+        assert got == REAL, (
+            f"_ref returned {got!r} - a path Pro cannot open, taken "
+            "on trust from catalogPath")
+    finally:
+        fake.Describe = real_describe
+        if real_exists is not None:
+            fake.Exists = real_exists
+
+
+def test_a_missing_target_is_not_reported_as_a_lock():
+    """The other half of 310. "cannot open" means the path is wrong
+    or the dataset is gone; waiting, closing attribute tables and
+    leaving OneDrive cannot help, and saying so wastes the user's
+    time in the least recoverable way - after a long run."""
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    err = pyt._write_failure(
+        RuntimeError(r"cannot open 'C:\x\la_blocks.gpkg\main.la_blocks_1'"),
+        "add the result fields", r"C:\x\la_blocks.gpkg\main.la_blocks_1")
+    text = str(err)
+    assert "could not be opened" in text.lower(), text
+    assert "attribute table" not in text.lower(), (
+        "a missing dataset is still being reported as a lock")
+
+
+def test_the_dataset_name_is_recovered_from_the_connection_string():
+    """The dataSource route of BACKLOG 310, ON ITS OWN.
+
+    The first version of the test above passed even with this route
+    deleted, because the layer was called `main.la_blocks_1` and
+    stripping `_1` also lands on the truth. Two routes, one fixture,
+    and the deliberate break sailed past.
+
+    Here the layer name gives NO clue - stripping its suffix lands on
+    a dataset that does not exist - so only the connection string can
+    say what the table really is. For a GeoPackage that string is the
+    thing arcpy refuses as a path while carrying the one fact
+    catalogPath got wrong.
+    """
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    import arcpy as fake
+
+    REAL = r"C:\x\la_blocks.gpkg\main.la_blocks"
+    BAD = r"C:\x\la_blocks.gpkg\Exercise1Points_3"
+
+    class Layer:
+        dataSource = (r"Instance=C:\x\la_blocks.gpkg,"
+                      r"Dataset=main.la_blocks")
+
+    real_describe, real_exists = fake.Describe, getattr(fake, "Exists", None)
+    fake.Describe = lambda v: types.SimpleNamespace(catalogPath=BAD)
+    fake.Exists = lambda p: str(p) == REAL
+    try:
+        assert pyt._ref(Layer()) == REAL
+    finally:
+        fake.Describe = real_describe
+        if real_exists is not None:
+            fake.Exists = real_exists
+
+
+def test_a_layer_with_no_connection_string_still_recovers():
+    """The third route of BACKLOG 310: strip a trailing _N from the
+    name. It is a HEURISTIC, so it only ever returns a path that
+    arcpy.Exists confirms - but it is what saves a layer object that
+    exposes no dataSource at all, and both fixtures above recover
+    through the connection string instead, so nothing tested it."""
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    import arcpy as fake
+
+    REAL = r"C:\x\la_blocks.gpkg\main.la_blocks"
+    BAD = r"C:\x\la_blocks.gpkg\main.la_blocks_1"
+
+    class Bare:                      # no dataSource at all
+        pass
+
+    real_describe, real_exists = fake.Describe, getattr(fake, "Exists", None)
+    fake.Describe = lambda v: types.SimpleNamespace(catalogPath=BAD)
+    fake.Exists = lambda p: str(p) == REAL
+    try:
+        assert pyt._ref(Bare()) == REAL
+    finally:
+        fake.Describe = real_describe
+        if real_exists is not None:
+            fake.Exists = real_exists
+
+
+def test_an_unreadable_layer_does_not_empty_the_field_boxes():
+    """BACKLOG 311. _clear_stale_fields exists to drop field picks
+    Pro remembered from ANOTHER layer. It decides by comparing the
+    picks against the layer's field list - and treated an EMPTY list
+    as "none of these fields exist" rather than "I could not read
+    this layer".
+
+    ListFields returns [] rather than raising for a layer Pro cannot
+    properly resolve (BACKLOG 310), so the except never fired and
+    every field box was silently emptied. John filled the dialog,
+    pressed Run, and was told the group-count box was empty - because
+    we had cleared it between his filling it and his pressing Run.
+
+    NOT READABLE IS NOT NOT-PRESENT.
+    """
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0],
+                                      "black_alone": [1.0]}))
+    pyt = _load_pyt()
+    tool = pyt.CountsShares()
+    ps = tool.getParameterInfo()
+    pm = {p.name: p for p in ps}
+    pm["layer"].value = "lyr"
+    pm["pop"].value = "total_pop"
+    pm["treat"].value = "black_alone"
+
+    import arcpy as fake
+    real_list = fake.ListFields
+    fake.ListFields = lambda v: []          # unreadable, not empty-of-fields
+    try:
+        idxs = [i for i, p in enumerate(ps)
+                if p.name in ("pop", "treat", "catfield")]
+        pyt._clear_stale_fields(ps, 0, idxs)
+        assert pm["treat"].value == "black_alone", (
+            "the group field was cleared because the layer could not "
+            "be read")
+        assert pm["pop"].value == "total_pop"
+    finally:
+        fake.ListFields = real_list
+
+
+def test_a_dem_in_the_wrong_crs_is_refused_not_reprojected():
+    """BACKLOG 313, John's ruling: "DEM should not [be
+    auto-projected], add a loud error".
+
+    Reprojecting a raster means RESAMPLING - a method, a cell size,
+    and interpolation error - and a slope computed from a resampled
+    DEM is not the slope of the original. That is an analytical
+    decision disguised as a formatting step, and not ours to make
+    silently. Vector barriers ARE converted on read, because
+    transforming a coordinate is exact; a raster is not.
+    """
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    import arcpy as fake
+
+    work = types.SimpleNamespace(factoryCode=26945,
+                                 name="NAD83_California_V")
+    dem = types.SimpleNamespace(factoryCode=32611, name="WGS_1984_UTM_11N")
+    d = types.SimpleNamespace(spatialReference=dem, extent=None)
+
+    real_describe = fake.Describe
+    fake.Describe = lambda v: d
+    try:
+        with pytest.raises(Exception, match="(?i)will not reproject"):
+            pyt._raster_payload("dem.tif", _Msg(), work)
+    finally:
+        fake.Describe = real_describe
+
+
+def test_a_dataset_with_no_coordinate_system_is_refused():
+    """BACKLOG 313, John: "no crs should not be silent - a loud error
+    there". arcpy's spatial_reference= can only TRANSFORM; it cannot
+    invent a source. An undefined .prj means the coordinates pass
+    through untouched and land wherever they land, and nothing
+    downstream can tell."""
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    for sr in (None,
+               types.SimpleNamespace(factoryCode=0, name=""),
+               types.SimpleNamespace(factoryCode=0, name="Unknown")):
+        d = types.SimpleNamespace(spatialReference=sr)
+        with pytest.raises(Exception, match="(?i)no coordinate system"):
+            pyt._require_crs(d, "The barrier layer")
+    # a defined one passes straight through
+    good = types.SimpleNamespace(factoryCode=26945, name="NAD83_CA_V")
+    assert pyt._require_crs(
+        types.SimpleNamespace(spatialReference=good), "x") is good
+
+
+class _Msg:
+    def __init__(self):
+        self.log = []
+
+    def addMessage(self, m):
+        self.log.append(str(m))
+
+    addWarningMessage = addMessage
+    addErrorMessage = addMessage
+
+
+def test_every_run_says_which_toolbox_and_package_are_live():
+    """BACKLOG 314. Pro CACHES .pyt modules: replacing the file does
+    not replace what runs, and only a full restart reloads it. John
+    lost most of an evening to that - the file on disk had the fix,
+    the module in memory did not, and the only way either of us could
+    tell was by counting lines in a traceback.
+
+    The manifest recorded the PACKAGE version and never the TOOLBOX
+    version, and this whole episode is the gap between those two.
+    """
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    assert hasattr(pyt, "TOOLBOX_VERSION")
+
+    m = _Msg()
+    pyt._announce_version(m)
+    said = " ".join(m.log)
+    assert "EquiPop toolbox" in said and pyt.TOOLBOX_VERSION in said, said
+
+    # and it must SHOUT when the two disagree, because that is the
+    # state a stale cached module leaves you in
+    import equipop
+    real = equipop.__version__
+    equipop.__version__ = "0.0.1"
+    try:
+        m2 = _Msg()
+        pyt._announce_version(m2)
+        said2 = " ".join(m2.log)
+        assert "DIFFERENT VERSIONS" in said2, said2
+        assert "RESTART PRO" in said2, said2
+    finally:
+        equipop.__version__ = real
+
+
+def test_the_toolbox_version_matches_the_package():
+    """They are released together. A mismatch in the repository means
+    someone bumped one and not the other."""
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "arcgis", "EquiPop.pyt"),
+               encoding="utf-8").read()
+    tb = re.search(r'^TOOLBOX_VERSION\s*=\s*"([^"]+)"', src, re.M)
+    assert tb, "the toolbox no longer declares its version"
+    ver = re.search(r'^version\s*=\s*"([^"]+)"',
+                    open(os.path.join(root, "pyproject.toml"),
+                         encoding="utf-8").read(), re.M).group(1)
+    assert tb.group(1) == ver, (
+        f"toolbox says {tb.group(1)}, package says {ver}")
+
+
+# ---------------- BACKLOG 317 / 318: what the half-life means --------
+def _decay_tool():
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                                      "SHAPE@Y": [0.0]}))
+    pyt = _load_pyt()
+    tool = pyt.CountsShares()
+    ps = tool.getParameterInfo()
+    return pyt, tool, ps, {p.name: p for p in ps}
+
+
+def test_the_calibration_box_appears_only_where_it_matters():
+    """John, session 12: offer the choice only when a user DELIBERATELY
+    picks a model where it matters. negexp gives the same beta either
+    way, power has only half-probability, so the box is greyed for
+    those - and for no decay at all."""
+    pyt, tool, ps, pm = _decay_tool()
+    assert "calibration" in pm
+    for model, want in (("no decay", False), ("negexp", False),
+                        ("power", False), ("expnormal", True),
+                        ("expsqrt", True), ("lognormal", True)):
+        pm["model"].value = model
+        tool.updateParameters(ps)
+        assert bool(pm["calibration"].enabled) is want, (model,
+                                                          pm["calibration"].enabled)
+
+
+def test_the_calibration_defaults_to_half_life():
+    pyt, tool, ps, pm = _decay_tool()
+    assert pyt._calibration(pm) == "half-life"
+    from equipop.doors.decaynames import CALIBRATION_CHOICES
+    pm["calibration"].value = CALIBRATION_CHOICES[1]
+    assert pyt._calibration(pm) == "half-probability"
+
+
+def test_a_variable_half_life_keeps_the_chosen_model():
+    """BACKLOG 318, found wiring 317. The model was forwarded only when
+    a FIXED half-life was given, so a half-life from a field ran as
+    NEGEXP whatever the user chose - silently. The calibration needed
+    the same forwarding, and the gap showed.
+
+    Checked on the keywords _run_tool builds, because that is where the
+    model was being dropped."""
+    import pandas as pd
+    t = pd.DataFrame({"OBJECTID": [1, 2, 3], "SHAPE@X": [0.0, 90.0, 180.0],
+                      "SHAPE@Y": [0.0, 0.0, 0.0], "pop": [50.0, 60.0, 70.0],
+                      "hl": [500.0, 500.0, 500.0]})
+    _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    seen = {}
+    real = pyt.dispatch if hasattr(pyt, "dispatch") else None
+    import equipop.stata_bridge as sb
+    orig = sb.dispatch
+
+    def spy(engine, x, y, **kw):
+        seen.update(kw)
+        raise RuntimeError("stop here - the keywords are what we test")
+
+    sb.dispatch = spy
+    try:
+        try:
+            pyt._run_tool("counts", "lyr", _Msg(), weight_field="pop",
+                          k_text="2", half_life=0.0,
+                          decay_model="expsqrt",
+                          decay_calibration="half-probability",
+                          half_life_field="hl", decay_bins=1)
+        except Exception:
+            pass
+    finally:
+        sb.dispatch = orig
+    assert seen.get("decay_model") == "expsqrt", (
+        f"a half-life from a field ran with model {seen.get('decay_model')!r}"
+        " - the chosen model was dropped on the variable route")
+    assert seen.get("decay_calibration") == "half-probability"
+
+
+# ------------- BACKLOG 306: the barrier charges per CLASS ------------
+def test_the_barrier_can_charge_each_class_once():
+    """BACKLOG 306. Machine 1's barrier went through
+    paths_to_friction(), which charges ONCE PER FEATURE - so it still
+    had the defect 298 removed from machine 3's join.
+
+    John's own example: a real junction holds 'unclassified' three
+    times and 'trunk_link' twice, all one road. Per feature that is
+    five charges; per class it is two.
+    """
+    import contextlib, io
+    from equipop.friction import paths_to_friction
+    from equipop.vectorjoin import paths_to_cells, CLASS
+    line = {"type": "line", "parts": [[(10.0, 10.0), (90.0, 10.0)]]}
+    feats = [line] * 5
+    vals = [8.0] * 3 + [3.0] * 2
+    classes = ["unclassified"] * 3 + ["trunk_link"] * 2
+    with contextlib.redirect_stdout(io.StringIO()):
+        per_feature = paths_to_friction(feats, vals, unit_size=100.0,
+                                        agg="sum")
+        per_class = paths_to_cells(feats, vals, classes,
+                                   unit_size=100.0, fidelity=CLASS,
+                                   agg="sum")
+    assert float(per_feature["friction"].iloc[0]) == 30.0
+    assert float(per_class["value"].iloc[0]) == 11.0, (
+        "the class-collapsing route is charging per feature again")
+
+
+def test_the_barrier_class_field_reaches_both_doors():
+    """A box one door has and the other does not is this project's
+    oldest failure - and 320 was exactly that, a locale fix Pro had
+    from 1.16.7 that QGIS never received. Checked on the sources,
+    because the defect would be an absence."""
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pyt = open(os.path.join(here, "arcgis", "EquiPop.pyt"),
+               encoding="utf-8").read()
+    assert "class_field" in pyt and "fidelity=CLASS" in pyt, (
+        "the Pro barrier cannot charge per class")
+    bar = open(os.path.join(here, "qgis", "equipop_qgis",
+                            "barriers.py"), encoding="utf-8").read()
+    assert "class_field" in bar and "fidelity=CLASS" in bar, (
+        "the QGIS barrier cannot charge per class")
+    alg = open(os.path.join(here, "qgis", "equipop_qgis",
+                            "alg_counts.py"), encoding="utf-8").read()
+    assert "barrierclass" in alg, "no class box on the QGIS door"
+    # and the explanation must be SHARED, not written twice
+    from equipop.doors.help import HELP
+    assert "barrierclass" in HELP
+
+
+def test_a_run_without_the_class_field_says_so():
+    """The default stays per-feature, because with no class field
+    there is nothing to collapse on - so the behaviour of every
+    existing barrier run is unchanged. What must NOT stay unchanged is
+    the silence: on OSM roads per-feature counting is a fact about the
+    data, and the run now says which rule it used either way."""
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for rel in (("arcgis", "EquiPop.pyt"),
+                ("qgis", "equipop_qgis", "barriers.py")):
+        src = open(os.path.join(here, *rel), encoding="utf-8").read()
+        low = src.lower()
+        assert "no class field" in low, (
+            f"{rel[-1]} does not say when it charged per feature")
+        assert "dissolve" in low, (
+            f"{rel[-1]} does not name the workaround")
+
+
+def test_a_table_input_may_write_a_new_feature_class():
+    """BACKLOG 327, John from the field with the Northern Ireland 1 km
+    grid. He gave a CSV of coordinates, chose Output = New feature
+    class, named it, and the dialog still refused with "Table input
+    has no feature class to append to - set the output table (.csv)"
+    while the feature-class box sat filled in right above it.
+
+    The check asked only whether the INPUT was a table. It never
+    looked at the output mode, so the one obvious thing to do with a
+    table of coordinates - turn it into points - was unreachable. The
+    message was true of appending and false of the run.
+    """
+    import pandas as pd
+    _install_fake_arcpy(pd.DataFrame({"OBJECTID": [1, 2],
+                                      "X": [335500.0, 336500.0],
+                                      "Y": [357500.0, 358500.0],
+                                      "pop": [13.0, 22.0]}))
+    pyt = _load_pyt()
+    import arcpy as fake
+    real = fake.Describe
+    fake.Describe = lambda v: types.SimpleNamespace(
+        dataType="Table", shapeType=None, spatialReference=None,
+        catalogPath=r"C:\ni\grid.csv")
+    try:
+        tool = pyt.CountsShares()
+        ps = tool.getParameterInfo()
+        pm = {p.name: p for p in ps}
+        pm["layer"].value = "grid.csv"
+        pm["xfield"].value = "X"
+        pm["yfield"].value = "Y"
+        pm["k"].value = "200"
+        pm["outmode"].value = "New feature class"
+        pm["outfc"].value = r"C:\ni\work.gdb\TrialRun"
+        tool.updateMessages(ps)
+        errs = [t for k, t in pm["outtable"].messages if k == "ERROR"]
+        assert not errs, (
+            "a .csv output is still demanded when a NEW FEATURE CLASS "
+            f"was asked for: {errs!r}")
+
+        # and the demand must remain when there IS nowhere else to go
+        pm["outmode"].value = "Append to input"
+        pm["outtable"].value = None
+        for q in ps:
+            try:
+                q.clearMessage()
+            except Exception:
+                pass
+        tool.updateMessages(ps)
+        errs2 = " ".join(t for k, t in pm["outtable"].messages
+                         if k == "ERROR")
+        assert "cannot be appended" in errs2, (
+            "appending a table input must still be refused - a CSV on "
+            f"disk is not a feature class. Got: {errs2!r}")
+    finally:
+        fake.Describe = real

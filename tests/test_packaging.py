@@ -165,6 +165,38 @@ def test_every_version_string_in_the_repo_agrees():
         + "; ".join(f"{k} = {v}" for k, v in sorted(found.items())))
 
 
+def test_every_runner_at_the_root_is_carried_by_the_manifest():
+    """v1.47. The sdist for 1.46.4 carried NONE of run_fetch.py,
+    run_raster_folder.py or run_osm_friction.py. MANIFEST.in had
+    gained `include demo_*.py` for BACKLOG 107 and nothing for the
+    runners, so the pattern the file's own comments describe three
+    times happened a fourth.
+
+    It mattered most for run_osm_friction.py. BACKLOG 283 records
+    that it is THE ONLY WAY to reach the OSM lattice engine, because
+    no door wraps it - so the source archive shipped the headline
+    feature of 1.46.0 and 1.46.1 with no way to run it.
+
+    Checked against the FILES ON DISK rather than a fixed list, so a
+    runner added later is covered without anyone remembering to come
+    back here.
+    """
+    runners = sorted(f for f in os.listdir(ROOT)
+                     if re.fullmatch(r"run_.*\.py", f))
+    assert runners, "no run_*.py at the root - has the naming changed?"
+    manifest = open(os.path.join(ROOT, "MANIFEST.in"),
+                    encoding="utf-8").read()
+    lines = [l.strip() for l in manifest.split("\n")]
+    covered = any(re.fullmatch(r"include run_\*\.py", l) for l in lines)
+    if not covered:
+        missing = [f for f in runners
+                   if not any(l == f"include {f}" for l in lines)]
+        assert not missing, (
+            f"MANIFEST.in does not carry {missing} - the source "
+            "archive will ship a runner-less copy, which is how "
+            "1.46.4 shipped the OSM work with no way to run it")
+
+
 def test_the_stub_audit_travels_with_the_code_it_checks():
     """v1.29.1. tools/stub_audit.py is the only check that can catch
     the simulator promising methods QGIS does not have - the fault
@@ -253,3 +285,445 @@ def test_the_release_zip_builder_refuses_unextractable_names():
         with pytest.raises(SystemExit) as e:
             mk.check(good + [bad])
         assert "REFUSING" in str(e.value), bad
+
+
+def test_every_module_a_shipped_runner_imports_is_in_the_wheel():
+    """BACKLOG 241. run_fetch.py was delivered importing
+    equipop.doors.fetching, which existed in the working tree and in
+    NO WHEEL - so John got ModuleNotFoundError on his first command.
+
+    A runner is useless without the module it drives, and 'it works in
+    my tree' is not shipping. This walks every top-level runner's
+    imports and checks the package really provides them.
+    """
+    import ast
+    import importlib.util
+
+    from pathlib import Path as _P
+    runners = sorted(_P(ROOT).glob("run_*.py"))
+    assert runners, "no runners found - has the naming changed?"
+    for r in runners:
+        tree = ast.parse(r.read_text(encoding="utf-8"))
+        wanted = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.startswith("equipop"):
+                    wanted.add(node.module)
+            elif isinstance(node, ast.Import):
+                for n in node.names:
+                    if n.name.startswith("equipop"):
+                        wanted.add(n.name)
+        for mod in sorted(wanted):
+            assert importlib.util.find_spec(mod) is not None, (
+                f"{r.name} imports {mod}, which the package does not "
+                "provide")
+
+
+def test_the_pro_help_sidecars_are_shipped_beside_the_toolbox():
+    """v1.47.11. EquiPop.<Tool>.pyt.xml is where ArcGIS Pro reads the
+    comment beside each parameter box. They were NEVER SHIPPED - not
+    in MANIFEST.in, not in the sdist, not in any delivery - so a Pro
+    user has only ever had the help they generated themselves, one
+    release stale at best.
+
+    BACKLOG 34 has recorded "summary/usage render empty in Pro" since
+    v1.16.8 and asked for a field cycle to confirm. John supplied one
+    in session 12: a dialogReference flyout with a correct title and
+    an EMPTY BODY. A missing sidecar produces exactly that.
+
+    THE TEST THAT EXISTED did not catch this. It generates the files
+    and checks every parameter has help in them - true, and no help
+    at all for a user who never receives the file. A check on an
+    artefact nobody ships is a check on nothing.
+    """
+    manifest = open(os.path.join(ROOT, "MANIFEST.in"),
+                    encoding="utf-8").read()
+    lines = [l.strip() for l in manifest.split("\n")]
+    assert any(re.fullmatch(r"include arcgis/\*\.pyt\.xml", l)
+               or re.fullmatch(r"graft arcgis", l) and
+               "include arcgis/*.pyt.xml" in manifest
+               for l in lines), (
+        "MANIFEST.in does not carry arcgis/*.pyt.xml - Pro will show "
+        "an empty comment beside every parameter box")
+
+
+def test_the_sidecars_are_not_committed_to_the_repository():
+    """The other half, and the two are not in conflict: the sidecars
+    are BUILD OUTPUTS regenerated by make_help_xml.py, so they are
+    excluded from the tree (BACKLOG 45) and included in the archive.
+    Do not commit them; do ship them."""
+    stray = [f for f in os.listdir(os.path.join(ROOT, "arcgis"))
+             if f.endswith(".pyt.xml")]
+    assert not stray, (
+        f"{stray} are sitting in arcgis/ - they are build outputs and "
+        "the suite must not leave them behind (BACKLOG 45)")
+
+
+def test_the_arcgis_guide_names_the_files_it_says_it_names():
+    """v1.47.11. The guide said "Keep these FOUR files together" and
+    then listed THREE. A user following it replaces the toolbox and
+    keeps the sidecars - which is exactly what happened in the field
+    at 1.47.11, and it is why the new parameter's help flyout came
+    back empty while every older box looked fine.
+
+    THE INSTRUCTION, NOT THE PACKAGING, produced that. So the count
+    in the sentence is checked against the list beneath it.
+    """
+    guide = open(os.path.join(ROOT, "arcgis", "ARCGIS_GUIDE.md"),
+                 encoding="utf-8").read()
+    listed = set(re.findall(r"EquiPop[.\w]*\.pyt(?:\.xml)?", guide))
+    must = {"EquiPop.pyt", "EquiPop.CountsShares.pyt.xml",
+            "EquiPop.ValueStatistics.pyt.xml",
+            "EquiPop.ContinentalRasters.pyt.xml",
+            "EquiPop.SpatialDemography.pyt.xml",
+            "EquiPop.FolderInventory.pyt.xml"}
+    assert must <= listed, f"the guide does not name {sorted(must - listed)}"
+    words = {"TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5, "SIX": 6}
+    claim = re.search(r"\*\*(TWO|THREE|FOUR|FIVE|SIX) files must sit",
+                      guide)
+    assert claim, "the guide no longer states how many files travel together"
+    assert words[claim.group(1)] == len(must), (
+        f"the guide claims {claim.group(1)} files must sit together "
+        f"but {len(must)} are required")
+
+
+def test_the_guide_does_not_undercount_the_toolbox():
+    """It also said "Two tools appear" when four do."""
+    guide = open(os.path.join(ROOT, "arcgis", "ARCGIS_GUIDE.md"),
+                 encoding="utf-8").read()
+    pyt = open(os.path.join(ROOT, "arcgis", "EquiPop.pyt"),
+               encoding="utf-8").read()
+    registered = re.search(r"self\.tools = \[([^\]]+)\]", pyt).group(1)
+    n = len([t for t in registered.split(",") if t.strip()])
+    claim = re.search(r"pick the \.pyt\. (TWO|THREE|FOUR|FIVE|SIX) "
+                      r"tools appear", guide)
+    assert claim, "the guide no longer says how many tools appear"
+    assert {"TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5,
+            "SIX": 6}[claim.group(1)] == n
+
+
+def test_the_handover_keeps_up_with_the_version():
+    """v1.47.11. BACKLOG 289 records John's ruling that a handover must
+    enter the repository in the same act as the release - and session
+    12, which wrote that entry, then shipped three releases without
+    one. "In the same act" was too vague to be followed by the people
+    who wrote it, so it is checked instead.
+
+    The newest HANDOVER_N.md must name the current version. It does
+    not have to be perfect prose; it has to exist and be about THIS
+    release rather than the last one.
+    """
+    hands = sorted(
+        (int(re.search(r"HANDOVER_(\d+)\.md", f).group(1)), f)
+        for f in os.listdir(ROOT)
+        if re.fullmatch(r"HANDOVER_\d+\.md", f))
+    assert hands, "no handover in the repository root"
+    _, newest = hands[-1]
+    version = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        open(os.path.join(ROOT, "pyproject.toml"),
+             encoding="utf-8").read(), re.M).group(1)
+    series = ".".join(version.split(".")[:2])       # 1.47.11 -> 1.47
+    text = open(os.path.join(ROOT, newest), encoding="utf-8").read()
+    assert series in text, (
+        f"{newest} does not mention {series} - the handover is for an "
+        "older release, which is how sessions 9 and 10 were lost")
+
+
+def test_every_required_dependency_is_named_in_the_install_guide():
+    """v1.47.11. `--no-deps` is rule one of INSTALL.md, and rightly -
+    without it pip upgrades the host's numpy or scipy. But it also
+    skips the dependencies that are NOT already there, and nobody
+    wrote that down: QGIS, Pro and Stata all ship numpy, pandas and
+    scipy, and NONE of them ships pyproj.
+
+    A student lost an evening to it in September 2026. Three of the
+    four verification imports worked and the fourth did not, and no
+    guide had ever named pyproj - while the student guide's own
+    verification step told her to import it.
+
+    So every name in pyproject's `dependencies` must appear in
+    INSTALL.md. Read from pyproject rather than listed here, so a
+    dependency added later cannot go unmentioned the same way.
+    """
+    toml = open(os.path.join(ROOT, "pyproject.toml"),
+                encoding="utf-8").read()
+    block = re.search(r"^dependencies\s*=\s*\[(.*?)\]", toml,
+                      re.S | re.M).group(1)
+    names = re.findall(r'"([A-Za-z0-9_.-]+)', block)
+    assert names, "no dependencies found in pyproject.toml"
+    guide = open(os.path.join(ROOT, "INSTALL.md"),
+                 encoding="utf-8").read().lower()
+    missing = [n for n in names if n.lower() not in guide]
+    assert not missing, (
+        f"{missing} are required by the package and never mentioned "
+        "in INSTALL.md. With `--no-deps` - which is rule one - a "
+        "dependency the host does not already ship is simply absent, "
+        "and the first a user knows is an ImportError")
+
+
+def test_the_status_documents_keep_up_with_the_version():
+    """v1.47.11. TEACHING.md and PROPOSALS.md carry a version line, and
+    it must match the package.
+
+    THIS IS THE PRIORITY-LIST LESSON APPLIED IN ADVANCE. The backlog's
+    "what next" section stopped at item 164 and nobody noticed for
+    eleven releases; item 257's "STILL NEEDED" asked for samples
+    already supplied; item 43 sat open five releases after it was
+    done. A planning document with no check on it rots, and a rotten
+    TEACHING.md is worse than none - a student follows it.
+
+    Only the version is checked. Nothing here can tell whether the
+    PROSE is still true; that remains a human job, and the version
+    line is the prompt to do it.
+    """
+    version = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        open(os.path.join(ROOT, "pyproject.toml"),
+             encoding="utf-8").read(), re.M).group(1)
+    for name in ("TEACHING.md", "PROPOSALS.md"):
+        path = os.path.join(ROOT, name)
+        assert os.path.exists(path), f"{name} is missing"
+        text = open(path, encoding="utf-8").read()
+        m = re.search(r"\*\*Last updated:\s*([0-9][^,]*),", text)
+        assert m, (
+            f"{name} has no '**Last updated: <version>, <date>**' "
+            "line - without one nothing can tell whether it has "
+            "drifted")
+        assert m.group(1).strip() == version, (
+            f"{name} says {m.group(1).strip()}, the package is "
+            f"{version}. Either it was reviewed this release and the "
+            "line needs bumping, or it was NOT reviewed and that is "
+            "the thing worth noticing")
+
+
+def test_the_proposals_file_does_not_ship():
+    """Funding strategy, consortium thinking and draft positioning are
+    not things to publish on PyPI by accident. TEACHING.md ships
+    because it helps a user; this one does not."""
+    manifest = open(os.path.join(ROOT, "MANIFEST.in"),
+                    encoding="utf-8").read()
+    assert re.search(r"^exclude PROPOSALS\.md", manifest, re.M), (
+        "MANIFEST.in must exclude PROPOSALS.md explicitly - a default "
+        "that happens to leave it out is not a decision")
+
+
+def test_the_bump_tool_refuses_to_touch_the_status_documents():
+    """v1.47.11. The version-line guard on TEACHING.md and
+    PROPOSALS.md was DEFEATED BY THE ROUTINE that raises the question.
+
+    Versions were moved with a blanket sed over every file holding the
+    old string - which included the "Last updated" lines. The check
+    could never fire: the one thing meant to prove a human had looked
+    was answered by the same command that asked.
+
+    A CHECK THAT THE ROUTINE UPDATES AUTOMATICALLY IS NOT A CHECK.
+    tools/bump_version.py makes the exclusion executable rather than
+    remembered, and this asserts it stays that way.
+    """
+    src = open(os.path.join(ROOT, "tools", "bump_version.py"),
+               encoding="utf-8").read()
+    m = re.search(r"NEVER\s*=\s*\(([^)]*)\)", src)
+    assert m, "bump_version.py no longer has a NEVER list"
+    for name in ("TEACHING.md", "PROPOSALS.md"):
+        assert name in m.group(1), (
+            f"{name} is not in bump_version.py's NEVER list, so the "
+            "next routine bump will silence its own guard")
+
+
+def test_the_ssc_package_lists_every_ado_and_a_current_date():
+    """v1.47.12. SSC shows Distribution-Date to users and uses it to
+    decide what is new. It sat at 20260830 through twelve releases
+    because the blanket version replace never matched a date and
+    nothing checked.
+
+    Also: a file missing from the .pkg simply does not install, and
+    the user finds out when a command is not found.
+    """
+    pkg = open(os.path.join(ROOT, "stata", "equipop.pkg"),
+               encoding="utf-8").read()
+    listed = set(re.findall(r"^f (\S+)", pkg, re.M))
+    on_disk = {f for f in os.listdir(os.path.join(ROOT, "stata"))
+               if f.endswith(".ado")}
+    missing = on_disk - listed
+    assert not missing, (
+        f"{sorted(missing)} are in stata/ but not in equipop.pkg - "
+        "they will not install, and the user finds out when a command "
+        "is not found")
+    assert "equipop.sthlp" in listed, "the help file must install too"
+
+    ver = re.search(r'^version\s*=\s*"([^"]+)"',
+                    open(os.path.join(ROOT, "pyproject.toml"),
+                         encoding="utf-8").read(), re.M).group(1)
+    assert re.search(rf"^d EquiPop {re.escape(ver)} ", pkg, re.M), (
+        f"equipop.pkg does not announce {ver}")
+
+    m = re.search(r"^d Distribution-Date: (\d{8})", pkg, re.M)
+    assert m, "no Distribution-Date - SSC needs one"
+    import datetime
+    d = datetime.datetime.strptime(m.group(1), "%Y%m%d").date()
+    age = (datetime.date.today() - d).days
+    assert 0 <= age <= 120, (
+        f"Distribution-Date is {m.group(1)}, {age} days old. It is "
+        "bumped with the version; if this fails, a release went out "
+        "without one")
+
+
+def test_the_run_manifests_carry_a_bom_for_excel():
+    """BACKLOG 320(b). Excel on Windows reads a BOM-less UTF-8 CSV as
+    the ANSI codepage, so a path or field name holding a Norwegian
+    vowel arrives as mojibake - andel_fodt became andel_fXdt, verified
+    against cp1252. Students reported it after the LA lecture."""
+    src = open(os.path.join(ROOT, "arcgis", "EquiPop.pyt"),
+               encoding="utf-8").read()
+    assert 'newline="", encoding="utf-8")' not in src, (
+        "a CSV is written without a BOM again - Excel will mangle "
+        "every non-ASCII character in it")
+    assert src.count("utf-8-sig") >= 2
+
+
+def test_stata_setup_does_not_force_user_in_a_virtual_environment():
+    """BACKLOG 319. pip refuses --user inside a venv, so setup failed
+    on exactly the people careful enough to give Stata its own
+    environment. And the failure message used to print the same advice
+    whatever pip said - for "No module named pip" it told them to
+    replace their whole Python."""
+    src = open(os.path.join(ROOT, "stata", "equipop.ado"),
+               encoding="utf-8").read()
+    assert 'args = ["--user", "--upgrade"]' not in src, (
+        "--user is unconditional again; a virtual environment will "
+        "refuse it")
+    assert "base_prefix" in src, "no virtual environment detection"
+    # The advice must be REACHABLE, not merely present: an earlier
+    # version of this test only looked for the word "ensurepip", so
+    # disabling the branch that offers it still passed.
+    assert '"no module named pip" in low' in src, (
+        "setup no longer dispatches on what pip actually said - the "
+        "'No module named pip' case will fall through to generic "
+        "advice again")
+    assert "ensurepip" in src, (
+        "the 'No module named pip' case is unhandled - the one-line "
+        "fix is ensurepip, not a new Python")
+    assert '"externally managed" in low' in src
+
+
+def test_setup_asks_for_an_engine_at_least_as_new_as_the_commands():
+    """BACKLOG 196. `equipop setup` installed a bare `equipop`, so a
+    1.40 command file could pull whatever PyPI had that day - and
+    `equipop doctor` then reported a drift that SETUP had created.
+
+    A FLOOR, NOT A PIN: the ado is the caller and the engine is the
+    library, so the library must be at least as new as the caller.
+    Exact pinning would stop an older ado ever receiving a bug-fixed
+    engine, which is the wrong failure.
+
+    This matters more from SSC than it did from GitHub: there the two
+    arrived together, on SSC they update on separate tracks.
+    """
+    import re
+    src = open(os.path.join(ROOT, "stata", "equipop.ado"),
+               encoding="utf-8").read()
+    assert 'args.append("equipop>=" + ado_version)' in src, (
+        "no version floor - setup can install an engine older than "
+        "the commands calling it")
+    assert '_equipop_setup_py(repair="", ado_version="")' in src or \
+        'def _equipop_setup_py(repair="", ado_version="")' in src, (
+        "the setup routine does not receive the ado's version")
+
+    # the version it passes in must be the SAME string the doctor uses,
+    # or the two halves of the same guard disagree
+    vers = set(re.findall(r'local eqp_ado_version "([^"]+)"', src))
+    assert len(vers) == 1, (
+        f"the ado declares more than one version of itself: {vers}")
+    pkg = re.search(r'^version\s*=\s*"([^"]+)"',
+                    open(os.path.join(ROOT, "pyproject.toml"),
+                         encoding="utf-8").read(), re.M).group(1)
+    assert vers == {pkg}, f"ado says {vers}, package says {pkg}"
+
+
+def test_a_failed_setup_is_a_failed_command():
+    """BACKLOG 196, the other half. Setup printed "PIP FAILED" and
+    then returned normally, so a scripted or institutional install had
+    no failure code to act on."""
+    src = open(os.path.join(ROOT, "stata", "equipop.ado"),
+               encoding="utf-8").read()
+    assert src.count('Macro.setLocal("eqp_setup_failed", "1")') >= 2, (
+        "not every failing exit flags the failure - both the "
+        "could-not-run-pip and the pip-returned-nonzero paths must")
+    assert '''if "`eqp_setup_failed'" != "" {''' in src and \
+        "exit 601" in src, (
+        "the ado does not turn the flag into a non-zero exit")
+
+
+def test_the_update_advice_names_ssc_first():
+    """v1.48.2. The unknown-subcommand message named a raw GitHub URL
+    only - printed at the exact moment a confused user is reading
+    carefully, and the wrong instruction once the package is on SSC.
+    GitHub stays as the development route."""
+    src = open(os.path.join(ROOT, "stata", "equipop.ado"),
+               encoding="utf-8").read()
+    i_ssc = src.find("ssc install equipop, replace")
+    i_git = src.find("raw.githubusercontent")
+    assert i_ssc > 0, "the update advice does not mention SSC"
+    assert i_ssc < i_git, (
+        "GitHub is offered before SSC - a Stata user updates from SSC")
+    readme = open(os.path.join(ROOT, "stata", "README_STATA.md"),
+                  encoding="utf-8").read()
+    assert "ssc install equipop" in readme, (
+        "README_STATA.md still offers only the GitHub route")
+
+
+def test_every_module_compiles_on_the_oldest_python_we_promise():
+    """v1.48.2, FOUND BY THE TEST ENVIRONMENT CHANGING.
+
+    pyproject declares requires-python >= 3.10, and
+    equipop/doors/continental.py could not be IMPORTED on 3.10 or
+    3.11: it put a \\u2019 escape inside an f-string expression, which
+    PEP 701 only permitted from 3.12. ArcGIS Pro 3.3 and 3.4 ship
+    Python 3.11, so machine 3 was dead there - and every session until
+    now ran 3.12, where the interpreter accepted it and the entire
+    suite passed.
+
+    A COMPILE CHECK CANNOT CATCH WHAT THIS INTERPRETER ALLOWS, so this
+    test does what it can: it compiles every module, and separately
+    refuses the one construct known to differ. If the declared floor
+    ever rises to 3.12, delete the second half rather than the test.
+    """
+    import re
+    roots = ("equipop", "qgis", "arcgis")
+    files = []
+    for r in roots:
+        for dirpath, _dirs, names in os.walk(os.path.join(ROOT, r)):
+            if "__pycache__" in dirpath:
+                continue
+            files.extend(os.path.join(dirpath, n) for n in names
+                         if n.endswith((".py", ".pyt")))
+    assert files, "found no modules to compile - the walk is wrong"
+
+    declared = re.search(r'requires-python\s*=\s*"[^0-9]*(\d+)\.(\d+)',
+                         open(os.path.join(ROOT, "pyproject.toml"),
+                              encoding="utf-8").read())
+    floor = (int(declared.group(1)), int(declared.group(2)))
+
+    bad = []
+    for f in files:
+        src = open(f, encoding="utf-8").read()
+        try:
+            compile(src, f, "exec")
+        except SyntaxError as exc:
+            bad.append(f"{f}:{exc.lineno} {exc.msg}")
+        if floor < (3, 12):
+            # A BACKSLASH INSIDE AN f-STRING EXPRESSION. Matched on the
+            # {...} parts of f-string lines only, so an ordinary
+            # escape in the literal text is left alone.
+            for i, line in enumerate(src.splitlines(), 1):
+                if not re.search(r'\bf["\']', line):
+                    continue
+                for expr in re.findall(r"\{([^{}]*)\}", line):
+                    if "\\" in expr:
+                        bad.append(
+                            f"{f}:{i} backslash inside an f-string "
+                            f"expression - refused by Python "
+                            f"{floor[0]}.{floor[1]}, which pyproject "
+                            f"promises to support")
+    assert not bad, "\n".join(bad)

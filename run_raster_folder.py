@@ -21,6 +21,63 @@ import sys
 import time
 
 
+def _write_gpkg(df, path, man):
+    """A GeoPackage, which CARRIES ITS OWN CRS.
+
+    That is the real advantage over CSV, not the file size. A CSV is
+    numbers, so QGIS has to be TOLD the projection and can be told
+    wrongly - and a UTM southern zone's false northing of 10,000,000 m
+    then puts the layer off the top of the world. A GeoPackage cannot
+    be misread that way.
+    """
+    try:
+        import geopandas as gpd
+    except ImportError:
+        raise SystemExit(
+            "--gpkg needs geopandas:\n"
+            "    conda install -c conda-forge geopandas\n"
+            "or   python -m pip install --user geopandas\n"
+            "Use --csv instead if you would rather not install it.")
+    epsg = (man.get("projection") or {}).get("epsg")
+    g = gpd.GeoDataFrame(
+        df.copy(),
+        geometry=gpd.points_from_xy(df["EastWest"], df["NorthSouth"]),
+        crs=f"EPSG:{epsg}" if epsg else None)
+    g.to_file(path, driver="GPKG")
+    print(f"\n    GeoPackage written: {path}  ({len(g):,} rows)")
+    print(f"    It carries EPSG:{epsg}, so QGIS needs telling nothing "
+          "- just drag it in." if epsg else
+          "    No projection was recorded; check the layer's CRS.")
+
+
+def _write_csv(df, path, man):
+    """A CSV QGIS opens as points, and the CRS it must be told.
+
+    The parquet tiles are TABLES. QGIS reads them only through the
+    GDAL Parquet driver, and even then they carry no geometry, so a
+    user has to build points from columns by hand. A CSV plus the
+    right EPSG is two clicks.
+
+    THE CRS LINE MATTERS MORE THAN IT LOOKS. These coordinates are
+    METRES in the working projection, and a UTM southern zone carries
+    a false northing of 10,000,000 m - so read as anything else the
+    layer lands off the top of the world. That is exactly what
+    happened to John's first machine 4 result.
+    """
+    import os
+
+    epsg = (man.get("projection") or {}).get("epsg")
+    df.to_csv(path, index=False)
+    print(f"\n    CSV written: {path}  ({len(df):,} rows)")
+    print("    In QGIS: Layer > Add Layer > Add Delimited Text Layer")
+    print(f"        X field   : EastWest")
+    print(f"        Y field   : NorthSouth")
+    print(f"        Geometry CRS: EPSG:{epsg}"
+          if epsg else "        Geometry CRS: the working projection")
+    print("    Set the PROJECT crs to the same, or the points will "
+          "draw in the wrong part of the world.")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Load a folder of rasters into EquiPop.",
@@ -47,6 +104,15 @@ def main() -> int:
     p.add_argument("--out", default=None,
                    help="folder for a TILED run. Needs --k. Resumable: "
                         "run it again on the same folder to continue.")
+    p.add_argument("--csv", default=None, metavar="FILE",
+                   help="also write a CSV that QGIS can open as points "
+                        "(Layer > Add Delimited Text Layer). Parquet "
+                        "tiles are TABLES, not a spatial format - QGIS "
+                        "cannot draw them directly.")
+    p.add_argument("--gpkg", default=None, metavar="FILE",
+                   help="also write a GeoPackage. Tidier than CSV for "
+                        "large runs: it carries the CRS, so QGIS needs "
+                        "telling nothing. Needs geopandas.")
     p.add_argument("--tile-m", type=float, default=50000.0,
                    help="tile size in metres for --out (default 50000)")
     a = p.parse_args()
@@ -96,6 +162,13 @@ def main() -> int:
         print("    read it back with:")
         print("        from equipop.bigrun import load_tiled")
         print(f"        df = load_tiled({a.out!r})")
+        if a.csv or a.gpkg:
+            from equipop.bigrun import load_tiled
+            back = load_tiled(a.out)
+            if a.csv:
+                _write_csv(back, a.csv, man)
+            if a.gpkg:
+                _write_gpkg(back, a.gpkg, man)
     else:
         from equipop.fastcounts import run_knn_counts
         t1 = time.time()
@@ -105,8 +178,14 @@ def main() -> int:
                 if c.startswith(("N_", "Dist_", "T_", "R_"))]
         print(res[cols].describe().T[["count", "mean", "min", "max"]]
               .to_string())
-        print("\nNothing was written. Pass --out FOLDER for a tiled, "
-              "resumable run that saves its results.")
+        if a.csv:
+            _write_csv(res, a.csv, man)
+        if a.gpkg:
+            _write_gpkg(res, a.gpkg, man)
+        if not (a.csv or a.gpkg):
+            print("\nNothing was written. Pass --out FOLDER for a "
+                  "tiled, resumable run, or --csv FILE for something "
+                  "QGIS can open.")
     return 0
 
 

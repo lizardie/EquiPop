@@ -59,9 +59,11 @@ def test_the_provider_offers_both_tools():
     prov.loadAlgorithms()
     # BACKLOG 38 added the third tool. Sorted, because the order the
     # provider happens to register them in is not the contract.
+    # v1.47.11 added folderinventory (BACKLOG 269) - a capability that
+    # had shipped in 1.45.0 with no door of any kind.
     assert sorted(a.name() for a in prov.algorithms()) == [
-        "continentalrasters", "countsandshares", "spatialdemography",
-        "valuestatistics"]
+        "continentalrasters", "countsandshares", "folderinventory",
+        "spatialdatafetch", "spatialdemography", "valuestatistics"]
     assert prov.id() == "equipop"
 
 
@@ -783,7 +785,14 @@ def test_a_version_mismatch_is_mentioned_once():
     finally:
         equipop_qgis.__version__ = real
     said = " ".join(fb.warnings)
-    assert "9.9.9" in said and "pip install --upgrade equipop" in said
+    # 9.9.9 makes the PLUGIN the newer half, so the advice is to
+    # install the matching WHEEL. It used to say "pip install
+    # --upgrade equipop" whichever half was ahead, which is useless
+    # when the plugin came from a zip: pip only sees published
+    # releases (BACKLOG 249).
+    assert "9.9.9" in said
+    # BOTH routes, because the message cannot know what is published.
+    assert ".whl" in said and "--upgrade" in said
 
 
 def test_the_barrier_block_lives_under_advanced():
@@ -840,7 +849,9 @@ prov = EquipopProvider()
 prov.loadAlgorithms()
 names = sorted(a.name() for a in prov._algs)
 assert sorted(names) == ["continentalrasters", "countsandshares",
-                         "spatialdemography", "valuestatistics"], names
+                         "folderinventory", "spatialdatafetch",
+                         "spatialdemography",
+                         "valuestatistics"], names
 for alg in prov._algs:
     alg.initAlgorithm()
     assert alg.parameterDefinitions(), "no boxes built"
@@ -901,7 +912,7 @@ sys.meta_path.insert(0, _Old())
 from equipop_qgis.provider import EquipopProvider
 prov = EquipopProvider()
 prov.loadAlgorithms()
-assert len(prov._algs) == 4, prov._algs
+assert len(prov._algs) == 6, prov._algs
 for alg in prov._algs:
     alg.initAlgorithm()
     assert alg.parameterDefinitions(), "no boxes built"
@@ -1219,3 +1230,250 @@ def test_the_label_is_written_down_and_not_imported():
                       src)
         assert m and "import" not in m.group(0), (
             f"{f}: displayName must not import anything")
+
+
+def test_the_version_advice_depends_on_WHICH_half_is_newer():
+    """BACKLOG 249. The message always said "pip install --upgrade
+    equipop", which is useless when the PLUGIN is ahead: pip only sees
+    PUBLISHED releases, and a plugin installed from a zip is normally
+    newer than anything on PyPI. John followed that advice across
+    three versions and pip correctly fetched the newest release each
+    time - never the one he had.
+    """
+    from equipop_qgis.base import _newer
+    assert _newer("1.44.0", "1.43.4")
+    assert not _newer("1.43.4", "1.44.0")
+    # and NUMERICALLY, not as text: "1.44.0" < "1.5.0" as strings,
+    # which would give exactly the wrong advice at the next bump
+    assert _newer("1.44.0", "1.5.0")
+    assert not _newer("1.5.0", "1.44.0")
+
+
+def test_the_mismatch_message_offers_BOTH_routes():
+    """BACKLOG 249, corrected. Claude first made this say "install the
+    wheel" whenever the plugin was ahead, assuming a newer plugin
+    meant an unpublished build - and was WRONG on the very case that
+    prompted it: 1.44.0 was on PyPI all along.
+
+    The message cannot know what is published, so it offers both and
+    names John's ACTUAL problem first: `pip install equipop` does
+    nothing when any version is already present.
+    """
+    from equipop_qgis.base import check_versions
+
+    class Ch:
+        def __init__(self):
+            self.said = []
+
+        def info(self, m):
+            self.said.append(str(m))
+
+        def warning(self, m):
+            self.said.append(str(m))
+
+    import equipop
+    import equipop_qgis
+    was = (equipop.__version__, equipop_qgis.__version__)
+    try:
+        equipop.__version__, equipop_qgis.__version__ = "1.43.4", "1.44.0"
+        ch = Ch()
+        check_versions(ch)
+        said = " ".join(ch.said)
+        assert "--upgrade" in said, "the published route"
+        assert ".whl" in said, "the local-build route"
+        assert "plain `pip install` does nothing" in said, (
+            "name the thing that actually happened")
+        assert "plugin is ahead" in said
+    finally:
+        equipop.__version__, equipop_qgis.__version__ = was
+
+
+# ---------------- BACKLOG 320: locale, and door parity in PARSING ---
+def test_a_decimal_comma_is_read_the_same_by_both_doors():
+    """Pro has taken 12,5 since 1.16.7, found on a SWEDISH machine.
+    QGIS read k, radii and tau with bare int()/float() straight on the
+    typed text, so a Norwegian student typing 500,5 got the raw Python
+    "could not convert string to float". One parser now; this checks
+    both doors reach it.
+    """
+    from equipop.doors.numbers import to_float, to_int, numlist, intlist
+    assert to_float("500,5") == 500.5
+    assert to_float("500.5") == 500.5
+    assert to_float("1 234,5") == 1234.5      # spreadsheet paste
+    assert to_float("1,234.5") == 1234.5      # thousands then decimal
+    assert to_float("") is None
+    assert to_int("800") == 800
+    assert numlist("500,5 800") == [500.5, 800.0]
+    assert numlist("500,5;800") == [500.5, 800.0]
+    assert intlist("100 200 400") == [100, 200, 400]
+
+
+def test_a_typed_number_that_is_not_one_explains_itself():
+    from equipop.doors.numbers import to_float, to_int, BadNumber
+    with pytest.raises(BadNumber, match="(?i)decimal comma"):
+        to_float("five hundred")
+    # k counts people: a fraction is refused, never silently rounded
+    with pytest.raises(BadNumber, match="(?i)whole number"):
+        to_int("100,5")
+
+
+def test_the_qgis_door_no_longer_parses_numbers_itself():
+    """The gap test_door_parity missed, because it compares which
+    BOXES the doors offer and not how they READ them. Checked on the
+    source, because that is where the drift happened."""
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(here, "qgis", "equipop_qgis",
+                            "alg_counts.py"), encoding="utf-8").read()
+    for bad in ("[int(v) for v in", "[float(v) for v in"):
+        assert bad not in src, (
+            f"alg_counts.py parses typed text with {bad!r} again - a "
+            "decimal comma will break it. Use equipop.doors.numbers.")
+
+
+# ------------------------------ BACKLOG 316: keep both --------------
+def test_the_letter_suffixes_run_b_c_then_aa():
+    """John's design: the FIRST column keeps its canonical name, so a
+    single run is unchanged and every published result still reads the
+    same. Past z it is aa - "aa is a good solution"."""
+    from equipop.doors.fields import letter_suffix
+    assert letter_suffix(0) == ""
+    assert [letter_suffix(i) for i in (1, 2, 3)] == ["b", "c", "d"]
+    assert letter_suffix(25) == "z"
+    assert letter_suffix(26) == "aa"
+    assert letter_suffix(27) == "ab"
+    # and no ceiling: it must keep producing names, never refuse
+    assert letter_suffix(700)
+
+
+def test_keep_both_leaves_a_free_name_alone_and_reports_what_moved():
+    from equipop.doors.fields import keep_both, keep_both_message
+    names = {"R_a_100": "R_a_100", "R_b_100": "R_b_100"}
+    out, renamed = keep_both(names, {"R_a_100"})
+    assert out["R_b_100"] == "R_b_100", "a free name must not move"
+    assert out["R_a_100"] == "R_a_100b"
+    assert renamed == {"R_a_100": "R_a_100b"}
+    msg = keep_both_message(renamed)
+    assert "R_a_100" in msg and "R_a_100b" in msg, (
+        "a silent rename is BACKLOG 309-311 wearing a different coat")
+    # a third run of the same name goes to c, not back to b
+    out2, _ = keep_both(names, {"R_a_100", "R_a_100b"})
+    assert out2["R_a_100"] == "R_a_100c"
+
+
+def test_keep_both_runs_before_shortening_not_after():
+    """John raised the shapefile question and this is the whole of the
+    answer: the shortener already resolves over-length collisions with
+    a disambiguating digit, so it can handle R_x_333 and R_x_333b
+    truncating alike - PROVIDED it is handed the suffixed name.
+    Shorten first and the suffix is cut away into a silent
+    collision."""
+    from equipop.doors.fields import keep_both, shorten_names
+    wanted = {"c1": "R_black_alone_333"}
+    suffixed, _ = keep_both(wanted, {"R_black_alone_333"})
+    short = shorten_names(list(suffixed.values())
+                          + ["R_black_alone_333"])
+    written = set(short.values())
+    assert len(written) == len(short), (
+        f"two names collided after shortening: {short}")
+    for n in written:
+        assert len(n) <= 10, (n, len(n))
+
+
+def test_the_qgis_door_does_not_append_a_duplicate_field_name():
+    """BACKLOG 316, the QGIS half - which nothing detected at all.
+    The door writes a NEW layer each run, copying the source's fields
+    and then the results, so feeding a previous run's output back in
+    (exactly what comparing walk against drive requires) produced TWO
+    FIELDS OF ONE NAME and left OGR to resolve it.
+
+    Checked on the source, because the defect was an absence."""
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(here, "qgis", "equipop_qgis", "base.py"),
+               encoding="utf-8").read()
+    w = src[src.index("def write(self"):
+            src.index("sink, dest = self.parameterAsSink")]
+    assert "keep_both" in w, (
+        "the write loop appends result names to the source's fields "
+        "without checking for a clash again")
+    # and the RESULT KEYS must survive: result[name] is read below, so
+    # renaming `order` itself looks up a key that does not exist
+    assert "mapped.get(name, name)" in w, (
+        "the written name and the result key have been conflated - "
+        "the value lookup will fail")
+
+
+def test_the_qgis_barrier_charges_per_class_when_told_to():
+    """BACKLOG 306, and tested BY RUNNING IT rather than by grepping
+    the source.
+
+    My first version of this test asserted that the strings
+    "class_field" and "fidelity=CLASS" appeared SOMEWHERE in
+    barriers.py - and a break-check that commented out the import
+    still passed, because the other string survived it. That is the
+    same weakness as the ensurepip test in 1.48.2: a string appearing
+    somewhere is not the behaviour working.
+
+    John's own example: a junction where OSM holds 'unclassified'
+    three times and 'trunk_link' twice, all one road. Per feature the
+    cell is charged five times; per class, twice.
+    """
+    import qgis_stub as Q
+    from equipop_qgis.barriers import barrier_to_friction
+
+    # 600 m of road, so it spans several 100 m cells: a barrier
+    # narrower than one cell is refused, and rightly - it cannot
+    # block anything.
+    line = [[(50.0, 50.0), (650.0, 50.0)]]
+    shapes = ([(line, {"fric": 8.0, "fclass": "unclassified"})] * 3
+              + [(line, {"fric": 3.0, "fclass": "trunk_link"})] * 2)
+    fields = [("fric", True), ("fclass", False)]
+
+    class _Ch:
+        def __init__(self):
+            self.said = []
+
+        def info(self, m):
+            self.said.append(str(m))
+
+        warning = info
+
+    per_feature = barrier_to_friction(
+        Q._ShapeSource(shapes, fields, kind="line"), "fric",
+        100.0, "sum", _Ch())
+    ch = _Ch()
+    per_class = barrier_to_friction(
+        Q._ShapeSource(shapes, fields, kind="line"), "fric",
+        100.0, "sum", ch, class_field="fclass")
+
+    pf = float(per_feature["friction"].max())
+    pc = float(per_class["friction"].max())
+    assert pf == 30.0, f"per-feature should charge all five: {pf}"
+    assert pc == 11.0, (
+        f"per-class should charge 8 + 3 = 11, got {pc} - the class "
+        "field is not reaching the class-collapsing engine")
+    assert any("CLASS CHARGED ONCE" in m for m in ch.said), (
+        "the run does not say which rule it used")
+
+
+def test_the_qgis_barrier_refuses_a_class_field_that_is_not_there():
+    """A typo in the class field must not fall back to per-feature
+    silently - that would be a wrong answer wearing the look of a
+    right one, which is the 309-311 family."""
+    import pytest as _pt
+    import qgis_stub as Q
+    from equipop_qgis.barriers import barrier_to_friction
+    line = [[(50.0, 50.0), (650.0, 50.0)]]
+    shapes = [(line, {"fric": 8.0, "fclass": "motorway"})]
+
+    class _Ch:
+        def info(self, m):
+            pass
+        warning = info
+
+    with _pt.raises(Exception, match="(?i)no field named"):
+        barrier_to_friction(
+            Q._ShapeSource(shapes, [("fric", True), ("fclass", False)],
+                           kind="line"),
+            "fric", 100.0, "sum", _Ch(), class_field="fclas")

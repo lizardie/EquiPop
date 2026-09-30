@@ -35,7 +35,8 @@ from .fastcounts import run_knn_counts
 def _binned_decay_counts(cd, cells, k_values, r_values, decay,
                          half_life, n_bins, decay_eps, m_neighbors,
                          n_rows, valid, self_potential=1.0,
-                         overshoot_mode=None, seed=None):
+                         overshoot_mode=None, seed=None,
+                         self_rule=None):
     """VARIABLE-BANDWIDTH decay (v1.17): each row carries its own
     half-life - an estimated median travel distance, a group
     potential, or the row's own Dist_k (urban form setting the
@@ -84,8 +85,16 @@ def _binned_decay_counts(cd, cells, k_values, r_values, decay,
                           if (e, n) in key_to_pos})
         # build a FRESH Decay: beta is derived in __post_init__, so
         # mutating half_life_m on a copy would leave the old kernel
+        # BACKLOG 317: COPY THE CALIBRATION TOO. A fresh Decay takes
+        # the DEFAULT for anything not passed, so a varying-bandwidth
+        # run asked for half-probability would silently get half-life
+        # in every bin - the exact shape of the decay-window bug (307),
+        # where a setting was honoured in one place and dropped in
+        # another.
         dec_b = Decay(model=decay.model, half_life_m=hb,
-                      gamma=getattr(decay, "gamma", None))
+                      gamma=getattr(decay, "gamma", None),
+                      calibration=getattr(decay, "calibration_requested",
+                                          decay.calibration))
         print(f"[decay]   bin {int(b) + 1}: half-life {hb:,.0f} m, "
               f"{int(sel.sum())} rows, {len(origins)} origin cells")
         part = run_knn_counts(cd, k_values, decay_eps=decay_eps,
@@ -94,6 +103,7 @@ def _binned_decay_counts(cd, cells, k_values, r_values, decay,
                               overshoot_mode=overshoot_mode, seed=seed,
                               origins=np.asarray(origins, int),
                               self_potential=self_potential,
+                              self_rule=self_rule,
                               report=False)
         part = part.set_index(["EastWest", "NorthSouth"])
         frames.append((sel, part))
@@ -149,7 +159,7 @@ def blank_missing_codes(bag, codes):
     return out, hits
 
 
-def validate_treatment(treat, weight, treat_are_counts):
+def validate_treatment(treat, weight, treat_are_counts, say=print):
     """Refuse a treatment specification that cannot be true.
 
     Returns None, or raises ValueError with a sentence a non-programmer
@@ -225,27 +235,73 @@ def validate_treatment(treat, weight, treat_are_counts):
         both = np.isfinite(a) & np.isfinite(w)
         over = int(np.count_nonzero(a[both] > w[both]))
         if over:
+            # BACKLOG 328. THIS USED TO REFUSE THE RUN, and John's
+            # ruling from the field is that it must not: "that is
+            # unusual I agree, but not a cause for reject - it is the
+            # choice of the user - we should be able to have ratios on
+            # the basis of say 77/66 and not only 55/66".
+            #
+            # HIS OWN DATA IS THE CASE. The Northern Ireland 1 km grid
+            # holds TOTAL_HOUSEHOLD, which counts HOUSEHOLDS, and
+            # ECONOMICALLYACTIVE, which counts PEOPLE. Two working
+            # adults in one household and the ratio passes 1
+            # legitimately: R is then economically active persons per
+            # household, which is a real and useful measure. The
+            # numerator was never required to be a SUBSET of the
+            # denominator - that was an assumption about typical use,
+            # not about the arithmetic. R_k = T_k / N_k is a ratio.
+            #
+            # THE GUARD STILL EARNS ITS KEEP as a warning, because the
+            # mistake it was written for - the two variables the wrong
+            # way round - is real. But that mistake announces itself
+            # by MAGNITUDE: swap total_pop and black_alone and the
+            # ratio is 8, not 1.2. So the number is reported and the
+            # user judges.
+            #
+            # AND ONE HALF OF THE OLD MESSAGE WAS WRONG. It offered
+            # "or it is a 0/1 marker" - but a 0/1 marker can only
+            # exceed the population where the population is ZERO, so
+            # that is almost never the cause of THIS trip. Removed
+            # rather than repeated.
             worst = float(np.max(a[both] - w[both]))
-            raise ValueError(
-                f"'{name}' is larger than the population at {over} "
-                f"of {int(both.sum())} points - by up to {worst:g} "
-                f"people. A group cannot be bigger than the population "
-                f"containing it. Either the two variables are the wrong "
-                f"way round, or '{name}' is a 0/1 marker and needs "
-                f"treatmode(flags).")
+            with np.errstate(invalid="ignore", divide="ignore"):
+                ratio = float(np.nanmax(np.where(w[both] > 0,
+                                                 a[both] / w[both],
+                                                 np.nan)))
+            say(f"[equipop] NOTE: '{name}' exceeds the reference "
+                f"population at {over} of {int(both.sum())} points, "
+                f"by up to {worst:g} - the largest ratio is "
+                f"{ratio:.2f}. This is allowed: R is then a RATIO "
+                f"rather than a share, which is right when the two "
+                f"count DIFFERENT UNITS (persons per household, jobs "
+                f"per resident). If instead they count the same "
+                f"thing, the two variables are probably the wrong way "
+                f"round - a swap usually shows as a ratio far above "
+                f"1, so check that {ratio:.2f} is the number you "
+                f"expect.")
 
 
-def check_results_are_possible(result):
+def check_results_are_possible(result, say=print):
     """The backstop, on the way OUT.
 
-    Everything above checks the INPUT. This checks the answer: a
-    neighbourhood's group count cannot exceed its population, whatever
-    route produced it. John ruled it in independently of the treatment
-    contract, on the reasoning that no correct run can trip it.
-
-    A guard on the input can be defeated by an engine change; a guard
-    on the output cannot, because it reads the number the user is
+    Everything above checks the INPUT. This checks the answer,
+    because a guard on the input can be defeated by an engine change
+    and a guard on the output cannot - it reads the number the user is
     about to be given.
+
+    BACKLOG 328. IT WAS RULED IN "on the reasoning that no correct run
+    can trip it", AND THAT PREMISE WAS WRONG. A correct run trips it
+    whenever the numerator and denominator count DIFFERENT UNITS: the
+    Northern Ireland 1 km grid holds TOTAL_HOUSEHOLD (households) and
+    ECONOMICALLYACTIVE (people), and economically active persons per
+    household passes 1 as soon as a household holds two workers.
+    T > N is then the right answer, not an impossible one.
+    So it reports rather than refuses - John's ruling: "not a cause
+    for reject - it is the choice of the user".
+    IT IS STILL WORTH REPORTING, because the mistake it was written
+    for is real; what changed is who decides. The old text called the
+    result "impossible", which was the part that could not survive a
+    counter-example.
     """
     counts = {n: a for n, a in result.items() if n.startswith("N_")}
     for name, arr in result.items():
@@ -262,14 +318,18 @@ def check_results_are_possible(result):
         over = int(np.count_nonzero(t[both] > n[both] * (1 + 1e-9) + 1e-6))
         if over:
             worst = float(np.max(t[both] - n[both]))
-            raise ValueError(
-                f"{name} exceeds {'N_' + suffix} at {over} places - by "
-                f"up to {worst:g} people. A neighbourhood cannot hold "
-                f"more people of one group than it holds in total, so "
-                f"this result would be impossible. Check whether the "
-                f"treatment variable holds counts of people "
-                f"(treatmode(counts), the default) or a 0/1 marker "
-                f"(treatmode(flags)).")
+            with np.errstate(invalid="ignore", divide="ignore"):
+                ratio = float(np.nanmax(np.where(n[both] > 0,
+                                                 t[both] / n[both],
+                                                 np.nan)))
+            say(f"[equipop] NOTE: {name} exceeds "
+                f"{'N_' + suffix} at {over} places, by up to "
+                f"{worst:g} - the largest R is {ratio:.2f}. That is "
+                f"correct when the two count DIFFERENT UNITS, and R "
+                f"is then a ratio (persons per household, jobs per "
+                f"resident) rather than a share. If they count the "
+                f"same thing, check the two variables are not the "
+                f"wrong way round.")
 
 
 def project_for_stata(x, y, epsg=None):
@@ -338,10 +398,12 @@ def knn_to_rows(x, y, k_values=None, treat: dict | None = None,
                 r_values=None, decay=None,
                 treat_are_counts: bool = False,
                 strict_treatment: bool = True,
+                say=print,                  # BACKLOG 328
                 missing_codes=None,
                 decay_half_life=None, decay_bins: int = 10,
                 self_potential: float = 1.0,
                 overshoot_mode: str | None = None,
+                self_rule: str | None = None,
                 seed: int | None = None,
                 report_label: str = "") -> dict:
     """
@@ -389,17 +451,16 @@ def knn_to_rows(x, y, k_values=None, treat: dict | None = None,
     # Refuse what cannot be true BEFORE doing the work - see
     # validate_treatment() for the defect this closes.
     if strict_treatment:
-        validate_treatment(treat, weight, treat_are_counts)
+        validate_treatment(treat, weight, treat_are_counts, say=say)
     for name in treat:
         if not treat_are_counts:
             df[name] = df[name] * df["_w"]
-    if treat_are_counts and weight is not None:
-        for name in treat:
-            over = int((df[name] > df["_w"]).sum())
-            if over:
-                print(f"[bridge] WARNING: '{name}' exceeds the "
-                      f"population at {over} points - group counts "
-                      "larger than totals is a data error.")
+    # BACKLOG 328. THIS WAS A THIRD PLACE SAYING THE SAME THING, and
+    # it still called it "a data error" after the other two had been
+    # corrected - found by running John's Northern Ireland file end to
+    # end rather than by any test. validate_treatment() above already
+    # reports this, with the ratio, so a second voice contradicting
+    # the first is worse than no voice at all.
 
     valid = df["_x"].notna() & df["_y"].notna()
     dv = df[valid]
@@ -448,7 +509,7 @@ def knn_to_rows(x, y, k_values=None, treat: dict | None = None,
         bin_frames, bin_of_row, base = _binned_decay_counts(
             cd, cells, k_values, r_values, decay, decay_half_life,
             decay_bins, decay_eps, m_neighbors, n_rows, valid,
-            self_potential=self_potential,
+            self_potential=self_potential, self_rule=self_rule,
             overshoot_mode=overshoot_mode, seed=seed)
         res = base.reset_index()
     else:
@@ -456,6 +517,7 @@ def knn_to_rows(x, y, k_values=None, treat: dict | None = None,
                              m_neighbors=m_neighbors,
                              r_values=r_values, decay=decay,
                              self_potential=self_potential,
+                             self_rule=self_rule,
                              overshoot_mode=overshoot_mode, seed=seed,
                              report_label=report_label)
 
@@ -504,7 +566,7 @@ def knn_to_rows(x, y, k_values=None, treat: dict | None = None,
     # defeated by an engine change; this one reads the number the user
     # is about to be handed.
     if strict_treatment:
-        check_results_are_possible(out)
+        check_results_are_possible(out, say=say)
     return out
 
 
@@ -587,6 +649,7 @@ def dispatch(engine: str, x, y, unit_size: float = 100.0,
              decay_bins: int = 10,
              self_potential: float = selfpot.DEFAULT_SELF_POTENTIAL,
              overshoot_mode: str | None = None,
+             self_rule: str | None = None,
              seed: int | None = None,
              missing_codes=None,
              **extra) -> dict:
@@ -650,7 +713,9 @@ def dispatch(engine: str, x, y, unit_size: float = 100.0,
             # placeholder - every bin builds its own kernel
             dec = Decay(model=extra.get("decay_model", "negexp"),
                         half_life_m=float(half_life_m or 1000.0),
-                        gamma=extra.get("gamma"))
+                        gamma=extra.get("gamma"),
+                        calibration=extra.get("decay_calibration")
+                        or None)
         hl = half_life_field
         if hl is None and half_life_from_dist and dec is not None:
             # SELF-CALIBRATING bandwidth (v1.17): each row's own
@@ -662,6 +727,16 @@ def dispatch(engine: str, x, y, unit_size: float = 100.0,
             first = knn_to_rows(x, y, [k0], weight=weight,
                                 unit_size=unit_size,
                                 self_potential=self_potential,
+                                # BACKLOG 290: the calibration pass
+                                # must use THE SAME neighbourhood as
+                                # the run it calibrates. A Dist_k
+                                # measured with the origin included,
+                                # feeding a kernel applied with it
+                                # excluded, is the two-definitions
+                                # problem this rule exists to end -
+                                # reintroduced inside a single run,
+                                # where nobody would look for it.
+                                self_rule=self_rule,
                                 # BACKLOG 142: EquiPop's own pass,
                                 # not the user's run
                                 report_label=" calibration pass,",
@@ -704,6 +779,7 @@ def dispatch(engine: str, x, y, unit_size: float = 100.0,
                            decay=dec, decay_eps=decay_eps,
                            decay_half_life=hl, decay_bins=decay_bins,
                            self_potential=self_potential,
+                           self_rule=self_rule,
                            treat_are_counts=extra.get(
                                "treat_are_counts", False))
 
@@ -761,6 +837,7 @@ def dispatch(engine: str, x, y, unit_size: float = 100.0,
         cd = _add_empty_origin_cells(cd, E, N, list(values))
         st = run_knn_stats(cd, k_values=k_values, r_values=r_values,
                            self_potential=self_potential,
+                           self_rule=self_rule,
                            overshoot_mode=overshoot_mode, seed=seed,
                            stats=stats or {v: ["mean", "median", "gini"]
                                            for v in values})
