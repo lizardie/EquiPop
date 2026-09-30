@@ -24,6 +24,23 @@ from qgis.core import (QgsProcessing, QgsProcessingException,
 DECAY_FALLBACK = ["no decay"]
 
 
+def _calibration_choices():
+    """BACKLOG 317. From the engine, NEVER RAISING - the rule
+    _decay_choices below learned the hard way (v1.29.2): initAlgorithm
+    runs at plugin load, and an import that fails there takes the
+    whole plugin down before any guard can explain why. The fallback
+    is the same wording, written out."""
+    try:
+        from equipop.doors.decaynames import (CALIBRATION_CHOICES,
+                                              CALIBRATION_LABEL)
+        return list(CALIBRATION_CHOICES), CALIBRATION_LABEL
+    except Exception:
+        return (["half of all trips are shorter than this "
+                 "(half-life - use for a survey median)",
+                 "a neighbour at this distance counts half as much "
+                 "(half-probability)"], "Your distance is...")
+
+
 def _decay_choices():
     """From the ENGINE, never from memory (v1.28): the old list
     offered 'gauss' and 'linear', neither of which exists.
@@ -82,6 +99,17 @@ OVERSHOOT_MODES = [
     "sampled, seeded - whole cells, one at a time",
 ]
 OVERSHOOT_VALUES = ["whole", "proportional", "sampled"]
+
+# BACKLOG 290. Is a place its own neighbour? Two rules, John's
+# ruling 1.47. The wording says WHAT CHANGES rather than naming the
+# convention, because the convention is only meaningful to the half
+# of users who run regressions - and the other half need to know that
+# the default is the published one.
+ORIGIN_MODES = [
+    "include the origin (i=j)",
+    "exclude the origin cell (i!=j)",
+]
+ORIGIN_VALUES = ["include", "exclude"]
 
 import numpy as np
 
@@ -179,10 +207,21 @@ class CountsAndShares(EquipopAlgorithm):
             "model", "4 \u25b8 distance decay",
             options=_decay_choices(), defaultValue=0))
         self.add(QgsProcessingParameterNumber(
-            "halflife", "4a \u25b8 ...half-life in metres (the "
-            "distance at which weight halves)", defaultValue=0.0,
-            optional=True,
+            "halflife", "4a \u25b8 ...half-life distance in metres "
+            "(a survey median commute goes straight in)",
+            defaultValue=0.0, optional=True,
             type=QgsProcessingParameterNumber.Double))
+        # BACKLOG 317. WHAT THAT DISTANCE MEANS. John, session 12: show
+        # it when a user deliberately picks a model where it matters.
+        # QGIS cannot hide a box on the fly, so it sits right beside
+        # the half-life, labelled for when it applies, and defaults to
+        # the reading that needs no thought - half-life. For negexp and
+        # power it changes nothing and the messages say so.
+        labels, head = _calibration_choices()
+        self.add(QgsProcessingParameterEnum(
+            "calibration", "4b \u25b8 ..." + head +
+            " (only for expnormal, expsqrt, lognormal)",
+            options=labels, defaultValue=0, optional=True))
 
         # --- barriers and terrain: distance becomes EFFORT ---------
         # The whole block goes into QGIS's Advanced area (v1.28,
@@ -201,6 +240,16 @@ class CountsAndShares(EquipopAlgorithm):
             "barrierfield", "5a \u25b8 ...its friction field - the "
             "crossing cost in rounds (positive deters, negative "
             "carries: 3 is a river, -0.9 a motorway)",
+            parentLayerParameterName="barrier", optional=True),
+            advanced=True)
+        # BACKLOG 306. Same box as Pro's third value-table column:
+        # without it a cell is charged ONCE PER FEATURE, and OSM cuts
+        # one street into a new record wherever a tag changes.
+        self.add(QgsProcessingParameterField(
+            "barrierclass", "5a\u2032 \u25b8 ...and its CLASS field "
+            "(optional) - charge each class once per cell instead of "
+            "each feature; on OSM roads this is the difference "
+            "between a cost of 8 and a cost of 166",
             parentLayerParameterName="barrier", optional=True),
             advanced=True)
         self.add(QgsProcessingParameterRasterLayer(
@@ -247,6 +296,13 @@ class CountsAndShares(EquipopAlgorithm):
         self.add(QgsProcessingParameterEnum(
             "overshoot", "The ring that crosses k", 
             options=OVERSHOOT_MODES, defaultValue=1), advanced=True)
+        # BACKLOG 290. NOT advanced, and that is deliberate: this box
+        # changes who is counted, the means barely move, and nobody
+        # can tell from the output which rule produced it. A choice
+        # that invisible does not belong behind a disclosure arrow.
+        self.add(QgsProcessingParameterEnum(
+            "originrule", "Is a place its own neighbour?",
+            options=ORIGIN_MODES, defaultValue=0))
         # BACKLOG 99. The seed used to matter only to permutations,
         # so QGIS never offered it; under 'sampled' it DECIDES THE
         # ANSWER, which makes it an analytical box by door_parity's
@@ -258,6 +314,32 @@ class CountsAndShares(EquipopAlgorithm):
             type=QgsProcessingParameterNumber.Integer), advanced=True)
         self.add(QgsProcessingParameterFeatureSink(
             self.OUT, "Results"))
+
+    def checkParameterValues(self, parameters, context):
+        """BACKLOG 305. Refuse BEFORE Run, not after.
+
+        processAlgorithm already refuses a run with neither k nor r,
+        which is right - but by then the user has pressed Run and the
+        answer arrives as a red exception. QGIS offers this hook so
+        the dialog can say so while the box is still in front of you,
+        and it was never implemented.
+
+        NEITHER BOX IS REQUIRED and that is deliberate: a radius-only
+        run is a perfectly good question, and so is k-only. What is
+        required is ONE OF THEM.
+        """
+        k = (self.parameterAsString(parameters, "k", context)
+             or "").strip()
+        r = (self.parameterAsString(parameters, "r", context)
+             or "").strip()
+        if not k and not r:
+            return False, (
+                "Give a neighbourhood size in box 3 (k - a number of "
+                "people), or a radius in box 4 - EquiPop needs one of "
+                "the two to know what a neighbourhood is. Either "
+                "alone is fine; both together gives you both sets of "
+                "columns.")
+        return super().checkParameterValues(parameters, context)
 
     def processAlgorithm(self, parameters, context, feedback):
         from equipop.doors.fields import predict_result_fields
@@ -327,26 +409,43 @@ class CountsAndShares(EquipopAlgorithm):
         # the engine's default: a door that says nothing cannot be
         # conformance-checked against a named mode, which is the
         # whole reason both doors failed the answer key in 1.30.
+        origin_rule = ORIGIN_VALUES[
+            (self.parameterAsEnums(parameters, "originrule",
+                                   context) or [0])[0]]
         overshoot_mode = OVERSHOOT_VALUES[
             (self.parameterAsEnums(parameters, "overshoot",
                                    context) or [1])[0]]
         seed = self.optional_int(parameters, "seed")
         kw = dict(unit_size=float(unit), treat_are_counts=True,
                   overshoot_mode=overshoot_mode, seed=seed,
+                  self_rule=origin_rule,
                   self_potential=SELFPOT_VALUES[
                       (self.parameterAsEnums(parameters, "selfpot",
                                              context) or [2])[0]])
         if decaying:
+            from equipop.doors.decaynames import calibration_value
             kw["decay_model"] = model
             kw["half_life_m"] = float(half)
+            kw["decay_calibration"] = calibration_value(
+                (self.parameterAsEnums(parameters, "calibration",
+                                       context) or [0])[0])
             eps = self.parameterAsDouble(parameters, "decayeps",
                                          context)
             kw["decay_eps"] = float(eps) if eps > 0 else 1e-6
             ch.info(curve_in_plain_numbers(model, half))
-        if k_text:
-            kw["k_values"] = [int(v) for v in k_text.split()]
-        if r_text:
-            kw["r_values"] = [float(v) for v in r_text.split()]
+        # BACKLOG 320. WAS int(v) / float(v) STRAIGHT ON TYPED TEXT, so
+        # a Norwegian or Swedish machine - where a radius is written
+        # 500,5 - produced the raw Python "could not convert string to
+        # float". Pro has been protected since 1.16.7; QGIS never was.
+        # One parser now, in equipop.doors.numbers, called by both.
+        from equipop.doors.numbers import intlist, numlist, BadNumber
+        try:
+            if k_text:
+                kw["k_values"] = intlist(k_text)
+            if r_text:
+                kw["r_values"] = numlist(r_text)
+        except BadNumber as bad:
+            raise QgsProcessingException(str(bad))
         if pop:
             kw["weight"] = pts.data[pop]
         if treats:
@@ -370,10 +469,9 @@ class CountsAndShares(EquipopAlgorithm):
         # the logic locally and coupled them.
         treatmode = (self.parameterAsEnums(parameters, "treatmode",
                                            context) or [0])[0]
-        pop_vals = [str(v).strip() for v in
-                    (self.parameterAsMatrix(parameters, "reftable",
-                                            context) or [])
-                    if str(v).strip()]
+        from .base import matrix_cells
+        pop_vals = [c for c in matrix_cells(self, parameters,
+                                            "reftable", context) if c]
 
         # ------------------------------------------------ BACKLOG 104
         # A ladder whose rungs read different boxes, in a dialog that
@@ -386,9 +484,8 @@ class CountsAndShares(EquipopAlgorithm):
                                           context).strip()
         tcat = (self.parameterAsStrings(parameters, "treatcatfield",
                                         context) or [None])[0]
-        tmat = [str(v).strip() for v in
-                (self.parameterAsMatrix(parameters, "treattable",
-                                        context) or []) if str(v).strip()]
+        tmat = [c for c in matrix_cells(self, parameters, "treattable",
+                                        context) if c]
 
         if refmode == 1 and not pop:
             raise QgsProcessingException(rungs.missing(
@@ -454,8 +551,8 @@ class CountsAndShares(EquipopAlgorithm):
         if restricting or grouping:
             from equipop.categorical import categories_to_binary
             groups = self._groups_from_matrix(
-                self.parameterAsMatrix(parameters, "treattable",
-                                       context)) if grouping else {}
+                matrix_cells(self, parameters, "treattable",
+                             context)) if grouping else {}
             tcatf = (self.parameterAsStrings(parameters,
                                             "treatcatfield", context)
                      or [None])[0] or catfield
@@ -553,7 +650,8 @@ class CountsAndShares(EquipopAlgorithm):
             tau = self.parameterAsString(  # not defined
                 parameters, "tau", context).strip()
             if tau:
-                kw["tau_values"] = [float(v) for v in tau.split()]
+                from equipop.doors.numbers import numlist as _nl
+                kw["tau_values"] = _nl(tau)
             if decaying:
                 ch.warning(
                     "Decay over effort is not available, so decay is "
@@ -590,8 +688,11 @@ class CountsAndShares(EquipopAlgorithm):
         if vec is not None:
             field = (self.parameterAsStrings(parameters, "barrierfield",
                                             context) or [None])[0]
+            bclass = (self.parameterAsStrings(
+                parameters, "barrierclass", context) or [None])[0]
             table = barrier_to_friction(vec, field, unit, agg, ch,
-                                        working_crs)
+                                        working_crs,
+                                        class_field=bclass or None)
             if points_xy is not None:
                 check_plausible(table, vec.featureCount(), points_xy,
                                 float(unit), "Barrier layer", ch)

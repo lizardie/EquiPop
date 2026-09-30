@@ -488,3 +488,154 @@ def test_net_install_manifest_lists_files_that_exist():
         "the package ships no help file")
     assert "p equipop" in open(toc, encoding="utf-8").read(), (
         "stata.toc does not offer the equipop package")
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 285/286 - the help's examples, and names that are too long.
+# ---------------------------------------------------------------------
+def test_every_option_in_every_example_exists():
+    """Claude wrote overshoot(shares) from memory. The real values are
+    `whole` and `proportional`, and `sampled` is not offered by the
+    Stata door at all - so a user copying the help would have been
+    refused by the command the help documents."""
+    import re
+    h = _read("equipop.sthlp")
+    ado = _ado_text()
+    ex = h[h.index("{title:Examples}"):h.index("{marker author}")]
+    i = ado.index("    syntax ")
+    syn = ado[i:ado.index("\n\n", i)].lower()
+    for cmd in re.findall(r"\{cmd:\. (equipop[^}]*)\}", ex):
+        for opt in re.findall(r"(\w+)\(", cmd):
+            assert opt.lower() in syn, (
+                f"the help shows {opt}() and the syntax line has no "
+                f"such option: {cmd}")
+
+
+def test_every_VALUE_in_the_examples_is_accepted():
+    """decay(negexp) and overshoot(proportional) must be words the
+    command actually takes."""
+    import re
+    h = _read("equipop.sthlp")
+    ado = _ado_text()
+    ex = h[h.index("{title:Examples}"):h.index("{marker author}")]
+    for opt in ("decay", "overshoot"):
+        i = ado.index(f'inlist("`{opt}\'')
+        allowed = set(re.findall(r'"([a-z]+)"', ado[i:i + 260]))
+        for cmd in re.findall(r"\{cmd:\. (equipop[^}]*)\}", ex):
+            for used in re.findall(rf"{opt}\((\w+)\)", cmd):
+                assert used in allowed, (
+                    f"{opt}({used}) is in the help; the command takes "
+                    + ", ".join(sorted(allowed - {""})))
+
+
+def test_the_examples_cover_what_john_asked_for():
+    h = _read("equipop.sthlp")
+    ex = h[h.index("{title:Examples}"):h.index("{marker author}")]
+    for want in ("pop(", "selfpot(", "decay(", "overshoot("):
+        assert want in ex, f"no example uses {want}"
+
+
+def test_pop_and_fweight_are_explained_as_the_same_thing():
+    """John asked what [fweight=] is for when pop() exists. They mean
+    the same; fweight demands whole numbers and pop() does not."""
+    h = _read("equipop.sthlp")
+    ex = h[h.index("{title:Examples}"):h.index("{marker author}")]
+    assert "same thing" in ex and "never both" in ex
+    assert "FRACTIONAL" in ex
+
+
+def test_long_names_are_shortened_rather_than_refused():
+    """John's run finished 646,766 cells, three widened passes and two
+    k values, and THEN stopped because a name was 33 characters. The
+    arithmetic was done; only the label was too long."""
+    ado = _ado_text()
+    assert "SHORTEN RATHER THAN REFUSE" in ado
+    assert "_shorten" in ado
+    assert "were shortened" in ado, "every rename must be announced"
+
+
+def test_the_length_warning_comes_BEFORE_the_computation():
+    """A ten-minute run must not die at the labelling step."""
+    ado = _ado_text()
+    warn = ado.index("names will exceed Stata's 32")
+    run = ado.index("python: _equipop_machine1(")
+    assert warn < run, "the warning is after the run again"
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 287 - THE RENAME WAS ANNOUNCED AND NOT APPLIED. The names
+# were shortened, printed to John correctly, and then the writing loop
+# rebuilt each name from `res` and created the ORIGINAL - so Stata
+# refused with "invalid varname" AFTER the rename had been shown. The
+# names were right on screen and wrong in the data.
+#
+# These tests EXECUTE the shipped naming block rather than reading it,
+# because the previous version passed every reading test it had.
+# ---------------------------------------------------------------------
+def _naming_block():
+    import re
+    import textwrap
+    s = _ado_text()
+    i = s.index("    wanted = [prefix + name for name in res]")
+    j = s.index("    problems = []", i)
+    block = textwrap.dedent(s[i:j])
+    return re.sub(r"SFIToolkit\.displayln\(", "(lambda *a: None)(",
+                  block)
+
+
+def _run_naming(res, prefix, existing=()):
+    ns = {"res": res, "prefix": prefix, "existing": set(existing)}
+    exec(_naming_block(), ns)
+    return ns["use"], ns["wanted"]
+
+
+JOHNS = {f"{v}_{k}": None
+         for v in ("h72003_whitealone", "h72004_africanamericanalone",
+                   "h72006_asianalone")
+         for k in (25, 50, 100, 200, 400, 800, 1600, 3200)}
+
+
+@pytest.mark.parametrize("prefix", ["N_", "T_", "R_"])
+def test_every_written_name_fits_stata(prefix):
+    use, _ = _run_naming(JOHNS, prefix)
+    over = {k: v for k, v in use.items() if len(v) > 32}
+    assert not over, over
+
+
+@pytest.mark.parametrize("prefix", ["N_", "T_", "R_"])
+def test_the_names_stay_distinct(prefix):
+    use, _ = _run_naming(JOHNS, prefix)
+    assert len(set(use.values())) == len(use)
+
+
+def test_the_MAPPING_is_what_the_writer_uses():
+    """The fault: `use` was never built, so the writer rebuilt the
+    long name from res. A test that only read the announcement would
+    still have passed."""
+    ado = _ado_text()
+    assert "name = use[key]" in ado, (
+        "the writing loop must take the shortened name")
+    assert "name = prefix + name" not in ado, (
+        "the writing loop is rebuilding the original name again")
+
+
+def test_a_short_name_is_left_exactly_alone():
+    use, _ = _run_naming({"h72003_whitealone_100": None}, "T_")
+    assert use["h72003_whitealone_100"] == "T_h72003_whitealone_100"
+
+
+def test_the_k_survives_shortening():
+    """The tail says which k and the prefix says which measure - both
+    carry meaning, so only the middle may be cut."""
+    use, _ = _run_naming(JOHNS, "T_")
+    for key, name in use.items():
+        assert name.endswith("_" + key.rsplit("_", 1)[1]), name
+        assert name.startswith("T_"), name
+
+
+def test_two_names_that_truncate_alike_are_disambiguated():
+    res = {"averyverylongvariablenamehere_100": None,
+           "averyverylongvariablenamehero_100": None}
+    use, _ = _run_naming(res, "T_")
+    assert len(set(use.values())) == 2
+    assert all(len(v) <= 32 for v in use.values())

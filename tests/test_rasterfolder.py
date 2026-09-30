@@ -497,3 +497,152 @@ def test_a_projected_folder_is_fine_as_long_as_it_agrees(tmp_path):
     _one(tmp_path, "bdi_m_15_2026_CN_1km_R2025A_UA_v1", "EPSG:32735", 0.05)
     pts, man = load_folder(tmp_path)
     assert man["crs"] == "EPSG:32735"
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 272 - GRID INDICES WERE ADDED TO THE POPULATION. Found by the
+# external review of 1.44.10, with an exact reproduction; John had
+# reported it as 232 and Claude twice failed to reproduce it, because
+# he never combined sum_cohorts with keep_index.
+#
+# The rule "which columns are measurements" was written out THREE
+# TIMES as "everything except lon, lat, iso3". When keep_index added
+# gx and gy, one of the three was not updated. An exclusion list is a
+# promise about every column that will ever exist.
+# ---------------------------------------------------------------------
+def _ten_per_cell(tmp, n=2):
+    import rasterio
+    from rasterio.transform import from_origin
+    px = 1.0 / 1200
+    for name in ("bdi_f_15_2026_CN_1km_R2025A_UA_v1",
+                 "bdi_m_15_2026_CN_1km_R2025A_UA_v1"):
+        with rasterio.open(str(tmp / (name + ".tif")), "w",
+                           driver="GTiff", height=n, width=n, count=1,
+                           dtype="float32", crs="EPSG:4326",
+                           nodata=-99999.0,
+                           transform=from_origin(30.0, -2.0 + n * px,
+                                                 px, px)) as o:
+            o.write(np.full((n, n), 5.0, dtype="float32"), 1)
+
+
+@pytest.mark.parametrize("keep_index", [False, True])
+def test_population_is_conserved_when_cohorts_are_summed(tmp_path,
+                                                         keep_index):
+    """Ten people per cell, whichever way it is loaded. The reported
+    output was [10, 11, 11, 12] - 44 people instead of 40."""
+    _ten_per_cell(tmp_path)
+    pts, _ = load_folder(tmp_path, sum_cohorts=True,
+                         keep_index=keep_index)
+    assert list(pts["pop"]) == [10.0, 10.0, 10.0, 10.0]
+    assert pts["pop"].sum() == 40.0
+
+
+def test_summing_keeps_the_lattice_indices_it_was_given(tmp_path):
+    """The old branch dropped gx and gy after summing, so the sum
+    option and the exact lattice join could not be used together."""
+    _ten_per_cell(tmp_path)
+    pts, _ = load_folder(tmp_path, sum_cohorts=True, keep_index=True)
+    assert "gx" in pts.columns and "gy" in pts.columns
+
+
+def test_a_larger_grid_is_still_conserved(tmp_path):
+    """On a continental grid an index dwarfs the population it
+    corrupts, so the fault grows with the data."""
+    _ten_per_cell(tmp_path, n=12)
+    pts, _ = load_folder(tmp_path, sum_cohorts=True, keep_index=True)
+    assert pts["pop"].sum() == 12 * 12 * 10.0
+    assert (pts["pop"] == 10.0).all()
+
+
+def test_two_countries_are_still_conserved(tmp_path):
+    """iso3 is a label; adding a second country must not change the
+    arithmetic."""
+    import rasterio
+    from rasterio.transform import from_origin
+    px = 1.0 / 1200
+    for iso, off in (("bdi", 0.0), ("rwa", 0.05)):
+        for sex in ("f", "m"):
+            n = f"{iso}_{sex}_15_2026_CN_1km_R2025A_UA_v1"
+            with rasterio.open(str(tmp_path / (n + ".tif")), "w",
+                               driver="GTiff", height=2, width=2,
+                               count=1, dtype="float32",
+                               crs="EPSG:4326", nodata=-99999.0,
+                               transform=from_origin(30.0 + off,
+                                                     -2.0 + 2 * px,
+                                                     px, px)) as o:
+                o.write(np.full((2, 2), 5.0, dtype="float32"), 1)
+    pts, _ = load_folder(tmp_path, sum_cohorts=True, keep_index=True)
+    assert pts["pop"].sum() == 80.0
+    assert (pts["pop"] == 10.0).all()
+
+
+# ---------------------------------------------------------------------
+# BACKLOG 277 - external review of 1.44.10, finding 4. The mixed-CRS
+# blocker (239) closed one hole; three more remained, and one produced
+# COORDINATES THAT WERE SIMPLY WRONG rather than merely unlabelled.
+# ---------------------------------------------------------------------
+def _one_raster(tmp, crs, transform, name="bdi_f_15_2026_CN_1km"
+                                          "_R2025A_UA_v1"):
+    import rasterio
+    with rasterio.open(str(tmp / (name + ".tif")), "w", driver="GTiff",
+                       height=4, width=4, count=1, dtype="float32",
+                       crs=crs, nodata=-99999.0,
+                       transform=transform) as o:
+        o.write(np.full((4, 4), 3.0, dtype="float32"), 1)
+
+
+def test_a_raster_with_no_crs_is_refused(tmp_path):
+    """It was accepted and recorded as the string "None". Guessing a
+    CRS would put the result somewhere plausible and wrong."""
+    from rasterio.transform import from_origin
+    px = 1.0 / 1200
+    _one_raster(tmp_path, None, from_origin(30.0, -2.0 + 4 * px, px, px))
+    with pytest.raises(ValueError, match="NO coordinate system"):
+        load_folder(tmp_path)
+
+
+def test_a_rotated_raster_is_refused(tmp_path):
+    """Accepted, with its rotation DISCARDED: the true first centre
+    was 30.000500, -1.997000 and EquiPop returned 30.000417,
+    -1.997083. An actual coordinate error, not missing metadata."""
+    from rasterio.transform import Affine
+    px = 1.0 / 1200
+    rot = Affine(px, px * 0.2, 30.0, px * 0.2, -px, -2.0 + 4 * px)
+    _one_raster(tmp_path, "EPSG:4326", rot)
+    with pytest.raises(ValueError, match="ROTATED"):
+        load_folder(tmp_path)
+
+
+def test_the_rotation_refusal_says_what_to_do(tmp_path):
+    from rasterio.transform import Affine
+    px = 1.0 / 1200
+    _one_raster(tmp_path, "EPSG:4326",
+                Affine(px, px * 0.2, 30.0, px * 0.2, -px, -2.0 + 4 * px))
+    with pytest.raises(ValueError) as e:
+        load_folder(tmp_path)
+    assert "Warp" in str(e.value)
+
+
+def test_a_north_up_raster_is_still_accepted(tmp_path):
+    """The contract must not refuse what it was written to allow."""
+    from rasterio.transform import from_origin
+    px = 1.0 / 1200
+    _one_raster(tmp_path, "EPSG:4326",
+                from_origin(30.0, -2.0 + 4 * px, px, px))
+    pts, man = load_folder(tmp_path)
+    assert len(pts) == 16 and man["crs"] == "EPSG:4326"
+
+
+def test_a_projected_folder_reprojects_from_ITS_OWN_crs(tmp_path):
+    """A projected folder was accepted and then reprojected AS IF it
+    were degrees, so its metres were read as longitudes. GHSL's
+    Mollweide and any UTM set are legitimate inputs."""
+    from rasterio.transform import from_origin
+    from equipop.rasterfolder import folder_to_cells
+    _one_raster(tmp_path, "EPSG:32735",
+                from_origin(166000.0, 9779000.0, 100.0, 100.0))
+    cd, man = folder_to_cells(tmp_path, weight="f_15_2026",
+                              unit_size=100.0, epsg=32735)
+    # same CRS in and out, so the coordinates must survive unchanged
+    assert abs(float(cd.E.min()) - 166050.0) < 1.0, float(cd.E.min())
+    assert abs(float(cd.N.max()) - 9778950.0) < 1.0, float(cd.N.max())

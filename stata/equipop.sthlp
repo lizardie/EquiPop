@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.43.1}{...}
+{* *! version 1.49.1}{...}
 {vieweralsosee "[R] regress" "help regress"}{...}
 {viewerjumpto "Syntax" "equipop##syntax"}{...}
 {viewerjumpto "Description" "equipop##description"}{...}
@@ -11,7 +11,7 @@
 {title:Title}
 
 {phang}
-{bf:equipop} {hline 2} k-nearest neighbour context variables (EquiPop 1.43.1)
+{bf:equipop} {hline 2} k-nearest neighbour context variables (EquiPop 1.49.1)
 
 {marker syntax}{...}
 {title:Syntax}
@@ -46,6 +46,7 @@ Install or update the calculating engine, into the Python this Stata is using. A
 {synopt:{opt r(numlist)}}Fixed radii in metres, space-separated.{p_end}
 {synopt:{opt unit(#)}}The grid cell size in metres.{p_end}
 {synopt:{opt selfpot(#)}}Self-potential: how far away what is LOCAL - what your...{p_end}
+{synopt:{opt originrule(string)}}WHETHER THE ORIGIN COUNTS AS ITS OWN NEIGHBOUR.{p_end}
 {syntab:Population}
 {synopt:{opt treat(varlist)}}Group counts: persons of the group at this point (use...{p_end}
 {synopt:{opt pop(varname)}}How many each point stands for - people, jobs,...{p_end}
@@ -53,9 +54,10 @@ Install or update the calculating engine, into the Python this Stata is using. A
 {synopt:{opt missing(numlist)}}Values that mean NO DATA rather than a number, listed...{p_end}
 {syntab:Distance weighting}
 {synopt:{opt decay(string)}}Weights each neighbour by how far away it is, and...{p_end}
-{synopt:{opt halflife(#)}}The distance at which a neighbour counts half as much,...{p_end}
+{synopt:{opt halflife(#)}}A distance, in the same units as your coordinates, that...{p_end}
 {synopt:{opt halflifevar(varname)}}A variable holding each place's own half-life, so...{p_end}
 {synopt:{opt bins(#)}}How many bands of similar bandwidth halflifevar() is...{p_end}
+{synopt:{opt calibration(string)}}What the halflife() distance MEANS.{p_end}
 {synopt:{opt overshoot(string)}}What happens to the ring of cells that CROSSES k.{p_end}
 {synopt:{opt selfpotname(string)}}How far a place is from itself - the same three choices...{p_end}
 {syntab:Coordinates}
@@ -140,6 +142,10 @@ for Stata.
 {p_end}
 
 {phang}
+{opt originrule(string)} WHETHER THE ORIGIN COUNTS AS ITS OWN NEIGHBOUR. EquiPop grows a neighbourhood outward from each place until it holds k people, and it has always started counting AT THAT PLACE - your own cell's residents are your nearest neighbours, and they include you. 'Include' keeps that, and it is the rule behind EVERY PUBLISHED EquiPop result, so leave it alone if you are reproducing or extending published work. 'Exclude' leaves the origin cell out entirely - the w(ii)=0 convention that spatial regression requires (SAR, SDM, SLX), and what EquiPop's own spatial-weights builder has always used. Choose it when a place's own value must not appear inside its own context variable. HOW MUCH THIS MATTERS DEPENDS ON HOW BIG YOUR UNITS ARE. On US census blocks averaging 113 people, isolation at k=100 fell 13.6% for African Americans and under 1% for Whites - the shift is largest for concentrated minorities, because their own block is a large part of their measured isolation, and smallest for the majority. On fine grids holding a handful of people it barely registers. BEWARE: the AVERAGES hardly move under either rule, so you cannot tell from the numbers which one produced them - the run says so in its log, and results under the two rules are not comparable with each other.
+{p_end}
+
+{phang}
 {opt treatmode(string)} What the treat() variables contain. counts (the default) means each one holds the NUMBER OF PEOPLE of that group at the point, which is how census and register data normally arrive, and how the GIS versions of EquiPop read it - it needs a population, from pop() or [fweight=]. flags means each one holds 0 or 1, a share of the row's own population, which is the older Stata convention. Getting this wrong cannot pass silently: a group larger than the population containing it is refused, with a message naming which setting to use.
 {p_end}
 
@@ -152,7 +158,7 @@ for Stata.
 {p_end}
 
 {phang}
-{opt halflife(#)} The distance at which a neighbour counts half as much, in the same units as your coordinates. Required by decay(), unless halflifevar() gives one per place instead.
+{opt halflife(#)} A distance, in the same units as your coordinates, that anchors the decay curve. WHAT IT MEANS is set by calibration(): by default, half of all trips are shorter than this - so a median commute from a survey goes straight in. Required by decay(), unless halflifevar() gives one per place instead.
 {p_end}
 
 {phang}
@@ -161,6 +167,10 @@ for Stata.
 
 {phang}
 {opt bins(#)} How many bands of similar bandwidth halflifevar() is grouped into. More bands follow the variation more closely and take longer. Ignored without halflifevar(). Default 10.
+{p_end}
+
+{phang}
+{opt calibration(string)} What the halflife() distance MEANS. halflife, the default: half of all trips are shorter than it - use this for a survey median. halfprob: a neighbour at that distance counts half as much. Östh, Lyhagen and Reggiani (2016) name both readings and advocate the first, which old EquiPop used; versions 1.30 to 1.47 had silently switched to the second. The two give the same result for decay(negexp), so the choice only matters for the other models. decay(power) has no half-life - its curve never encloses a finite area, so no median exists - and uses halfprob whatever you ask, saying so. Both betas are printed, so the difference is visible whichever you choose.
 {p_end}
 
 {phang}
@@ -194,6 +204,8 @@ for Stata.
 {synopt:{cmd:r(selfpot)}}self-potential used{p_end}
 {synopt:{cmd:r(N_origins)}}rows in the sample{p_end}
 {synopt:{cmd:r(N_missing)}}rows that received no result{p_end}
+{synopt:{cmd:r(halflife)}}half-life distance, with decay(){p_end}
+{synopt:{cmd:r(beta)}}decay parameter actually used{p_end}
 {p2col 5 20 24 2: Macros}{p_end}
 {synopt:{cmd:r(cmd)}}equipop{p_end}
 {synopt:{cmd:r(cmdline)}}command as typed{p_end}
@@ -201,6 +213,8 @@ for Stata.
 {synopt:{cmd:r(treat)}}treatment variables used{p_end}
 {synopt:{cmd:r(k)}}k values requested{p_end}
 {synopt:{cmd:r(r)}}radii requested{p_end}
+{synopt:{cmd:r(decay)}}decay model, with decay(){p_end}
+{synopt:{cmd:r(calibration)}}half-life or half-probability, as APPLIED{p_end}
 {p2colreset}{...}
 
 {pstd}
@@ -254,7 +268,23 @@ See also {c -({c )-}help python{c )-}, and {c -({c )-}cmd:python query{c
 {phang}{cmd:. equipop, x(X_local) y(Y_local) k(50)}{p_end}
 {phang}{cmd:. equipop, x(X_local) y(Y_local) treat(HighEdu) k(25 50 200) unit(100)}{p_end}
 {phang}{cmd:. equipop if urban==1, x(X) y(Y) treat(HighEdu) k(50) replace}{p_end}
-{phang}{cmd:. equipop [fweight=pop], x(X) y(Y) treat(HighEdu) k(50)}{p_end}
+
+{pstd}A reference population - counts per row rather than one row per person:{p_end}
+{phang}{cmd:. equipop, x(X) y(Y) pop(totalpop) treat(university) k(500 1000)}{p_end}
+{pstd}{cmd:pop()} takes FRACTIONAL counts, which is what gridded population needs. {cmd:[fweight=]} means the same thing and lets Stata validate it, but demands whole numbers - give one or the other, never both:{p_end}
+{phang}{cmd:. equipop [fweight=households], x(X) y(Y) treat(renting) k(200)}{p_end}
+
+{pstd}Self-potential - whether an origin counts itself. The default keeps it, which is right when a row is a place; {cmd:selfpot(0)} drops it, which is right when a row is a person and you are asking about their surroundings:{p_end}
+{phang}{cmd:. equipop, x(X) y(Y) treat(unemployed) k(100) selfpot(0)}{p_end}
+
+{pstd}Distance decay - near neighbours weigh more than far ones. {cmd:half(m)} is the distance at which a neighbour counts half:{p_end}
+{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(1000) decay(negexp) half(500)}{p_end}
+{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(1000) decay(lognormal) half(2000)}{p_end}
+
+{pstd}Overshoot - what to do with the ring that carries the neighbourhood past k. {cmd:whole} takes the whole ring, so N exceeds k; {cmd:proportional} takes the same fraction of every cell in it, so N equals k exactly. The difference is largest where this work matters most - small k, large cells, and at boundaries:{p_end}
+{phang}{cmd:. equipop, x(X) y(Y) treat(HighEdu) k(100) overshoot(proportional)}{p_end}
+
+{pstd}The new variables are named in {cmd:r(varlist)}, so they can be used directly:{p_end}
 {phang}{cmd:. regress income `r(varlist)'}{p_end}
 
 {marker author}{...}

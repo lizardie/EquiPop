@@ -246,6 +246,36 @@ def _table_fields(value):
     return [f.name for f in arcpy.ListFields(value)]
 
 
+def _fields_after_writing(layer, where):
+    """The field list, with Pro's schema cache dropped first.
+
+    BACKLOG 309. arcpy.ListFields() reads a CACHED schema, and on a
+    GeoPackage or SQLite workspace Pro caches hard enough that fields
+    written moments earlier are invisible. John hit it on the course
+    data: the run reported "7 result fields are NOT in the target",
+    and removing the file and re-importing showed all seven present.
+    THE WRITE HAD SUCCEEDED AND THE VERIFICATION WAS WRONG - which is
+    worse than no verification, because it tells a user their results
+    are missing when they are not.
+
+    ClearWorkspaceCache drops it. Then the fields are read from the
+    CATALOG PATH rather than the layer object, because the layer
+    carries its own stale view.
+    """
+    try:
+        arcpy.management.ClearWorkspaceCache()
+    except Exception:                                # pragma: no cover
+        pass
+    for target in (where, layer):
+        try:
+            got = {f.name for f in arcpy.ListFields(target)}
+            if got:
+                return got
+        except Exception:
+            continue
+    return set()
+
+
 def _utm_from_lonlat(lon, lat):
     """Fitting metric CRS straight from coordinate VALUES - the table
     path has no CRS object to ask (field-test gap: degree tables were
@@ -408,6 +438,73 @@ def _read_input(layer, coord_source, xf, yf, extra_fields, messages,
                       note=f"attribute fields ({how})")
 
 
+def _target_exists(path):
+    """arcpy.Exists, never raising. A missing target is a fact worth
+    knowing BEFORE a write, not a RuntimeError after one."""
+    try:
+        return bool(arcpy.Exists(path))
+    except Exception:                                # pragma: no cover
+        return False
+
+
+def _recover_dataset(value, bad_path):
+    """Find the real dataset when catalogPath points at nothing.
+
+    Two routes, in order of how much they assume:
+
+    1. `dataSource`. For a GeoPackage this is the connection
+       description arcpy itself refuses as a path -
+       `Instance=...\\la_blocks.gpkg,Dataset=main.la_blocks` - but it
+       carries the TRUE table name, which is the one thing
+       catalogPath got wrong. Compose it with the workspace.
+    2. Ask the workspace what it holds, and take a single obvious
+       match. Only when there is exactly one candidate: guessing
+       between two datasets is worse than reporting the problem.
+    """
+    # ntpath, NOT os.path. This file only ever RUNS on Windows, where
+    # the two are the same - but the test suite runs on Linux, where
+    # ntpath.dirname(r"C:\x\y.gpkg\main.t") returns "" and the whole
+    # recovery silently does nothing. That is exactly how this route
+    # passed its first test while being deleted: the fixture recovered
+    # by another path and nobody could see that this one was dead.
+    # ntpath splits both separators and is right in both places.
+    import ntpath
+    import re
+
+    ws = ntpath.dirname(str(bad_path))
+    src = getattr(value, "dataSource", None)
+    if isinstance(src, str) and src:
+        m = re.search(r"Dataset\s*=\s*([^,;]+)", src)
+        if m:
+            cand = ntpath.join(ws, m.group(1).strip())
+            if _target_exists(cand):
+                return cand
+    name = ntpath.basename(str(bad_path))
+    stripped = re.sub(r"_\d+$", "", name)
+    if stripped != name:
+        cand = ntpath.join(ws, stripped)
+        if _target_exists(cand):
+            return cand
+    try:
+        old_ws = arcpy.env.workspace
+        arcpy.env.workspace = ws
+        try:
+            held = list(arcpy.ListFeatureClasses() or [])
+            held += list(arcpy.ListTables() or [])
+        finally:
+            arcpy.env.workspace = old_ws
+    except Exception:                                # pragma: no cover
+        return None
+    hits = [h for h in held
+            if re.sub(r"_\d+$", "", str(h)) == stripped
+            or str(h) == stripped]
+    if len(hits) == 1:
+        cand = ntpath.join(ws, str(hits[0]))
+        if _target_exists(cand):
+            return cand
+    return None
+
+
 def _ref(value):
     """arcpy is inconsistent: Describe() and cursors accept a Layer
     OBJECT, while RasterToNumPyArray insists on a path or a Raster
@@ -437,8 +534,27 @@ def _ref(value):
     # so this is safe for both and is the only route that reaches a
     # GeoPackage's workable path.
     try:
-        p = getattr(arcpy.Describe(value), "catalogPath", None)
+        desc = arcpy.Describe(value)
+        p = getattr(desc, "catalogPath", None)
         if isinstance(p, str) and p:
+            # BACKLOG 310. TRUST, THEN VERIFY. catalogPath is normally
+            # authoritative and for a GeoPackage it is the ONLY
+            # workable form (see above) - but Pro opens a GeoPackage
+            # as a GENERIC SQLITE workspace, and there it reports a
+            # path that does not exist: John's `main.la_blocks` drags
+            # into the map as a layer called `main.la_blocks_1`, with
+            # the _1 appended on the FIRST drag, against no duplicate,
+            # and catalogPath follows the LAYER name rather than the
+            # table. Catalog shows one table; Contents showed two
+            # layers both called ..._1.
+            # Handed to ExtendTable that path gives "cannot open",
+            # which then read as a LOCK and sent John hunting for an
+            # open attribute table after a five-minute run.
+            if _target_exists(p):
+                return p
+            better = _recover_dataset(value, p)
+            if better:
+                return better
             return p
     except Exception:
         pass
@@ -454,7 +570,124 @@ def _ref(value):
         return value
 
 
-def _raster_payload(value, messages):
+#: The version of THIS FILE. Declared, not inferred.
+#:
+#: BACKLOG 314. Pro CACHES .pyt MODULES: replacing the file does not
+#: replace what is running, and only a full restart reloads it. John
+#: lost most of an evening to that - the file on disk had the fix, the
+#: module in memory did not, and the only way either of us could tell
+#: was by counting lines in a traceback.
+#: The manifest has always recorded the PACKAGE version and never the
+#: TOOLBOX version, and this whole episode is the gap between those
+#: two. Now every run says both, and says so loudly when they differ.
+TOOLBOX_VERSION = "1.49.1"
+
+
+def _announce_version(messages):
+    """Say which toolbox and which package are actually running."""
+    try:
+        import equipop
+        pkg = getattr(equipop, "__version__", "unknown")
+    except Exception:                                # pragma: no cover
+        pkg = "not installed"
+    messages.addMessage(
+        f"EquiPop toolbox {TOOLBOX_VERSION}, package {pkg}.")
+    if pkg not in ("unknown", "not installed") and pkg != TOOLBOX_VERSION:
+        messages.addWarningMessage(
+            f"THE TOOLBOX AND THE PACKAGE ARE DIFFERENT VERSIONS - "
+            f"toolbox {TOOLBOX_VERSION}, package {pkg}. They are "
+            "released together and should match. If you have just "
+            "replaced EquiPop.pyt, RESTART PRO: it caches toolbox "
+            "modules, and removing the toolbox from the project is "
+            "not enough. If you have just upgraded the package, "
+            "replace EquiPop.pyt and its .pyt.xml files too.")
+    return pkg
+
+
+def _calibration(pm):
+    """The box's text -> the engine's name. Blank or unknown falls to
+    half-life, the default, rather than guessing."""
+    try:
+        from equipop.doors.decaynames import calibration_value
+        return calibration_value(_txt(pm, "calibration") or None)
+    except Exception:                                # pragma: no cover
+        return "half-life"
+
+
+def _report_calibration(model, calibration, half_life, messages):
+    """Which reading of the half-life runs, and BOTH betas (317).
+
+    Shown on every decaying run so the difference is visible even to a
+    user who kept the default and never saw the choice.
+    """
+    try:
+        from equipop.decay import Decay
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            d = Decay(model=model, half_life_m=float(half_life or 1000.0),
+                      calibration=calibration)
+    except Exception:                                # pragma: no cover
+        return
+    note = ""
+    if d.calibration != d.calibration_requested:
+        note = (" Power has no half-life - its curve never encloses a "
+                "finite area - so half-probability was used.")
+    messages.addMessage(
+        f"Decay {model}: the half-life distance is read as "
+        f"{d.calibration.upper()}.{note}")
+    if half_life and half_life > 0:
+        hl, hp = d.both_betas()
+        used = d.calibration
+        messages.addMessage(
+            f"  at {float(half_life):g} m:  half-life beta = "
+            + ("not defined" if hl is None else f"{hl:.6g}")
+            + ("  <- used" if used == "half-life" else "")
+            + f";  half-probability beta = {hp:.6g}"
+            + ("  <- used" if used == "half-probability" else ""))
+
+
+def _same_crs(a, b):
+    """Do two spatial references describe the same system?
+
+    Compared by factoryCode where both have one, else by name. A
+    missing or 0 code means UNDEFINED, which is never "the same as"
+    anything - see _require_crs.
+    """
+    ca = getattr(a, "factoryCode", 0) or 0
+    cb = getattr(b, "factoryCode", 0) or 0
+    if ca and cb:
+        return int(ca) == int(cb)
+    na = (getattr(a, "name", "") or "").strip()
+    nb = (getattr(b, "name", "") or "").strip()
+    return bool(na) and na == nb
+
+
+def _require_crs(desc, what):
+    """An undefined coordinate system is refused, never assumed.
+
+    BACKLOG 313, John's ruling: "no crs should not be silent - a loud
+    error there". A dataset with no .prj has coordinates that mean
+    nothing on their own, and arcpy's `spatial_reference=` can only
+    TRANSFORM - it cannot invent a source. So the numbers pass through
+    untouched and land wherever they land, with nothing to notice.
+    """
+    sr = getattr(desc, "spatialReference", None)
+    name = (getattr(sr, "name", "") or "").strip()
+    code = getattr(sr, "factoryCode", 0) or 0
+    if sr is None or not name or name.lower() == "unknown" or (
+            not code and name.lower().startswith("unknown")):
+        raise arcpy.ExecuteError(
+            f"{what} has NO COORDINATE SYSTEM. Its numbers cannot be "
+            "placed on the earth, and nothing downstream can detect "
+            "that - the coordinates would simply be used as they are "
+            "and land somewhere wrong. Define the projection on the "
+            "dataset (Define Projection, if you know what it is) and "
+            "run again. EquiPop refuses rather than guess, because a "
+            "guess here is invisible.")
+    return sr
+
+
+def _raster_payload(value, messages, main_sr=None):
     """Read a raster HERE (arcpy) and hand the package plain numbers.
     The package must never open GIS files itself - installing
     rasterio into a Pro clone means two GDALs fighting over DLLs
@@ -462,6 +695,28 @@ def _raster_payload(value, messages):
     src = _ref(value)
     d = arcpy.Describe(src)
     _check_metric(d, "The elevation raster")
+    dem_sr = _require_crs(d, "The elevation raster")
+    if main_sr is not None and not _same_crs(dem_sr, main_sr):
+        # BACKLOG 313, John's ruling: "DEM should not [be
+        # auto-projected], add a loud error". Reprojecting a raster
+        # means RESAMPLING - a method, a cell size, and interpolation
+        # error - and a slope computed from a resampled DEM is not the
+        # slope of the original. That is an analytical decision, not a
+        # formatting step, and not ours to make silently.
+        # Vector barriers are different and ARE projected on read, by
+        # arcpy's cursor, because transforming a coordinate is exact.
+        raise arcpy.ExecuteError(
+            f"The elevation raster is in "
+            f"{getattr(dem_sr, 'name', '?')} but the analysis is "
+            f"running in {getattr(main_sr, 'name', '?')}. EquiPop "
+            "will not reproject it for you: resampling a DEM changes "
+            "the elevations, and a slope computed from a resampled "
+            "raster is not the slope of the original - that is your "
+            "decision, not ours. Project the raster yourself "
+            "(Project Raster, choosing the resampling you want), or "
+            "run the analysis in the raster's coordinate system. "
+            "Vector barriers need no such step; they are converted on "
+            "read, which is exact.")
     arr = arcpy.RasterToNumPyArray(src)
     ext = d.extent
     pay = {"array": np.asarray(arr, float),
@@ -475,8 +730,34 @@ def _raster_payload(value, messages):
     return pay
 
 
+def _report_values(vals, field, messages):
+    """Say what the barrier was actually worth.
+
+    BACKLOG 312. A value field with a typo, a class left out, or a
+    Calculate Field that did not take produces a barrier that is
+    quietly weaker than intended - and the run looks identical. Naming
+    the distinct values costs one line and makes a wrong table
+    visible before the several minutes, not after.
+    """
+    import math
+    seen = {}
+    for v in vals:
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            seen["(empty -> 0)"] = seen.get("(empty -> 0)", 0) + 1
+        else:
+            key = f"{float(v):g}"
+            seen[key] = seen.get(key, 0) + 1
+    if not seen:
+        return
+    bits = ", ".join(f"{k} x{n:,}" for k, n in
+                     sorted(seen.items(), key=lambda kv: -kv[1])[:10])
+    messages.addMessage(
+        f"Barrier values in '{field}': {bits}"
+        + ("" if len(seen) <= 10 else f" (+{len(seen) - 10} more)"))
+
+
 def _barrier_frame(value, friction_field, agg, unit, main_sr,
-                   bxf, byf, messages):
+                   bxf, byf, messages, class_field=None):
     """Geometry-aware barrier ingredient (v1.16): route by WHAT the
     input is - never through an X/Y-column resolver for spatial
     data. Returns DataFrame(x, y, friction) ready for the engine."""
@@ -549,11 +830,18 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
 
     if kind in ("line", "polygon"):
         feats, vals, n_bad = [], [], 0
+        classes = [] if class_field else None        # BACKLOG 306
+        _cols = ["SHAPE@", friction_field]
+        if class_field:
+            _check_fields_exist(value, [class_field],
+                                "The barrier layer")
+            _cols.append(class_field)
         with arcpy.da.SearchCursor(
-                value, ["SHAPE@", friction_field],
+                value, _cols,
                 spatial_reference=main_sr) as cur:
             for row in cur:
                 geom, v = row[0], row[1]
+                _cl = row[2] if class_field else None
                 if geom is None:
                     n_bad += 1
                     continue
@@ -581,13 +869,31 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
                     n_bad += 1
                     continue
                 feats.append({"type": kind, "parts": parts})
+                if classes is not None:
+                    classes.append("" if _cl is None else str(_cl))
+                # BACKLOG 312. EMPTY IS NOT AN ERROR; it means NO
+                # OBSTACLE. Friction is additive and a cell costs
+                # 1 + friction, so 0 is unambiguously "nothing here" -
+                # and requiring 700,000 road features to say so was a
+                # tax for a purity that helped nobody. All-empty is
+                # still refused, downstream, because that means the
+                # field was never populated.
+                # The old message said "non-numeric OR missing", which
+                # led John to think fractions were being refused. They
+                # are not: -0.9 is a motorway.
+                if v is None or (isinstance(v, float) and v != v):
+                    vals.append(float("nan"))
+                    continue
                 try:
                     vals.append(float(v))
                 except (TypeError, ValueError):
                     raise arcpy.ExecuteError(
-                        f"The barrier layer: field '{friction_field}'"
-                        " has non-numeric or missing values - fix or "
-                        "filter them first.")
+                        f"The barrier layer: field '{friction_field}' "
+                        f"holds {v!r}, which is not a number. "
+                        "FRACTIONS ARE FINE - -0.9 is a motorway, 0 is "
+                        "open ground, 3 is a river. What cannot be "
+                        "used is text. Empty cells are read as 0 (no "
+                        "obstacle) and need no fixing.")
         if n_bad:
             messages.addWarningMessage(
                 f"{n_bad} empty/invalid barrier geometries skipped.")
@@ -595,12 +901,48 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
             raise arcpy.ExecuteError(
                 "The barrier layer holds no usable geometries "
                 "(empty selection?).")
+        _report_values(vals, friction_field, messages)
+        if classes is not None:
+            # BACKLOG 306. EACH CLASS ONCE, not each feature - the
+            # same rule 298 gave machine 3's join, reaching machine
+            # 1's barrier at last. OSM cuts one street into a new
+            # record wherever a tag changes, so per-feature counting
+            # charges a junction as many times as it has records: on
+            # downtown LA, 3,975 costed features produced cell costs
+            # from 1 to 166 where the friction table tops out at 8.
+            # That number was mostly a fact about how OSM fragmented
+            # the roads.
+            from equipop.vectorjoin import paths_to_cells, CLASS
+            fr = paths_to_cells(feats, vals, classes,
+                                unit_size=float(unit),
+                                fidelity=CLASS, agg=aggk)
+            # paths_to_cells names its column "value" (it serves
+            # machine 3's join, where the quantity is not friction);
+            # everything downstream of a barrier expects "friction".
+            fr = fr.rename(columns={"value": "friction"})
+            if "friction" not in fr.columns:         # pragma: no cover
+                raise arcpy.ExecuteError(
+                    "the class-collapsing join returned "
+                    f"{list(fr.columns)} - expected a value column")
+            n_cls = len({c for c in classes})
+            messages.addMessage(
+                f"Barrier {kind}s: {len(feats)} features in "
+                f"{n_cls} {_plural_en(n_cls, 'class')} -> {len(fr)} "
+                f"grid cells, EACH CLASS CHARGED ONCE per cell "
+                f"(overlap rule: {aggk}). Without the class field "
+                f"every feature would be charged separately, which "
+                f"on fragmented road data is a fact about the data "
+                f"rather than about the world.")
+            return fr
         fr = paths_to_friction(feats, vals, unit_size=float(unit),
-                               agg=aggk)
+                               agg=aggk, say=messages.addMessage)
         messages.addMessage(
             f"Barrier {kind}s: {len(feats)} features -> {len(fr)} "
             f"grid cells (EVERY cell genuinely crossed/covered; "
-            f"overlap rule: {aggk}).")
+            f"overlap rule: {aggk}). NO CLASS FIELD WAS GIVEN, so "
+            f"each FEATURE is charged separately - on OSM roads, "
+            f"where one street is many records, set the class field "
+            f"or dissolve first.")
         return fr
 
     raise arcpy.ExecuteError(
@@ -625,6 +967,172 @@ def _predict_result_fields(engine, k_text, r_text, tau_text,
     return predict_result_fields(engine, k_text, r_text, tau_text,
                                  treat_names, value_fields,
                                  stats_wanted, decaying, efforting)
+
+
+def _save_name_map(cat, rows, messages):
+    """The field-name mapping, beside the output.
+
+    A mapping that lives only in a run log is useless a year later.
+    Rows are (name_asked_for, name_written, why) - so a reader can
+    tell a shapefile truncation from a keep-both rename without
+    guessing.
+    """
+    if not rows:
+        return
+    try:
+        import csv as _csv
+        side, moved = _sidecar_path(cat, "_EquiPop_fields.csv")
+        if moved:
+            os.makedirs(os.path.dirname(side), exist_ok=True)
+        with open(side, "w", newline="", encoding="utf-8-sig") as fh:
+            w = _csv.writer(fh)
+            w.writerow(["name_asked_for", "name_written", "why"])
+            for r in rows:
+                w.writerow(list(r))
+        messages.addMessage(f"Name mapping also saved to {side}")
+    except Exception as exc:
+        messages.addWarningMessage(
+            f"Could not save the name mapping next to the output "
+            f"({exc}) - it is printed above.")
+
+
+#: BACKLOG 316. "Keep both" is a THIRD choice, not a new default:
+#: Overwrite stays first so re-running to fix a typo behaves as it
+#: always has. John ruled the choice explicit rather than inferred
+#: from the settings - "Re-running the same analysis to fix a typo is
+#: normal and should overwrite, and deciding that by inference is the
+#: kind of cleverness this project has been punished for."
+KEEP_MODES = ["Overwrite",
+              "Keep both - add a new column (b, c, d...)",
+              "Stop with a message"]
+
+
+def _plural_en(n, word):
+    return word if n == 1 else (word + "es" if word.endswith("s")
+                                else word + "s")
+
+
+def _keep_both_names(names, taken, messages=None):
+    """BACKLOG 316. THE LOGIC LIVES IN equipop.doors.fields so both
+    doors reach one implementation - the lesson of 320, where Pro had
+    a locale-proof number reader from 1.16.7 and QGIS never got one
+    because the code sat in the .pyt. This is the Pro-side wrapper:
+    it reports through `messages`, and falls back to leaving the names
+    alone if the package is older than the toolbox."""
+    try:
+        from equipop.doors.fields import keep_both, keep_both_message
+    except Exception:                                # pragma: no cover
+        return dict(names), {}
+    out, renamed = keep_both(names, taken)
+    if renamed and messages is not None:
+        messages.addMessage(keep_both_message(renamed))
+    return out, renamed
+
+
+def _save_name_map(cat, rows, messages):
+    """The field-name mapping, beside the output.
+
+    A mapping that lives only in a run log is useless a year later.
+    Rows are (name_asked_for, name_written, why) - so a reader can
+    tell a shapefile truncation from a keep-both rename without
+    guessing.
+    """
+    if not rows:
+        return
+    try:
+        import csv as _csv
+        side, moved = _sidecar_path(cat, "_EquiPop_fields.csv")
+        if moved:
+            os.makedirs(os.path.dirname(side), exist_ok=True)
+        with open(side, "w", newline="", encoding="utf-8-sig") as fh:
+            w = _csv.writer(fh)
+            w.writerow(["name_asked_for", "name_written", "why"])
+            for r in rows:
+                w.writerow(list(r))
+        messages.addMessage(f"Name mapping also saved to {side}")
+    except Exception as exc:
+        messages.addWarningMessage(
+            f"Could not save the name mapping next to the output "
+            f"({exc}) - it is printed above.")
+
+
+#: BACKLOG 316. "Keep both" is a THIRD choice, not a new default:
+#: Overwrite stays first so re-running to fix a typo behaves as it
+#: always has. John ruled the choice explicit rather than inferred
+#: from the settings - "Re-running the same analysis to fix a typo is
+#: normal and should overwrite, and deciding that by inference is the
+#: kind of cleverness this project has been punished for."
+KEEP_MODES = ["Overwrite",
+              "Keep both - add a new column (b, c, d...)",
+              "Stop with a message"]
+
+
+def _letter_suffix(n):
+    """0 -> "", 1 -> "b", 2 -> "c", ... 25 -> "z", 26 -> "aa", 27 -> "ab".
+
+    BACKLOG 316, John's design. The FIRST column keeps its canonical
+    name, so a single run is unchanged and every existing result still
+    reads the same. Only a second column of the same name takes a
+    letter.
+    PAST z IT IS aa, then ab - John: "aa is a good solution". No
+    ceiling and no refusal: it costs nothing and removes a wall
+    somebody would otherwise meet at the least convenient moment.
+    """
+    if n <= 0:
+        return ""
+    # n=1 is "b", so shift past "a" - the unsuffixed name IS the "a"
+    n += 1
+    out = ""
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        out = chr(ord("a") + r) + out
+    return out
+
+
+def _keep_both_names(names, taken, messages=None):
+    """Rename any result whose field already exists, instead of
+    overwriting it or refusing.
+
+    BACKLOG 316. The box offered Overwrite or Stop, so running the
+    same k twice with two different friction fields - walk and drive,
+    which is the whole point of exercise 4 - could not be done in one
+    file: the second run destroyed the first.
+    THE SUFFIX IS APPLIED HERE, BEFORE SHORTENING, and that ordering
+    is the whole of the shapefile question John raised. The shortener
+    already resolves over-length collisions with a disambiguating
+    digit (1.46.3), so R_black_alone_333 and R_black_alone_333b
+    truncating to the same ten characters is a case it knows how to
+    handle - PROVIDED it is handed the suffixed name. Shorten first
+    and the suffix is cut away into a silent collision.
+    `taken` is the set of field names already on the target.
+    """
+    out, used, moved = {}, set(taken), {}
+    for col, want in names.items():
+        if want not in used:
+            out[col] = want
+            used.add(want)
+            continue
+        i = 1
+        while True:
+            cand = want + _letter_suffix(i)
+            if cand not in used:
+                break
+            i += 1
+        out[col] = cand
+        used.add(cand)
+        moved[want] = cand
+    if moved and messages is not None:
+        # SAY SO. A user who looks for their column, does not find it
+        # and concludes the run failed is the pattern of 309, 310 and
+        # 311 - a silent rename is the same failure wearing a
+        # different coat.
+        messages.addMessage(
+            "Keeping both: these already existed, so new columns were "
+            "written beside them - "
+            + "; ".join(f"{k} -> {v}" for k, v in
+                        list(moved.items())[:6])
+            + (f" (+{len(moved) - 6} more)" if len(moved) > 6 else ""))
+    return out, moved
 
 
 def _shorten_names(names, cap: int = 10):
@@ -781,8 +1289,11 @@ def _collect_barriers(rows, agg, unit, main_sr, messages):
     for row in rows:
         src = row[0]
         fld = row[1] if len(row) > 1 else None
+        cls = row[2] if len(row) > 2 else None       # BACKLOG 306
         parts.append(_barrier_frame(src, fld or None, agg, unit,
-                                    main_sr, None, None, messages))
+                                    main_sr, None, None, messages,
+                                    class_field=(str(cls) or None)
+                                    if cls else None))
     acc: dict = {}
     for p in parts:
         for xx, yy, ff in zip(p["x"], p["y"], p["friction"]):
@@ -810,7 +1321,21 @@ def _write_failure(exc, what, target):
     text = str(exc)
     low = text.lower()
     path = str(target)
-    if "lock" in low or "000852" in low or "schema" in low:
+    if ("cannot open" in low or "does not exist" in low
+            or "000732" in low):
+        # BACKLOG 310. A MISSING TARGET IS NOT A LOCK, and saying so
+        # cost John a hunt for an open attribute table after a
+        # five-minute run. "cannot open" means the path is wrong or
+        # the dataset is gone - waiting, closing tables and leaving
+        # OneDrive will not help.
+        why = ("That dataset could not be opened. The path above does "
+               "not point at anything ArcGIS can find. If it ends in "
+               "an underscore and a number, it is probably a LAYER "
+               "NAME rather than a table name - Pro does that to "
+               "GeoPackage layers - so pick the dataset from the "
+               "Catalog pane instead of the map, or write to a file "
+               "geodatabase.")
+    elif "lock" in low or "000852" in low or "schema" in low:
         why = ("Something is holding this data, so new fields cannot "
                "be added. Usual causes: an open ATTRIBUTE TABLE for "
                "this layer, an active edit session, the file open in "
@@ -999,7 +1524,8 @@ def _add_columns(layer, oid, sub, fresh, messages):
 def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
               weight_field=None, k_text="", r_text="", tau_text="",
               stats_list=(), pct_text="", half_life=0.0,
-              decay_model="negexp", unit=100.0,
+              decay_model="negexp", decay_calibration="half-life",
+              unit=100.0,
               self_potential=1.0,
               coord_source=None, x_field=None, y_field=None,
               barrier=None, barrier_field=None, barrier_agg="",
@@ -1016,8 +1542,10 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
               rest_group=None, rest_in_population=True,
               groups_count="persons", half_life_field=None,
               half_life_from_dist=None, decay_bins: int = 10,
-              seed=None, overshoot=None):
+              seed=None, overshoot=None, originrule=None):
     """The single glue path both machines share (stub-validated)."""
+    _announce_version(messages)        # BACKLOG 314, first line of
+                                       # every run: which code is this?
     import pandas as pd
     from equipop.stata_bridge import dispatch
 
@@ -1285,6 +1813,11 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
     # the manual.
     if overshoot is not None:
         kw["overshoot_mode"] = str(overshoot)
+    if originrule is not None:
+        # BACKLOG 290. Passed EXPLICITLY, like the overshoot mode and
+        # for the same reason: a door that names no rule cannot be
+        # measured against an answer key pinned to one.
+        kw["self_rule"] = str(originrule)
     kw["k_values"] = [int(round(v)) for v in _numlist(k_text)] or None
     kw["r_values"] = _numlist(r_text) or None
     if tau_text:
@@ -1339,7 +1872,9 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             if extra_dem:
                 with _stage(messages, "reading elevation raster",
                             stages):
-                    kw["dem"] = _raster_payload(extra_dem, messages)
+                    kw["dem"] = _raster_payload(
+                        extra_dem, messages,
+                        getattr(_read_input, "last_sr", None))
             kw["roundtrip"] = bool(roundtrip)
             kw.pop("r_values", None)      # r on effort: not defined
             if half_life and half_life > 0:
@@ -1366,9 +1901,21 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             "so urban form sets the kernel.")
     if seed is not None:
         kw["seed"] = int(seed)
+    # BACKLOG 318. THE MODEL WAS DROPPED ON THE VARIABLE ROUTES. It was
+    # only forwarded when a FIXED half-life was given, so a half-life
+    # taken from a field or from hlfromdist ran as NEGEXP whatever
+    # model the user had chosen - silently. Found wiring 317, when
+    # the calibration needed the same forwarding and the gap showed.
+    # Now set once, for every route that decays.
+    if engine == "counts" and ((half_life and half_life > 0)
+                               or half_life_field
+                               or half_life_from_dist):
+        kw["decay_model"] = decay_model
+        kw["decay_calibration"] = decay_calibration
+        _report_calibration(decay_model, decay_calibration,
+                            half_life, messages)
     if engine == "counts" and half_life and half_life > 0:
         kw["half_life_m"] = float(half_life)
-        kw["decay_model"] = decay_model
         kw["decay_eps"] = float(decay_eps)
         messages.addMessage(
             f"Distance decay: {decay_model}, half-life "
@@ -1440,12 +1987,25 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
                 self_potential, rest_group, groups_count,
                 treat_fields, value_fields),
             source=_catalog_of(layer) or str(layer),
-            overshoot=overshoot, seed=seed), messages)
+            overshoot=overshoot, originrule=originrule,
+            seed=seed), messages)
         messages.addMessage("[time] TOTAL: " + _hms(time.time()
                                                     - t_all))
         return
 
     names = {c: _field(c) for c in res}
+    # BACKLOG 316. KEEP BOTH, and do it HERE - before the shortener,
+    # for the reason in _keep_both_names.
+    kept_both = {}
+    if existing.startswith("Keep both"):
+        try:
+            _already = {f.name for f in arcpy.ListFields(layer)}
+        except Exception:                            # pragma: no cover
+            _already = set()
+        # AN EMPTY FIELD LIST IS NOT EVIDENCE THAT NOTHING EXISTS
+        # (BACKLOG 311): with nothing read, nothing is renamed and the
+        # run behaves as Overwrite would, which is the safe direction.
+        names, kept_both = _keep_both_names(names, _already, messages)
     cat = getattr(arcpy.Describe(layer), "catalogPath", "")
     txt = _refuse_shp_overflow(cat, list(names.values()))
     if txt and not short_names:    # safety net: exact names
@@ -1457,21 +2017,20 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             "characters (collision-free). Mapping: "
             + "; ".join(f"{k} -> {v}" for k, v in short.items()))
         names = {c: short[n] for c, n in names.items()}
-        try:    # a mapping that lives only in a run log is useless
-            import csv as _csv
-            side, _moved = _sidecar_path(cat, "_EquiPop_fields.csv")
-            if _moved:
-                os.makedirs(os.path.dirname(side), exist_ok=True)
-            with open(side, "w", newline="", encoding="utf-8") as fh:
-                w = _csv.writer(fh)
-                w.writerow(["full_name", "shapefile_name"])
-                for k, v in short.items():
-                    w.writerow([k, v])
-            messages.addMessage(f"Name mapping also saved to {side}")
-        except Exception as exc:
-            messages.addWarningMessage(
-                f"Could not save the name mapping next to the "
-                f"output ({exc}) - it is printed above.")
+        _save_name_map(cat, [(k, v, "shortened for a shapefile")
+                             for k, v in short.items()]
+                       + [(k, v, "kept both - a column of this name "
+                                 "already existed")
+                          for k, v in kept_both.items()], messages)
+    elif kept_both:
+        # BACKLOG 316, John: record the mapping in the manifest,
+        # beside the shortened-name mapping. The CSV used to be
+        # written ONLY when a shapefile forced a shortening; a
+        # keep-both rename is the same kind of fact and needs the same
+        # record, so it is written whenever there is a mapping at all.
+        _save_name_map(cat, [(k, v, "kept both - a column of this "
+                                    "name already existed")
+                             for k, v in kept_both.items()], messages)
     dtype = [(str(oid), np.int64)] + [(names[c], np.float64)
                                       for c in res]
     out = np.empty(len(x), dtype=dtype)
@@ -1480,10 +2039,12 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         out[names[c]] = v
     flds = {f.name: f for f in arcpy.ListFields(layer)}
     clash = [c for c in names.values() if c in flds]
-    if clash and not existing.startswith("Overwrite"):
+    if clash and not existing.startswith("Overwrite") \
+            and not existing.startswith("Keep both"):
         raise arcpy.ExecuteError(
             f"Result fields already exist ({', '.join(clash[:4])}...). "
-            "Choose Overwrite, or write to a new feature class.")
+            "Choose Overwrite, Keep both, or write to a new feature "
+            "class.")
     reusable = [c for c in clash
                 if str(getattr(flds[c], "type", "")).lower()
                 in ("double", "single", "float")]
@@ -1550,15 +2111,25 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         sub = out[[c for c in out.dtype.names if c in keep]]
         with _stage(messages, "writing results to the layer", stages):
             _add_columns(layer, oid, sub, fresh, messages)
-    after = {f.name for f in arcpy.ListFields(layer)}
-    missing = [c for c in names.values() if c not in after]
     where = _catalog_of(layer) or str(layer)
+    after = _fields_after_writing(layer, where)
+    missing = [c for c in names.values() if c not in after]
     if missing:
         messages.addWarningMessage(
             f"{len(missing)} result fields are NOT in the target "
             f"after writing ({', '.join(missing[:6])}). The dataset "
             f"written to was: {where}. If your map shows something "
-            "else, that is the mismatch - check the layer's source.")
+            "else, that is the mismatch - check the layer's source."
+            + ("\n\nTHEY MAY WELL BE THERE. This target is not a file "
+               "geodatabase, and on GeoPackage or SQLite workspaces "
+               "Pro caches the schema - the fields are written and "
+               "the check cannot see them yet. Remove the layer and "
+               "add the dataset again; if the columns are present, "
+               "the write succeeded and only this message was wrong. "
+               "Writing to a FILE GEODATABASE avoids both the cache "
+               "and the speed penalty."
+               if not str(where).lower().endswith((".gdb",))
+               and ".gdb" not in str(where).lower() else ""))
     else:
         messages.addMessage(
             f"EquiPop: {len(res)} fields written and VERIFIED present "
@@ -1574,7 +2145,8 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             self_potential, rest_group, groups_count,
             treat_fields, value_fields),
         source=_catalog_of(layer) or str(layer),
-        overshoot=overshoot, seed=seed), messages)
+        overshoot=overshoot, originrule=originrule,
+        seed=seed), messages)
     if stages:
         slow = max(stages, key=lambda p: p[1])
         messages.addMessage(
@@ -1593,6 +2165,7 @@ def _manifest_rows(engine, layer, unit, k_text, r_text, tau_text,
                    decay_eps, barrier, barrier_field, barrier_agg,
                    auto_project, n_rows, out_fields, stages, total,
                    population=None, source=None, overshoot=None,
+                   originrule=None,
                    seed=None):
     """BACKLOG 148: `population` carries the settings that DEFINE the
     numbers - the reference and treatment rungs, the count field, the
@@ -1639,6 +2212,7 @@ def _manifest_rows(engine, layer, unit, k_text, r_text, tau_text,
         # these describes a run it cannot reproduce - which is the
         # exact complaint 148 was raised on.
         ("overshoot", overshoot or ""),
+        ("originrule", originrule or ""),
         ("overshoot_seed", "" if seed is None else seed),
         # BACKLOG 148 - the settings that define the POPULATION, and
         # therefore the numbers. A manifest without them cannot
@@ -1777,7 +2351,7 @@ def _write_manifest(target, rows, messages):
         path, moved = _sidecar_path(target, "_EquiPop_run.csv")
         if moved:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", newline="", encoding="utf-8") as fh:
+        with open(path, "w", newline="", encoding="utf-8-sig") as fh:
             w = _csv.writer(fh)
             w.writerow(["item", "value"])
             for k, v in rows:
@@ -1886,16 +2460,50 @@ OVERSHOOT_MODES = [
 ]
 OVERSHOOT_VALUES = ["whole", "proportional", "sampled"]
 
+# BACKLOG 290. Is a place its own neighbour? Two rules, John's ruling
+# 1.47. Spelled the SAME WAY as the QGIS door - a box the two doors
+# word differently is this project's oldest failure (see
+# tests/door_parity.py), and this one is worse than most because the
+# means barely move, so no user could notice the disagreement.
+ORIGIN_MODES = [
+    "include the origin (i=j)",
+    "exclude the origin cell (i!=j)",
+]
+ORIGIN_VALUES = ["include", "exclude"]
 
-def _mode(pm, name, modes):
+#: v1.47.6, BACKLOG 299. Machine 3's join, worded exactly as in QGIS -
+#: a box the two doors word differently is this project's oldest
+#: failure, and this one arrived a release late in Pro because nobody
+#: checked whether the box existed here at all.
+JOIN_MODES = [
+    "centroid only - the feature's midpoint, one cell",
+    "each class once - any cell the feature genuinely touches",
+    "length or share - metres of line, or fraction of cell covered",
+]
+JOIN_VALUES = ["centroid", "class", "measure"]
+JOIN_COMBINE = [
+    "add them up (a river AND a railway cost both)",
+    "keep the largest",
+    "keep the smallest",
+    "average them",
+]
+JOIN_AGG = ["sum", "max", "min", "mean"]
+
+
+def _mode(pm, name, modes, default=0):
     """Which rung of the ladder the user is on. Matching is on the
     leading words so the wording can be improved later without
-    breaking a saved tool."""
-    txt = (_txt(pm, name) or modes[0]).strip().lower()
+    breaking a saved tool.
+
+    `default` exists because machine 3's join defaults to rung 1 -
+    "each class once", John's ruling - and an unset box must not
+    silently fall to rung 0 and take the centroid instead.
+    """
+    txt = (_txt(pm, name) or modes[default]).strip().lower()
     for i, m in enumerate(modes):
         if txt.startswith(m.split(" -")[0][:18].lower()):
             return i
-    return 0
+    return default
 
 
 def _check_output_target(parameters, i_layer, desc):
@@ -2133,6 +2741,51 @@ def _flag(pm, name):
     return str(_txt(pm, name)).lower() in ("true", "1", "yes")
 
 
+def _flag_or(pm, name, default):
+    """A tick-box whose default is TRUE.
+
+    _flag() reads an unset box as False, which is right for boxes
+    that default off and wrong for these two: leaving "list the class
+    values" untouched should list them. BACKLOG 116's family - an
+    idiom that eats a meaningful value - so the default is passed in
+    rather than assumed.
+    """
+    raw = _txt(pm, name)
+    if raw is None or str(raw).strip() == "":
+        return bool(default)
+    return str(raw).lower() in ("true", "1", "yes")
+
+
+def _write_table(rows, columns, target, messages):
+    """A list of dicts as a standalone table.
+
+    NOT a feature class: an inventory has no geometry, and inventing
+    a point for it would put ninety files at the origin of the map.
+    arcpy.da.NumPyArrayToTable is the one call for this.
+    """
+    import numpy as np
+    if not target:
+        raise arcpy.ExecuteError("Choose an output table.")
+    dt = []
+    for nm, kind in columns:
+        if kind == "LONG":
+            dt.append((nm, "<i8"))
+        else:
+            width = max([len(str(r.get(nm) or "")) for r in rows]
+                        + [1])
+            dt.append((nm, f"<U{width}"))
+    arr = np.empty(len(rows), dtype=dt)
+    for nm, kind in columns:
+        if kind == "LONG":
+            arr[nm] = [int(r.get(nm) or 0) for r in rows]
+        else:
+            arr[nm] = [str(r.get(nm) or "") for r in rows]
+    if arcpy.Exists(target):
+        arcpy.management.Delete(target)
+    arcpy.da.NumPyArrayToTable(arr, target)
+    messages.addMessage(f"[out] {len(rows)} row(s) -> {target}")
+
+
 def _num(pm, name, default=None):
     """Numbers from a dialog box, locale-proof (v1.16.7).
 
@@ -2151,6 +2804,22 @@ def _num(pm, name, default=None):
 
 
 def _to_float(text, default=None):
+    """BACKLOG 320: the same reader QGIS uses, so the two doors cannot
+    drift apart again. Kept as a thin wrapper because the Pro door
+    must raise arcpy.ExecuteError, not ValueError, for the message to
+    reach the user. The fallback keeps the toolbox working against a
+    package older than this."""
+    try:
+        from equipop.doors.numbers import to_float, BadNumber
+    except Exception:                                # pragma: no cover
+        return _to_float_local(text, default)
+    try:
+        return to_float(text, default)
+    except BadNumber as bad:
+        raise arcpy.ExecuteError(str(bad))
+
+
+def _to_float_local(text, default=None):
     t = str(text or "").strip()
     if not t:
         return default
@@ -2229,7 +2898,13 @@ def _trio_update(parameters, i_layer, i_src, i_x, i_y):
         try:
             is_table = _kind(arcpy.Describe(val)) == "table"
         except Exception:
-            pass
+            # BACKLOG 308: UNREADABLE IS NOT "A TABLE". Falling
+            # through with is_table False leaves the X/Y boxes
+            # disabled, which is right - the error belongs on the
+            # layer box, and _shared_messages puts it there. What
+            # must not happen is treating a dangling CIMPATH as a
+            # table and demanding coordinate columns for it.
+            is_table = False
         try:
             names = set(_table_fields(val))
             for i in (i_x, i_y):
@@ -2271,6 +2946,20 @@ def _clear_stale_fields(parameters, i_layer, idxs):
         have = set(_table_fields(val))
     except Exception:
         return
+    if not have:
+        # BACKLOG 311. AN EMPTY FIELD LIST IS NOT EVIDENCE THAT THE
+        # PICKS ARE STALE - it is evidence that the layer could not be
+        # enumerated, which is a different thing and must not be acted
+        # on. ListFields returns [] rather than raising for a layer
+        # Pro cannot properly resolve (see 310: a GeoPackage layer
+        # whose catalogPath names a dataset that does not exist), so
+        # the `except` above never fired and every field box was
+        # emptied instead.
+        # John lost the group field between filling the dialog and
+        # pressing Run, and the tool then refused with "the treatment
+        # population ... needs the group count fields - but that box
+        # is empty". It was empty because we had cleared it.
+        return
     for i in idxs:
         txt = parameters[i].valueAsText
         if not txt:
@@ -2298,6 +2987,23 @@ def _shared_messages(parameters, i_layer, i_src, i_x, i_y,
         desc = arcpy.Describe(val)
         kind = _kind(desc)
     except Exception:
+        # BACKLOG 308. THE LAYER CANNOT BE RESOLVED AT ALL, which is
+        # not the same as "it has no geometry" and must not be
+        # reported as one. Pro holds map layers as
+        # CIMPATH=Map/<name>.json, and that reference DANGLES once the
+        # layer leaves the map - which happens when a run rewrites
+        # the dataset the layer points at. The box still shows a
+        # plausible name.
+        # Without this the failure surfaced as "X field (easting) is
+        # required", sending the user to look for coordinate columns
+        # in a dataset that has geometry and needs none. John hit it
+        # re-running on the previous lecture's output.
+        parameters[i_layer].setErrorMessage(
+            "This layer cannot be read. If the name looks right, it "
+            "is probably a MAP LAYER THAT IS NO LONGER IN THE MAP - "
+            "Pro keeps the reference after the layer is gone. Pick "
+            "the dataset again from the Catalog pane, or browse to it "
+            "on disk, rather than choosing it from the drop-down.")
         return
     txt = _geographic_text(desc, "The input")
     if txt:
@@ -2328,11 +3034,24 @@ def _shared_messages(parameters, i_layer, i_src, i_x, i_y,
     _warn_if_geopackage(parameters, i_layer, desc)
     _check_output_target(parameters, i_layer, desc)
     src = parameters[i_src].valueAsText or _COORD_AUTO
-    if kind == "table" and not (parameters[i_outtable].valueAsText):
+    # BACKLOG 327. THE CHECK IGNORED THE OUTPUT MODE. It demanded a
+    # .csv path whenever the INPUT was a table, so asking a CSV input
+    # for a NEW FEATURE CLASS - the obvious thing to do with a table
+    # of coordinates, and what John did with the Northern Ireland grid
+    # - was refused with "Table input has no feature class to append
+    # to" while the New feature class box sat filled in right above
+    # it. The message was true of appending and false of the run.
+    # A .csv output is needed only when there is nowhere else for the
+    # results to go: a table input APPENDED to, which cannot be done,
+    # because a CSV on disk is not a feature class.
+    _om = _txt(_byname(parameters), "outmode")
+    if kind == "table" and not parameters[i_outtable].valueAsText \
+            and _om in ("", "Append to input"):
         parameters[i_outtable].setErrorMessage(
-            "Table input has no feature class to append to - set the "
-            "output table (.csv). The results arrive there with your "
-            "coordinates.")
+            "A table input cannot be appended to - a .csv on disk is "
+            "not a feature class. Either set the output table (.csv), "
+            "where the results arrive with your coordinates, or "
+            "choose Output = New feature class and give it a path.")
     if kind == "table" or src == _COORD_ATTR:
         xf = parameters[i_x].valueAsText
         yf = parameters[i_y].valueAsText
@@ -2413,6 +3132,344 @@ def _write_points(table, man, target, messages):
         f"{len(table):,} rows written to {target}.")
 
 
+class FolderInventory:
+    """MACHINE 6 for Pro. BACKLOG 269.
+
+    Thin, like machines 3 and 4. Everything about what an inventory
+    MEANS lives in equipop.doors.inventory, which the QGIS tool calls
+    with the same arguments. What is Pro's own here: picking a folder
+    and writing a table.
+
+    THE CAPABILITY SHIPPED IN 1.45.0 WITH NO DOOR ANYWHERE - not Pro,
+    not QGIS, not Stata, not a runner script. It was reachable only by
+    writing Python. First of the five unreachable things found in
+    session 12, and this is half of its answer.
+    """
+
+    def __init__(self):
+        self.label = "6. What is in this folder? (reads, changes nothing)"
+        from equipop.doors.help import SUMMARY
+        self.description = SUMMARY["FolderInventory"]
+
+    def getParameterInfo(self):
+        return [_p("folder", "The folder to look at (subfolders "
+                             "included)", "DEFolder"),
+                _p("deep", "Also list the distinct values of class "
+                           "columns (fclass, highway, landuse...)",
+                   "GPBoolean", required=False),
+                _p("write", "Save equipop_inventory.json in the "
+                            "folder, so other tools can read it",
+                   "GPBoolean", required=False),
+                _p("out", "Output table", "DETable",
+                   direction="Output")]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        return
+
+    def execute(self, parameters, messages):
+        from equipop.doors.inventory import inventory
+
+        pm = _byname(parameters)
+        ch = _channel(messages)
+        folder = _txt(pm, "folder")
+        if not folder:
+            raise arcpy.ExecuteError("Choose a folder to look at.")
+
+        got = inventory(folder, say=ch.info,
+                        deep=_flag_or(pm, "deep", True),
+                        write=_flag_or(pm, "write", True))
+        rows = _inventory_rows(got)
+        _write_table(rows, INVENTORY_COLUMNS, pm["out"].valueAsText,
+                     messages)
+        lattices = {r["lattice"] for r in rows if r.get("lattice")}
+        ch.info(f"{len(rows)} file(s) listed, {len(lattices)} "
+                f"distinct lattice(s).")
+        if _flag_or(pm, "write", True):
+            ch.info(
+                "equipop_inventory.json written into the folder. IT "
+                "IS READ BY THE OTHER TOOLS: machine 3 fills its "
+                "class and grouping lists from it, so you never type "
+                "class names. Keep it with the data.")
+        if len(lattices) > 1:
+            ch.warning(
+                f"THE FOLDER HOLDS {len(lattices)} DIFFERENT "
+                "LATTICES. Files on different lattices cannot be "
+                "merged by index without a resample - sort the table "
+                "by the lattice column to see which sets go together.")
+
+
+#: The inventory table's columns, in the order a person reads them.
+#: Shared with the QGIS door through tests/door_parity.py so the two
+#: cannot drift.
+INVENTORY_COLUMNS = [
+    ("file", "TEXT"), ("kind", "TEXT"), ("layer", "TEXT"),
+    ("crs", "TEXT"), ("geometry", "TEXT"), ("features", "LONG"),
+    ("lattice", "TEXT"), ("cell_size", "TEXT"),
+    ("class_column", "TEXT"), ("sidecars", "TEXT"),
+    ("class_values", "TEXT"),
+    ("problem", "TEXT"),
+]
+
+
+def _join_layer(pm, table, ch, messages):
+    """Put a vector layer onto the raster lattice (BACKLOG 299).
+
+    ARRIVED A RELEASE LATE. 1.47.11 gave QGIS three fidelities and Pro
+    had no join box AT ALL - nine parameters, none of them a layer.
+    Claude recorded that gap as "Pro's join box still takes the
+    centroid only", written from the QGIS door's shape on the
+    assumption the two machines matched because they ARE the same
+    machine. John opened the dialog on his first test and asked; the
+    answer took one grep.
+
+    The engine is shared and geopandas-free, so this is dialog work:
+    read the geometries, hand them to the same paths_to_cells QGIS
+    calls, and join on the lattice INDEX.
+    """
+    layer = _txt(pm, "joinlayer")
+    if not layer:
+        return table
+    import numpy as np
+    import pandas as pd
+
+    from equipop.latticejoin import (join_to_points, lattice_of,
+                                     snap_to_lattice)
+    from equipop.vectorjoin import VectorJoinError, paths_to_cells
+
+    if "gx" not in getattr(table, "columns", []):
+        raise arcpy.ExecuteError(
+            "The lattice join needs the point table, so leave the "
+            "neighbourhood sizes empty. Run the join first, then feed "
+            "the result to machine 1.")
+    how = JOIN_VALUES[_mode(pm, "joinhow", JOIN_MODES, 1)]
+    agg = JOIN_AGG[_mode(pm, "joincombine", JOIN_COMBINE, 0)]
+    klass = _txt(pm, "joinclass")
+    field = _txt(pm, "joinfield")
+    name = _txt(pm, "joinname") or "joined"
+    lat = lattice_of(_txt(pm, "folder"))
+    sr = arcpy.SpatialReference(lat["crs"].split(":")[-1]) \
+        if ":" in str(lat["crs"]) else None
+
+    feats, vals, classes, _ = read_shapes(layer, klass, field, sr,
+                                          messages)
+    if feats is None:
+        # A POINT HAS NO LENGTH AND NO AREA, so the three rules mean
+        # the same thing for it. Detected, not asked - the same rule
+        # QGIS follows.
+        return _join_points(layer, sr, field, name, lat, table,
+                            messages, join_to_points, snap_to_lattice)
+    if how == "centroid":
+        return _join_points(layer, sr, field, name, lat, table,
+                            messages, join_to_points, snap_to_lattice,
+                            centroids=True)
+    if how == "class" and not klass:
+        raise arcpy.ExecuteError(
+            "'Each class once' needs the class field - fclass on an "
+            "OSM layer. Without one there is nothing to collapse on, "
+            "and every SEGMENT would be charged separately: OSM cuts "
+            "one street into many records wherever a tag changes, so "
+            "a junction holding five pieces of the same road would "
+            "cost five times.")
+
+    # Into LATTICE SPACE, exactly as the QGIS door does: the cutter
+    # works on a unit grid anchored at zero and a raster lattice has
+    # an arbitrary origin and a negative e.
+    c, f_, a, e = (float(lat["c"]), float(lat["f"]),
+                   float(lat["a"]), float(lat["e"]))
+    for shape in feats:
+        if shape["type"] == "line":
+            shape["parts"] = [[((x - c) / a, (y - f_) / e)
+                               for x, y in part]
+                              for part in shape["parts"]]
+        else:
+            shape["parts"] = [[[((x - c) / a, (y - f_) / e)
+                                for x, y in ring] for ring in part]
+                              for part in shape["parts"]]
+    try:
+        charged = paths_to_cells(feats, vals, classes=classes,
+                                 unit_size=1.0, fidelity=how, agg=agg)
+    except VectorJoinError as exc:
+        raise arcpy.ExecuteError(str(exc))
+
+    if how == "measure" and feats[0]["type"] == "line" \
+            and abs(abs(a) - abs(e)) < 1e-12:
+        charged["value"] = charged["value"] * abs(a)
+    snapped = pd.DataFrame({
+        "gx": np.floor(charged["x"]).astype("int64"),
+        "gy": np.floor(charged["y"]).astype("int64"),
+        name: charged["value"].astype(float)})
+    out = join_to_points(table, snapped, name)
+    messages.addMessage(
+        f"[join] {len(feats):,} features -> {len(snapped):,} cells, "
+        f"column {name!r}. Joined on the LATTICE INDEX, not by "
+        "distance, so cells the layer never touched carry a real 0.0.")
+    if klass and classes:
+        worth = {}
+        for cl, v in zip(classes, vals):
+            worth.setdefault(cl, set()).add(round(float(v), 6))
+        split = [cl for cl, w in worth.items() if len(w) > 1]
+        messages.addMessage(
+            f"[join] {len(worth)} class(es) charged.")
+        if split:
+            messages.addWarningMessage(
+                f"{len(split)} class(es) carry MORE THAN ONE value. "
+                "Under 'each class once' only the first feature of a "
+                "class in a cell is charged, so which value wins "
+                "depends on the order the features come in. Give each "
+                "class ONE value, or use 'length or share'.")
+    return out
+
+
+def _join_points(layer, sr, field, name, lat, table, messages,
+                 join_to_points, snap_to_lattice, centroids=False):
+    """Points, or anything reduced to its midpoint."""
+    cols = ["SHAPE@XY"] if not centroids else ["SHAPE@TRUECENTROID"]
+    cols += [field] if field else []
+    xs, ys, vals = [], [], []
+    with arcpy.da.SearchCursor(layer, cols,
+                               spatial_reference=sr) as cur:
+        for row in cur:
+            xy = row[0]
+            if xy is None:
+                continue
+            xs.append(float(xy[0]))
+            ys.append(float(xy[1]))
+            if field:
+                v = row[1]
+                vals.append(0.0 if v is None else float(v))
+    if not xs:
+        raise arcpy.ExecuteError("That layer has no usable geometry.")
+    snapped = snap_to_lattice(xs, ys, lattice=lat, name=name,
+                              values=vals if field else None,
+                              how="sum" if field else "count")
+    messages.addMessage(
+        f"[join] {len(xs):,} features -> {len(snapped):,} cells, "
+        f"column {name!r}.")
+    return join_to_points(table, snapped, name)
+
+
+def read_shapes(layer, class_field, value_field, sr, messages):
+    """A feature layer as friction.feature_cells' `parts` shape.
+
+    EXTRACTED IN v1.47.11 from the barrier reader above, which had
+    done exactly this since 1.15 - multipart lines, polygon rings
+    split on None - and was about to be written a second time for the
+    lattice join. BACKLOG 120's standing lesson: two copies of a
+    reader drift, and the drift is invisible because both look right.
+
+    Returns (features, values, classes, n_skipped). A NULL value is
+    read as 1.0, which leaves an additive run's total unchanged; a
+    non-numeric one is refused by name rather than coerced.
+    """
+    kind = str(arcpy.Describe(layer).shapeType).lower()
+    if kind.startswith("point"):
+        return None, None, None, 0          # the centroid path
+    kind = "polygon" if kind.startswith("polygon") else "line"
+    cols = ["SHAPE@"]
+    cols += [class_field] if class_field else []
+    cols += [value_field] if value_field else []
+    feats, vals, classes, bad = [], [], [], 0
+    with arcpy.da.SearchCursor(layer, cols,
+                               spatial_reference=sr) as cur:
+        for row in cur:
+            geom = row[0]
+            if geom is None:
+                bad += 1
+                continue
+            parts = []
+            for part in geom:               # MULTIPART: every part
+                if kind == "line":
+                    pts = [(p.X, p.Y) for p in part if p is not None]
+                    if len(pts) >= 2:
+                        parts.append(pts)
+                else:
+                    rings, ring = [], []
+                    for p in part:
+                        if p is None:
+                            rings.append(ring)
+                            ring = []
+                        else:
+                            ring.append((p.X, p.Y))
+                    if ring:
+                        rings.append(ring)
+                    rings = [r for r in rings if len(r) >= 3]
+                    if rings:
+                        parts.append(rings)
+            if not parts:
+                bad += 1
+                continue
+            feats.append({"type": kind, "parts": parts})
+            at = 1
+            if class_field:
+                c = row[at]
+                classes.append("" if c is None else str(c))
+                at += 1
+            if value_field:
+                v = row[at]
+                if v is None:
+                    vals.append(1.0)
+                else:
+                    try:
+                        vals.append(float(v))
+                    except (TypeError, ValueError):
+                        raise arcpy.ExecuteError(
+                            f"Field '{value_field}' holds a value "
+                            f"that is not a number ({v!r}). The join "
+                            "needs one number per feature - fix or "
+                            "filter the layer first.")
+            else:
+                vals.append(1.0)
+    if bad:
+        messages.addWarningMessage(
+            f"{bad} feature(s) had a geometry this join cannot use "
+            "and were left out.")
+    return feats, vals, (classes or None), bad
+
+
+def _inventory_rows(got):
+    """The package's records, one row each. The SAME shape the QGIS
+    door builds - pinned by a test, because a table whose columns
+    differ between doors is the oldest failure in this project."""
+    out = []
+    for rec in got.get("files", []):
+        classes = rec.get("classes") or {}
+        col = next(iter(classes), "")
+        info = classes.get(col) or {}
+        vals = info.get("values") or []
+        note = info.get("note") or ""
+        px = rec.get("pixel_size") or []
+        try:
+            n = int(rec.get("features"))
+        except (TypeError, ValueError):
+            n = None
+        out.append({
+            "file": rec.get("file") or "",
+            "kind": rec.get("kind") or "",
+            "layer": rec.get("layer") or "",
+            "crs": rec.get("crs") or "",
+            "geometry": rec.get("geometry") or "",
+            "features": n,
+            "lattice": rec.get("lattice") or "",
+            "cell_size": (f"{abs(float(px[0])):g} x "
+                          f"{abs(float(px[1])):g}")
+                         if len(px) == 2 else "",
+            "class_column": col,
+            "sidecars": (", ".join(rec["sidecars"])
+                         if rec.get("sidecars") else ""),
+            "class_values": (note if note else
+                             ", ".join(map(str, vals[:12]))
+                             + (" ..." if len(vals) > 12 else "")),
+            "problem": rec.get("error") or "",
+        })
+    return out
+
+
 class ContinentalRasters:
     """BACKLOG 38. A folder of population rasters, at continental scale.
 
@@ -2451,9 +3508,38 @@ class ContinentalRasters:
               _p("tiles", "Folder for a TILED, resumable run (blank "
                  "= run in memory)", "DEFolder", required=False,
                  category="Advanced"),
+              # v1.47.6, BACKLOG 299. Pro had NO join box at all -
+              # nine parameters, none of them a layer - while QGIS
+              # had had one since 1.16 and gained three fidelities in
+              # 1.47.11. Worded identically to the QGIS door.
+              _p("joinlayer", "A layer to put on the same grid - "
+                              "points, roads, land use, water...",
+                 "GPFeatureLayer", required=False,
+                 category="Advanced"),
+              _p("joinhow", "How a feature charges a cell",
+                 "GPString", required=False, category="Advanced"),
+              _p("joinclass", "The class field (fclass, highway, "
+                              "landuse) - needed for 'each class "
+                              "once'", "Field", required=False,
+                 category="Advanced"),
+              _p("joinfield", "The value field you prepared (blank "
+                              "= 1 per charge)", "Field",
+                 required=False, category="Advanced"),
+              _p("joincombine", "When several charges land in one "
+                                "cell", "GPString", required=False,
+                 category="Advanced"),
+              _p("joinname", "Name for the new column", "GPString",
+                 required=False, category="Advanced"),
               _p("out", "Output feature class", "DEFeatureClass",
                  direction="Output")]
         ps[2].value = 1000.0
+        pmj = {q.name: q for q in ps}
+        pmj["joinhow"].filter.type = "ValueList"
+        pmj["joinhow"].filter.list = JOIN_MODES
+        pmj["joinhow"].value = JOIN_MODES[1]
+        pmj["joincombine"].filter.type = "ValueList"
+        pmj["joincombine"].filter.list = JOIN_COMBINE
+        pmj["joincombine"].value = JOIN_COMBINE[0]
         return ps
 
     def execute(self, parameters, messages):
@@ -2489,6 +3575,7 @@ class ContinentalRasters:
             table = load_tiled(_txt(pm, "tiles"))
         else:
             table = man["results"]
+        table = _join_layer(pm, table, ch, messages)
         _write_points(table, man, pm["out"].valueAsText, messages)
 
 
@@ -2642,7 +3729,8 @@ class Toolbox:
         # users on the strength of a reading. The simulator now covers
         # both, and tests/test_arcgis_continental.py EXECUTES them.
         self.tools = [CountsShares, ValueStatistics,
-                      ContinentalRasters, SpatialDemography]
+                      ContinentalRasters, SpatialDemography,
+                      FolderInventory]
         # two machines, one shared loader (v1.16). Friction/slope
         # stay DISTANCE INGREDIENTS on machine 1, not tools.
 
@@ -2720,6 +3808,12 @@ class CountsShares:
                _p("hlbins", "Bandwidth bins (variable half-life "
                   "only; more bins = finer, slower)", "GPLong",
                   required=False),
+               # BACKLOG 317. John, session 12: offered only when a
+               # user DELIBERATELY picks a model where it matters.
+               # Unlike QGIS, Pro can grey a box on the fly, so it is
+               # enabled only for expnormal, expsqrt and lognormal.
+               _p("calibration", "Your distance is...", "GPString",
+                  required=False),
                _p("decayeps", "Decay cutoff - ignore weights below "
                   "this (smaller = wider search = slower; the "
                   "truncation distance is reported in the messages)",
@@ -2756,6 +3850,8 @@ class CountsShares:
                   "what is LOCAL, inside your own cell",
                   "GPString", required=False),
                _p("overshoot", "The ring that crosses k",
+                  "GPString", required=False),
+               _p("originrule", "Is a place its own neighbour?",
                   "GPString", required=False),
                _p("autoproj", "Auto-project degree data to a suitable "
                   "metric CRS (layers only - the fitting UTM zone is "
@@ -2804,7 +3900,16 @@ class CountsShares:
         # own parameter below.
         pm["barriertable"].columns = [
             ["GPTableView", "Barrier layer or table"],
-            ["Field", "Friction field"]]     # dropdown per row
+            ["Field", "Friction field"],     # dropdown per row
+            # BACKLOG 306. OPTIONAL CLASS FIELD. Without it a cell is
+            # charged ONCE PER FEATURE, and OSM cuts one street into a
+            # new record wherever a tag changes - measured on downtown
+            # LA, 3,975 costed features gave cell costs from 1 to 166
+            # where the table tops out at 8. With it, each CLASS is
+            # charged once, which is John's ruling from 298 and what
+            # machine 3's join has done since 1.47.4.
+            ["Field", "Class field (optional) - charge each class "
+                      "once, not each feature"]]
         pm["hlfield"].parameterDependencies = ["layer"]
         pm["hlbins"].value = 10
         # v1.17: collapsible sections instead of 29 boxes at once
@@ -2816,6 +3921,7 @@ class CountsShares:
             "model": "Neighbourhood",
             "halflife": "Neighbourhood", "hlfield": "Neighbourhood",
             "hlfromdist": "Neighbourhood", "hlbins": "Neighbourhood",
+            "calibration": "Neighbourhood",      # BACKLOG 317
             "decayeps": "Neighbourhood",
             # TWO POPULATIONS (v1.22.0, John's design). EquiPop
             # measures one population against another: the REFERENCE
@@ -2850,6 +3956,9 @@ class CountsShares:
             # every k-based number - so it sits with the
             # neighbourhood boxes rather than in Advanced.
             "overshoot": "Neighbourhood",
+            # BACKLOG 290. Also Neighbourhood, and NOT Advanced:
+            # it decides who is counted.
+            "originrule": "Neighbourhood",
         }
         for nm, cat in SECTION.items():
             if nm in pm:
@@ -2864,12 +3973,19 @@ class CountsShares:
             pm["model"].filter.list = ["no decay", "negexp"]
         pm["model"].value = "no decay"
         pm["decayeps"].value = 1e-6
+        try:
+            from equipop.doors.decaynames import CALIBRATION_CHOICES
+            pm["calibration"].filter.type = "ValueList"
+            pm["calibration"].filter.list = list(CALIBRATION_CHOICES)
+            pm["calibration"].value = CALIBRATION_CHOICES[0]
+        except Exception:                            # pragma: no cover
+            pass
         pm["barrieragg"].filter.type = "ValueList"
         pm["barrieragg"].filter.list = _AGG_CHOICES
         pm["barrieragg"].value = _AGG_CHOICES[0]
         pm["existing"].filter.type = "ValueList"
-        pm["existing"].filter.list = ["Overwrite", "Stop with a message"]
-        pm["existing"].value = "Overwrite"
+        pm["existing"].filter.list = KEEP_MODES
+        pm["existing"].value = KEEP_MODES[0]
         pm["outmode"].filter.type = "ValueList"
         pm["outmode"].filter.list = ["Append to input",
                                      "New feature class"]
@@ -2886,6 +4002,9 @@ class CountsShares:
         pm["overshoot"].filter.type = "ValueList"
         pm["overshoot"].filter.list = OVERSHOOT_MODES
         pm["overshoot"].value = OVERSHOOT_MODES[1]
+        pm["originrule"].filter.type = "ValueList"
+        pm["originrule"].filter.list = ORIGIN_MODES
+        pm["originrule"].value = ORIGIN_MODES[0]
         return ps
 
     def updateParameters(self, parameters):
@@ -2916,6 +4035,12 @@ class CountsShares:
         decaying = _decay_model(pm) is not None      # BACKLOG 151
         pm["halflife"].enabled = decaying
         pm["decayeps"].enabled = decaying
+        try:
+            from equipop.doors.decaynames import calibration_matters
+            pm["calibration"].enabled = (
+                decaying and calibration_matters(_decay_model(pm)))
+        except Exception:                            # pragma: no cover
+            pm["calibration"].enabled = decaying
         bar_on = bool(_vt_rows(pm["barriertable"])
                       or _txt(pm, "barrierrasters"))
         pm["barrieragg"].enabled = bar_on
@@ -2930,6 +4055,24 @@ class CountsShares:
         idx = {p.name: i for i, p in enumerate(parameters)}
         _shared_messages(parameters, 0, 1, 2, 3, idx["outtable"],
                          idx["autoproj"])
+        # BACKLOG 305. NEITHER k NOR r, WHICH PRO LETS YOU RUN.
+        # Both are declared optional and they are - EITHER will do,
+        # and a radius-only run is a perfectly good question. What is
+        # not optional is having one of them, and nothing said so
+        # until the engine refused forty lines into a traceback with
+        # "give k_values and/or r_values" - words that name ENGINE
+        # ARGUMENTS rather than boxes, so the message does not even
+        # point at the dialog.
+        # John hit this teaching: his k values vanished while he
+        # worked down the dialog, Pro was content, and the failure
+        # arrived after Run.
+        if not _txt(pm, "k") and not _txt(pm, "r"):
+            pm["k"].setErrorMessage(
+                "Give a neighbourhood size here, or a radius in the "
+                "box below - EquiPop needs one of the two to know "
+                "what a neighbourhood is. Either alone is fine; both "
+                "together is also fine and gives you both sets of "
+                "columns.")
         target = (_txt(pm, "outfc")
                   if _txt(pm, "outmode").startswith("New")
                   and _txt(pm, "outfc")
@@ -2968,6 +4111,7 @@ class CountsShares:
                   half_life=(_num(pm, "halflife", 0.0) or 0.0)
                   if decaying else 0.0,
                   decay_model=model if decaying else "negexp",
+                  decay_calibration=_calibration(pm),
                   decay_eps=_num(pm, "decayeps", 1e-6) or 1e-6,
                   half_life_field=_txt(pm, "hlfield") or None,
                   half_life_from_dist=_num(pm, "hlfromdist") or None,
@@ -3005,6 +4149,8 @@ class CountsShares:
                   # answer key pinned to one.
                   overshoot=OVERSHOOT_VALUES[
                       _mode(pm, "overshoot", OVERSHOOT_MODES)],
+                  originrule=ORIGIN_VALUES[
+                      _mode(pm, "originrule", ORIGIN_MODES)],
                   auto_project=_flag(pm, "autoproj"),
                   short_names=_flag(pm, "shortnames"))
 
@@ -3072,6 +4218,8 @@ class ValueStatistics:
                   "GPString", required=False),
                _p("overshoot", "The ring that crosses k",
                   "GPString", required=False),
+               _p("originrule", "Is a place its own neighbour?",
+                  "GPString", required=False),
                _p("autoproj", "Auto-project degree data to a suitable "
                   "metric CRS (layers only - the fitting UTM zone is "
                   "computed from the data; input untouched)",
@@ -3128,6 +4276,9 @@ class ValueStatistics:
                         "outfc": "Output", "outtable": "Output",
                         "shortnames": "Output",
                         "overshoot": "Neighbourhood",
+            # BACKLOG 290. Also Neighbourhood, and NOT Advanced:
+            # it decides who is counted.
+            "originrule": "Neighbourhood",
                         "seed": "Advanced"}.items():
             if nm in pm2:
                 pm2[nm].category = cat
@@ -3137,9 +4288,11 @@ class ValueStatistics:
         # default trio, stated in the label.
         pm2["measures"].value = None
         pm2["existing"].filter.type = "ValueList"
-        pm2["existing"].filter.list = ["Overwrite",
-                                       "Stop with a message"]
-        pm2["existing"].value = "Overwrite"
+        # BACKLOG 316: the SAME list as machine 1, from one place. A
+        # box the two machines word differently is this project's
+        # oldest failure.
+        pm2["existing"].filter.list = KEEP_MODES
+        pm2["existing"].value = KEEP_MODES[0]
         pm2["outmode"].filter.type = "ValueList"
         pm2["outmode"].filter.list = ["Append to input",
                                       "New feature class"]
@@ -3159,6 +4312,9 @@ class ValueStatistics:
         pm2["overshoot"].filter.type = "ValueList"
         pm2["overshoot"].filter.list = OVERSHOOT_MODES
         pm2["overshoot"].value = OVERSHOOT_MODES[1]
+        pm2["originrule"].filter.type = "ValueList"
+        pm2["originrule"].filter.list = ORIGIN_MODES
+        pm2["originrule"].value = ORIGIN_MODES[0]
         return ps
 
     def updateParameters(self, parameters):
@@ -3242,6 +4398,8 @@ class ValueStatistics:
                   # answer key pinned to one.
                   overshoot=OVERSHOOT_VALUES[
                       _mode(pm, "overshoot", OVERSHOOT_MODES)],
+                  originrule=ORIGIN_VALUES[
+                      _mode(pm, "originrule", ORIGIN_MODES)],
                   seed=_num(pm, "seed"),
                   auto_project=_flag(pm, "autoproj"),
                   short_names=_flag(pm, "shortnames"))

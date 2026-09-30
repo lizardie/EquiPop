@@ -99,6 +99,11 @@ def check_folders(folders):
     return folders
 
 
+#: "the rasters' own CRS", with a typographic apostrophe. Kept OUT of
+#: the f-string above: see the note at its use.
+_OWN_CRS = "the rasters\u2019 own CRS"
+
+
 def _plural(n, one, many=None):
     return one if n == 1 else (many or one + "s")
 
@@ -108,7 +113,7 @@ def run_folder(folders, *, k_values=None, r_values=None,
                unit_size=1000.0, epsg=None, weight=None, groups=None,
                sum_cohorts=False, keep_zero=False, out_dir=None,
                tile_m=50_000.0, convention=None, labels=None,
-               pattern=None, channel=None):
+               pattern=None, channel=None, year=None):
     """Load a folder of rasters, build the cells, run the neighbourhoods.
 
     folders    : one folder, or several. Subfolders are included, so a
@@ -168,7 +173,15 @@ def run_folder(folders, *, k_values=None, r_values=None,
         cols = [c for c in pts.columns if c not in ("lon", "lat")]
         say(f"{len(man['files'])} {_plural(len(man['files']), 'raster')} "
             f"-> {len(pts):,} points, {len(cols)} "
-            f"{_plural(len(cols), 'field')}, in degrees (EPSG:4326).")
+            f"{_plural(len(cols), 'field')}, in "
+            # PYTHON 3.10 AND 3.11 REFUSE A BACKSLASH INSIDE AN
+            # f-STRING EXPRESSION - PEP 701 only lifted that in 3.12.
+            # This module therefore could not be IMPORTED on the
+            # Python that ArcGIS Pro 3.3 and 3.4 ship, while
+            # pyproject declares >=3.10. Every session until now ran
+            # 3.12, so the interpreter hid it and the whole test suite
+            # passed. The escape is out of the expression now.
+            f"{man.get('crs') or _OWN_CRS}.")
         say("No k was asked for, so this is the point table itself - "
             "every cohort a field, the countries stacked as rows, and "
             "a real 0.0 wherever a layer had nothing there. Give a k "
@@ -181,7 +194,7 @@ def run_folder(folders, *, k_values=None, r_values=None,
             folders, weight=weight, unit_size=unit_size, epsg=epsg,
             groups=groups, compose=compose, sum_cohorts=sum_cohorts,
             keep_zero=keep_zero, convention=convention,
-            labels=labels, pattern=pattern)
+            labels=labels, pattern=pattern, year=year)
     man["seconds_loading"] = round(time.time() - t0, 1)
 
     n_cells = len(cd)

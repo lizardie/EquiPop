@@ -164,7 +164,8 @@ def load_folder(folders, compose: dict | None = None,
                 labels: dict[str, str] | None = None,
                 pattern: str | None = None,
                 sum_cohorts: bool = False,
-                keep_zero: bool = False) -> tuple[pd.DataFrame, dict]:
+                keep_zero: bool = False,
+                year=None) -> tuple[pd.DataFrame, dict]:
     """Every raster under `folders` as ONE point table.
 
     labels    : explicit {filename_stem: column_name}, the manual
@@ -216,6 +217,31 @@ def load_folder(folders, compose: dict | None = None,
         with rasterio.open(p) as r:
             t, nod = r.transform, r.nodata
             if ref is None:
+                # THE INPUT CONTRACT, checked on the FIRST raster.
+                # External review of 1.44.10, finding 4: three
+                # geographic faults passed the loader. A raster with
+                # NO CRS was accepted and recorded as "None"; a
+                # ROTATED raster was accepted and its rotation
+                # DISCARDED, giving cell centres that were simply
+                # wrong - 30.000417 where the truth is 30.000500.
+                # BACKLOG 277.
+                if r.crs is None:
+                    raise ValueError(
+                        f"{stem} has NO coordinate system. EquiPop "
+                        "cannot place its cells on the earth, and "
+                        "guessing one would put the result somewhere "
+                        "plausible and wrong. Assign a CRS - in QGIS, "
+                        "Raster > Projections > Assign Projection - "
+                        "and try again.")
+                if abs(t.b) > 1e-12 or abs(t.d) > 1e-12:
+                    raise ValueError(
+                        f"{stem} is ROTATED (its transform carries "
+                        f"b={t.b:g}, d={t.d:g}). EquiPop builds cell "
+                        "centres from a north-up grid, so a rotated "
+                        "raster would be read with its rotation "
+                        "silently dropped and every coordinate would "
+                        "be wrong. Warp it to north-up first - in "
+                        "QGIS, Raster > Projections > Warp.")
                 ref = {"a": t.a, "e": t.e, "c": t.c, "f": t.f,
                        "crs": str(r.crs), "first": stem}
             elif str(r.crs) != ref["crs"]:
@@ -327,11 +353,18 @@ def load_folder(folders, compose: dict | None = None,
         print(f"[folder] {name} = {len(parts)} columns, "
               f"{pts[name].sum():,.1f} people")
 
+    # WHICH COLUMNS ARE MEASUREMENTS - decided ONCE. This rule was
+    # written out three separate times as "everything except ...", and
+    # when keep_index added gx and gy one of the three was not
+    # updated, so THE GRID INDICES WERE SUMMED INTO THE POPULATION
+    # (BACKLOG 272). An exclusion list is a promise about every column
+    # that will ever exist, and it was broken by the next column added.
+    NOT_MEASUREMENTS = ("gx", "gy", "iso3", "lon", "lat")
+    measure_cols = [c for c in pts.columns
+                    if c not in NOT_MEASUREMENTS]
+
     if not keep_zero:
-        # iso3 is a LABEL, not a measurement. Every other place that
-        # walks the columns had to learn the same thing.
-        vals = [c for c in pts.columns
-                if c not in ("gx", "gy", "iso3", "lon", "lat")]
+        vals = measure_cols
         pts = pts.loc[pts[vals].to_numpy().sum(axis=1) > 0].copy()
 
     pts["lon"] = ref["c"] + (pts["gx"] + 0.5) * ref["a"]
@@ -344,12 +377,24 @@ def load_folder(folders, compose: dict | None = None,
     if keep_index:
         front += ["gx", "gy"]
     cols = front + [c for c in pts.columns
-                    if c not in ("gx", "gy", "lon", "lat", "iso3")]
+                    if c not in NOT_MEASUREMENTS]
     pts = pts[cols].reset_index(drop=True)
 
     if sum_cohorts:
+        # NAME THE MEASUREMENTS, do not exclude the rest. This said
+        # "everything except lon, lat and iso3" - and when keep_index
+        # added gx and gy, THE GRID INDICES WERE ADDED TO THE
+        # POPULATION. A 2x2 grid holding 10 people per cell returned
+        # [10, 11, 11, 12] - 44 people instead of 40 - and on a
+        # continental grid an index dwarfs the population it corrupts.
+        # John reported this as BACKLOG 232 and Claude twice failed to
+        # reproduce it, because he never combined sum_cohorts with
+        # keep_index. Found by the external review of 1.44.10.
+        # An exclusion list is a promise about every column that will
+        # ever exist. `labels` is what the loader itself identified as
+        # measurements, so it cannot drift.
         lab_cols = [c for c in pts.columns
-                    if c not in ("lon", "lat", "iso3")]
+                    if c not in NOT_MEASUREMENTS]
         both = totals_overlap_parts(lab_cols)
         if both:
             raise ValueError(
@@ -361,7 +406,12 @@ def load_folder(folders, compose: dict | None = None,
                 "either keep only the t_ files, or keep only the f_ and "
                 "m_ files, and point this at that folder.")
         pts["pop"] = pts[lab_cols].sum(axis=1)
-        keep = ["lon", "lat"] + (["iso3"] if "iso3" in pts.columns else [])
+        # KEEP WHATEVER IDENTIFIES A POINT, including the lattice
+        # indices when the caller asked for them. Dropping gx and gy
+        # here meant the sum option and the exact lattice join could
+        # not be used together - the second half of BACKLOG 272.
+        keep = [c for c in ("lon", "lat", "iso3", "gx", "gy")
+                if c in pts.columns]
         pts = pts[keep + ["pop"]]
 
     man["labels"] = seen
@@ -469,6 +519,10 @@ def folder_to_cells(folders, weight: str | None = None,
     from .projection import suggest_projection
 
     pts, man = load_folder(folders, compose=compose, **kw)
+    # `year` names WHICH YEAR IS BEING ANALYSED. It does not filter
+    # the columns loaded - every year stays available - it confines
+    # the REFERENCE POPULATION below, so a run of 2020 gives the same
+    # answer whether or not 2030 is also on disk (BACKLOG 273).
     value_cols = [c for c in pts.columns
                   if c not in ("lon", "lat", "iso3")]
 
@@ -484,6 +538,26 @@ def folder_to_cells(folders, weight: str | None = None,
     if isinstance(weight, str) and weight.lower() in ("total", "sexes"):
         want = "t_" if weight.lower() == "total" else ("f_", "m_")
         picked = [c for c in value_cols if c.startswith(want)]
+        # A SELECTED YEAR MUST CONFINE THE REFERENCE POPULATION.
+        # This summed the f_ and m_ columns of EVERY YEAR in the
+        # folder, so analysing 2020 gave a different answer once 2030
+        # had also been downloaded - the neighbourhood was drawn
+        # through twice as many people. Measured by the external
+        # review of 1.44.10: the reference population doubled and
+        # radii moved by up to 55 m, with the selected year's data
+        # unchanged. A result that depends on which OTHER files are
+        # present is not reproducible (BACKLOG 273).
+        year = kw.get("year")
+        if year is not None:
+            same_year = [c for c in picked
+                         if c.rsplit("_", 1)[-1] == str(year)]
+            if same_year:
+                dropped = len(picked) - len(same_year)
+                picked = same_year
+                if dropped:
+                    print(f"[folder] weight confined to {year}: "
+                          f"{dropped} column(s) from other years left "
+                          "out of the reference population")
         if not picked:
             raise ValueError(
                 f"No {weight} columns here. Found: {value_cols[:6]}"
@@ -523,19 +597,47 @@ def folder_to_cells(folders, weight: str | None = None,
     # unit = 10x the source it is 10 or 11, a 10% swing, invisible.
     _warn_aliasing(pts, unit_size, say=print)
 
-    adv = suggest_projection(pts)
-    if epsg is None:
-        epsg = adv.epsg
-    print(f"[folder] projection: EPSG:{epsg} - {adv.name}")
-    print(f"[folder]   {adv.rationale}")
-    for w in adv.warnings:
-        print(f"[folder]   WARNING: {w}")
-    if adv.tiled_run_recommended:
+    # IS THE FOLDER ALREADY PROJECTED? suggest_projection reads lon
+    # and lat as DEGREES and refuses anything beyond +/-90 - right
+    # for WorldPop, wrong for a folder already in metres, such as
+    # GHSL's Mollweide or any UTM set. Those need no advice and no
+    # transform (BACKLOG 277, review finding 4).
+    from pyproj import CRS as _CRS
+    _src = man.get("crs") or "EPSG:4326"
+    try:
+        _projected = _CRS.from_user_input(_src).is_projected
+    except Exception:                               # pragma: no cover
+        _projected = False
+
+    if _projected:
+        _here = _CRS.from_user_input(_src).to_epsg()
+        epsg = int(epsg) if epsg else _here
+        print(f"[folder] already projected ({_src}); "
+              + (f"reprojecting to EPSG:{epsg}" if epsg != _here
+                 else "no reprojection needed"))
+        adv = None
+    else:
+        adv = suggest_projection(pts)
+    if adv is not None:
+        if epsg is None:
+            epsg = adv.epsg
+        print(f"[folder] projection: EPSG:{epsg} - {adv.name}")
+        print(f"[folder]   {adv.rationale}")
+        for w in adv.warnings:
+            print(f"[folder]   WARNING: {w}")
+    if adv is not None and adv.tiled_run_recommended:
         print("[folder]   this extent wants a TILED run: see "
               "equipop.bigrun.run_knn_counts_tiled")
 
     from pyproj import Transformer
-    tr = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+    # REPROJECT FROM THE FOLDER'S OWN CRS, not from an assumption.
+    # This said EPSG:4326 always, so a folder of PROJECTED rasters -
+    # GHSL's Mollweide, or any UTM set - had its metres read as
+    # degrees and every coordinate landed in the wrong place. The
+    # loader knows the CRS; it was simply not asked (BACKLOG 277,
+    # external review finding 4).
+    src = man.get("crs") or "EPSG:4326"
+    tr = Transformer.from_crs(src, f"EPSG:{epsg}", always_xy=True)
     x, y = tr.transform(pts["lon"].to_numpy(), pts["lat"].to_numpy())
     pts["_x"], pts["_y"] = x, y
 
@@ -556,8 +658,10 @@ def folder_to_cells(folders, weight: str | None = None,
 
     cd = build_cells(pts, "_x", "_y", unit_size=unit_size,
                      binary_vars=groups or None, weights=weight)
-    man["projection"] = {"epsg": int(epsg), "name": adv.name,
-                         "warnings": list(adv.warnings)}
+    man["projection"] = {
+        "epsg": int(epsg) if epsg else None,
+        "name": adv.name if adv is not None else str(_src),
+        "warnings": list(adv.warnings) if adv is not None else []}
     man["weight_column"] = weight
     print(f"[folder] {len(pts):,} points -> {len(cd):,} cells of "
           f"{unit_size:g} m, holding {cd.n.sum():,.1f} people")
