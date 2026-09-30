@@ -3,3 +3,6 @@ __pycache__/
 dist/
 .pytest_cache/
 poetry.lock
+*.egg-info/
+build/
+pyquery*.log
