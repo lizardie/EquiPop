@@ -1,7 +1,340 @@
 # TEACHING.md — the course material, and what it still needs
 
-**Last updated: 1.49.1, 16 September 2026.**
-*Reviewed at 1.49.1: no change to the exercises, but the ratio
+**Last updated: 1.57.1, 13 October 2026.**
+*Reviewed at 1.57.1: NOTHING IN THIS FILE CHANGES. A packaging release:
+the working-tree zip extracts on Windows again, which matters to any
+student who downloads the whole tree rather than installing.*
+*Reviewed at 1.57.0: NOTHING IN THIS FILE CHANGES, AND ONE THING A
+SEMINAR CAN USE. MANUAL_TOPICS.md section 10 works one neighbourhood
+of four people through every column of the between/within split by
+hand - small enough to do on a whiteboard, and every number in it is
+checked against the code by test. The split is also cheap now, so a
+class can run it at several k in one sitting.*
+*Reviewed at 1.56.0: NOTHING IN THIS FILE CHANGES, AND ONE THING GETS
+EASIER. Every run now prints what each result column holds, and in a
+geodatabase the descriptions sit in Pro's table header - so the
+"what is R_LowInc_400?" question a class asks every time is answered
+on screen.*
+*Reviewed at 1.55.1: NOTHING IN THIS FILE CHANGES. Fixes from the
+external review of 1.55.0 - group codes, a stale help sentence, test
+isolation, per-field measures. The overshoot help students read in
+the dialogs is now TRUE about machine 2, which is worth knowing if a
+class reads it aloud.*
+*Reviewed at 1.55.0: NOTHING IN THIS FILE CHANGES. Machine 2 gains MLD
+and Theil and their split between and within groups (BACKLOG 405).
+A seminar on inequality inside neighbourhoods could use it - income
+split by country of birth is a one-box exercise now - but nothing the
+course already relies on moves, and none of it needs teaching in its
+own right.*
+*Reviewed at 1.54.6: NOTHING IN THIS FILE CHANGES. Two low-priority
+residuals from the third external review - a self-contradictory
+diagnostic line on a very old engine, and two cache fields that
+were not cross-checked. Neither touches the course material.*
+*Reviewed at 1.54.5: NOTHING IN THIS FILE CHANGES. The release
+reorders one diagnostic message so a correction is read before the
+alarm it corrects, which is a usability fix in the doctor and
+touches no course material.*
+*Reviewed at 1.54.4: ONE SENTENCE CHANGES IN THE CELL-SIZE
+SLIDE. John read `help equipop` and said the unit() entry did
+not say HOW to ask the data - it reported that an advisory
+exists and never named the loop. The help now describes it:
+leave the size unset, run, read the note the run prints, set
+the size, run again. Teach that sequence rather than the
+option, and `equipop unit xvar yvar, k(100)` for asking
+without a run at all.*
+*Reviewed at 1.54.3: ONE LINE WORTH ADDING TO THE FIRST
+SESSION. `equipop help` now works, as well as Stata's own
+`help equipop` - John typed the first and was told it was an
+unknown subcommand. Students reach for the same word, so the
+install-check slide can say: type `equipop doctor`, then
+`equipop help`. The doctor's clean verdict also now names what
+machine 1 is and what to type next, which saves the slide a
+sentence.*
+*Reviewed at 1.54.2: NOTHING IN THIS FILE CHANGES. The second
+review's findings were a malformed help file, two test-isolation
+defects, a fractional k accepted by the Python advisory, an
+ordering mistake in the downloader and a cache that validated the
+question but not the answer. None of them touch the course
+material or any number in it.
+One thing worth knowing if a student calls the Python API rather
+than the Stata command: `advise_unit(k_values=[100.9])` used to
+come back as advice labelled k=100. It is refused now, as the
+typed doors have always refused it - k counts PEOPLE. `100.0` is
+accepted, because a Python caller writing that means 100.*
+*Reviewed at 1.54.1: **ONE SENTENCE TO ADD TO THE SUGGESTED EXERCISE
+BELOW, and it is a better teaching point than the exercise itself.**
+
+An external review of 1.54.0 found the unit-size advisory giving
+`originrule(exclude)` users include-rule advice. Fixed; and the
+measurement behind the fix belongs in the course.
+
+Under `exclude` - the w(ii)=0 convention, the one this course already
+spends time on because it changes African American isolation by 13.6%
+- the engine removes the origin's own cell before searching. So an
+origin's own cell can NEVER be its whole neighbourhood, the saturated
+count is structurally zero, and **k keeps its meaning at every cell
+size.** The advisory therefore shows no k columns and recommends
+nothing under that rule, and says why.
+
+**THE POINT FOR STUDENTS: the two conventions do not merely give
+different numbers, they have different failure modes.** Include is the
+published convention and the one where a coarse cell size can quietly
+stop k from being a parameter. Exclude is immune to that particular
+problem. Neither is "safer" overall - they answer different questions -
+but a student who has run the advisory under both has seen that a
+methodological choice can change which errors are even possible. Have
+them run it both ways on the LA blocks; the second table being nearly
+empty is the lesson.*
+*Reviewed at 1.54.0: **A NUMBER THIS FILE ALREADY KNEW IS NOW
+SOMETHING THE SOFTWARE SAYS.**
+
+Two places below are amended in place rather than appended to, and
+both are about the same thing: the unit-size advisory (BACKLOG 385).
+
+"Three levers, best first" put RAISE THE CELL SIZE first and left how
+far to a judgement about the question being asked. `equipop unit`, or
+the note any run now prints when no cell size was given, answers it
+with a measurement: per candidate size, how many cells the data makes
+and **what share of PEOPLE land in a cell that already holds k on its
+own** - whose radius is then estimated rather than measured, and for
+whom k has stopped being a parameter.
+
+That share is the number recorded further down as **41% of LA County
+at 100 m**, found while chasing BACKLOG 304. A student would have met
+it as a column of zeroes in exercise 1 step 3; they can now see it
+before the run. The teaching point is sharper than the feature: the
+same 250 m that is defensible at k=332 is indefensible at k=25, on
+the same data, because what matters is whether a cell already
+contains the neighbourhood you asked for. Two runs of the advisory at
+two k values make that land in one table, and an exercise to that
+effect is suggested where the levers are listed.
+
+It changes no default, which is worth saying to students explicitly:
+EquiPop reports the trade-off and the choice stays theirs, for the
+same reason a meaningful zero is refused rather than substituted.*
+*Reviewed at 1.53.4: ONE NEW EXERCISE IS NOW POSSIBLE, and one slide
+needs a correction.
+THE EXERCISE: a continental demographic index. Machine 4 can be run
+tiled, so a dependency ratio over bespoke neighbourhoods across
+several countries is a thing a student can actually run on a laptop -
+the memory stays at one tile rather than the whole continent. Read it
+back with `equipop.bigrun.load_tiled`. Worth doing because it makes
+the course's central argument concrete: the ratio is computed over the
+k nearest PEOPLE, so it inherits nothing from a municipality, a NUTS
+region or a national border, and the same code gives the same answer
+whether the extent is one city or a continent.
+THE CORRECTION: any slide saying bands above 90 are excluded is now
+wrong. John's ruling (363) folds them into 90+, so nobody is dropped
+and the index covers the same people as its own reference population.
+The teaching point is better than the old one: **"90+" now means 90
+and over AS THE FOLDER DEFINES IT**, which for a folder carrying f_95
+and f_100 is open above 100 rather than above 90. The run says so.
+Ask the room what that does to a comparison between two studies whose
+data stop at different ages - the answer is that it is fine if and
+only if both say which, which is exactly why the software prints it.
+ONE NOTE FOR A METHODS CLASS: a tiled index is stored as float32 and
+an in-memory one as float64, differing by about 1e-07 relative. A
+good five minutes on why that is a reporting question rather than an
+accuracy one.*
+*Reviewed at 1.53.3: NO EXERCISE CHANGES, and one thing to say out
+loud in the first session.
+A layer with features that have NO GEOMETRY is ordinary teaching
+data - a geocoder that failed on three addresses, a spreadsheet join
+that missed, a shapefile edited by hand. Until this release machine 1
+in ArcGIS Pro answered that with an arcpy traceback and the whole run
+was lost. It now keeps those rows, gives them Null results, and says
+how many - which is the SAME rule the course already teaches for
+Stata: a place with no usable data is nobody's neighbour and still
+gets its own row.
+THE TEACHABLE POINT, and it is a better one than the bug: the fix was
+not new behaviour. The rule was already in the engine, already named
+"EquiPop convention" in its own message, and already honoured by
+QGIS - so the two GUIs gave DIFFERENT answers to the same question
+for a year. Worth a slide for a methods class: when two
+implementations of one rule disagree, the interesting question is not
+which is faster but which one is wrong, and the answer is not always
+the one that crashed.
+FOR DEMONSTRATORS: if a student's Pro run dies with "cannot create
+NumPyArray", that is a pre-1.53.3 install. And tell them not to
+"fix" it by selecting the non-null features - it works, but their
+output then has fewer rows than their input, which breaks any
+before/after comparison they build on top of it.*
+*Reviewed at 1.53.2: ONE SLIDE TO ADD, AND IT IS A GOOD ONE, BUT READ
+THE WARNING FIRST.
+THE WARNING. Until this release, typing `1,000` or `1.000` in a k box
+gave a neighbourhood of ONE PERSON and the run finished normally. The
+only sign was a column called `N_1` where `N_1000` was expected. If
+any exercise was run with a thousands separator - and a Swedish or
+Norwegian keyboard makes that the natural thing to type - **those
+results are wrong, not oddly named**. Worth grepping old outputs for
+`N_1`, `N_10` and `Mean_*_1` before reusing any of them in class. It
+is refused now, per John's ruling, with a message naming the number
+it thinks was meant.
+THE SLIDE. "How does the software know what you typed?" is a better
+lesson than it sounds, because the answer differs BY BOX and the
+reason is substantive rather than technical. In a radius box `500,5`
+is five hundred and a half metres - half of Europe writes a decimal
+that way and it must keep working. In a k box `1,000` cannot be a
+decimal, because a fraction of a person is not a thing - which is
+exactly what frees the comma up to mean a thousands separator, and
+that is why the same character is read two ways one box apart. Ask
+the room which reading `300,500` should get. There is no right
+answer, and the software now refuses it and says so, which is the
+point: **a tool that guesses between two readings is worse than one
+that asks.**
+AND THE STUDENT-FACING HALF: a dialog that says nothing is wrong is
+not the same as a dialog that has checked. machine 2 accepted a k box
+holding one space - ArcGIS Pro counts a space as a value - and then
+answered with a traceback naming an argument nobody typed. Every door
+checks before Run now. If a student reports "it says give k_values",
+that is a pre-1.53.2 install.*
+*Reviewed at 1.53.1: NOTHING IN THE COURSE CONTENT MOVES - this
+release only changes what `equipop doctor` says. But it changes the
+FIRST HOUR of every workshop, which is the hour that decides whether
+students get to the material at all.
+The student installation guide's troubleshooting section can shrink.
+A broken install used to produce one line - `rasterio : BROKEN  No
+module named 'click'` - and a student who installed click would then
+meet `attrs`, then `cligj`, then `pyparsing`, which in a timetabled
+session means they are out for the morning. The doctor now names
+every missing dependency at once with one command to paste, and it
+flags the `~`-prefixed directories that mean an earlier pip run was
+interrupted - which on a university machine with antivirus and a
+roaming profile is the common case, not the exotic one.
+WORTH SAYING OUT LOUD IN THE SESSION, because it generalises past
+EquiPop: `WARNING: Ignoring invalid distribution ~yproj` is the line
+students are taught by habit to ignore, and it is the most useful
+line in the output. `~yproj` is a half-deleted `pyproj`. The lesson
+is that pip's warnings are not noise, and that a tool reporting the
+FIRST thing it found is not the same as a tool reporting what is
+wrong - which is the same lesson as 353, in the room rather than in
+the data.
+ONE THING FOR THE DEMONSTRATOR, not the students: tell them to close
+QGIS and Pro before running pip. A file held open is what leaves the
+half-installed state behind, so the fix and the cause are the same
+window.*
+
+*Reviewed at 1.53.0: NO FIGURE CHANGES - every course exercise uses
+WHOLE population counts and the default raster path is bit-identical,
+which is the safety argument for the whole release. TWO THINGS THE
+COURSE GAINS, both good ones.
+FIRST, a worked example that was impossible before: "here is a place
+that had people and now has none." `keep_zero` promised that and did
+nothing - a depopulated pixel was simply absent from the output -
+and it works now. Denmark's fixture raster carries 1,201 of them. The
+lesson it teaches is John's own rule from 1.22.2, which the course
+already states for Stata: a place with nobody in it is nobody's
+neighbour AND still gets its own result. Students who have met that
+rule in one machine can now see it in another.
+SECOND, the distinction between a COUNT and a FIELD, which is the one
+students most often get wrong and which the software had got wrong
+itself. Machine 3 was selecting pixels with `arr > 0`, so a
+temperature anomaly with a true mean of -0.005 degC came back as
++1.19 - warming everywhere, every cooling pixel gone, no warning. Put
+that on a slide: the arithmetic was never wrong, the QUESTION the
+code was asking was. "Is this a headcount or a measurement?" decides
+whether zero means empty or means zero, and whether a negative is
+impossible or ordinary.
+A third, smaller: the demographic indices now say PER ONE in the
+field guide. A sex ratio of 0.97 is 97 men per 100 women, and a
+student who does not know that reads it as 1%.
+*Reviewed at 1.52.0: NO FIGURE CHANGES - every course exercise uses
+SQUARE cells, and the square path is an exact identity, which is the
+whole safety argument for the hex fix. ONE NEW TEACHING MOMENT, and a
+good one: EquiPop had been charging a hexagon a square's area for
+eight years because the only thing the engines were told was a LENGTH,
+and a hexagon's width and a square's side look identical in a diff.
+That is the modifiable areal unit problem arriving inside the
+software rather than in the data - which is the course's own subject.
+If hexes ever get a box at the GIS doors, the exercise writes itself:
+same points, same k, square against hexagon, and the difference is
+7.46% on the in-cell radius for a reason students can derive with a
+pencil.
+*Reviewed at 1.51.2: THIS RELEASE EXISTS FOR THIS FILE'S SAKE, more or
+less. John's reason for cutting it was pedagogical: the engine, the
+commands, the QGIS plugin and the Pro toolbox are installed by four
+different means, so they drift, and a class should not have to be
+taught why. Every one of them now says 1.51.2, and the first thing to
+do in a session is `equipop setup`, restart Stata, `equipop doctor`:
+
+      engine       : 1.51.2   (the Python package)
+      commands     : 1.51.2   (the .ado files)
+      needs engine : 1.48.0 or newer - satisfied
+
+SAY WHAT THAT THIRD LINE IS, because a sharp student will ask. It is
+not a version, it is a REQUIREMENT - the oldest engine the commands'
+own calls need - and it is deliberately older than the release. Two
+numbers that must match and one that must merely be satisfied is a
+good ten-minute lesson about what a version actually promises, and the
+doctor's report is the artefact to teach it from.
+A SECOND EXERCISE ARRIVED FOR FREE. Negative populations are refused,
+and the refusal now explains itself - so "why can't I put population
+CHANGE in pop()?" is a question with a teachable answer: because k
+counts people and a neighbourhood grows until it holds k of them, a
+total that can fall with distance has no single radius at which k was
+reached. Then show the right route: change goes in values(), the
+headcount stays in pop(), and the result is a population-weighted mean
+of a signed quantity per neighbourhood. That is the distinction
+between a WEIGHT and a MEASUREMENT, which is the thing students most
+often get wrong in this software, and here the error message teaches
+it for you.
+Reviewed at 1.51.1: NO FIGURE CHANGES, and one check worth stating
+because the release moves numbers for somebody. Every course exercise
+uses WHOLE population counts - register rows, census blocks, the
+Los Angeles blocks - so the fractional-weight correction cannot touch
+a single figure here: rounding 10 to 10 is an identity. It WOULD touch
+an exercise built on WorldPop, which is fractional by construction,
+and there is no such exercise yet. If one is written, say in class
+that the engine carries a fifth of a person as a fifth of a person,
+because the naive route - repeat each row `weight` times - is both the
+obvious implementation and the one that deleted half of John's people.
+TWO THINGS TO MENTION if they come up. A GeoPackage holding several
+result layers now gets one provenance sidecar PER LAYER
+(out.k100.meta.json, not out.meta.json), which is worth knowing before
+a student wonders where the first one went. And the demographic index
+tools now refuse a folder that is missing one cohort of one sex, and
+name it - which is a better teaching moment than the old behaviour: it
+shows what "the data cannot support this measure under its own name"
+means in a case where the arithmetic would have worked fine.
+THE METHODOLOGICAL LESSON of this release is the best one it has for a
+class, and it is not about any feature: the suite had thorough tests
+for each option and thorough tests for each engine, and nothing that
+crossed the two - so an option could be documented, recorded in the
+run's own provenance, and never passed to the engine. Three of the
+nine findings were that shape. "Test the pairs, not the parts" is
+worth ten minutes of anybody's course.
+Reviewed at 1.51.0: no figure or exercise changes. One thing to
+mention if anyone asks about radii: a radius now appears in a column
+name with its decimal point as an underscore, so r(100.5) gives
+N_r100_5, and two radii closer than a millionth cannot be told apart
+and are refused rather than quietly merged.
+Reviewed at 1.50.0: one change reaches the course, and it is a
+good one to say out loud. Every EquiPop run now leaves a record of
+the settings that produced it - in QGIS as a .meta.json beside the
+output, in Pro inside the run CSV, in Stata printed into the log and
+returned in r(). That is the answer to "which run was this?", which
+is the question a student asks on the second day and cannot answer
+on the first. The test dataset also describes itself now: `describe`
+shows a label on every variable.
+Reviewed at 1.49.3: nothing in the course changes - this release
+is the Stata door and the SSC archive. Worth saying once in class,
+though, now that it is true: `ssc install equipop` gets the command
+without a clone, and `ssc install equipop, all` brings a worked
+do-file and a test dataset with it, which is a gentler first run
+than the GIS exercises for a student who already knows Stata.
+Reviewed at 1.49.2: no figure changes. One exercise gains a step it
+could not have before - the Airbnb listings arrive as
+`listings.csv.gz`, and a CSV of coordinates can now be pointed at
+directly and written out as a point feature class, instead of being
+imported first. That also brings the coordinate-system box into
+class: a table declares no projection, so the student either
+declares it or gets a layer marked "unknown", which is a small,
+concrete instance of the lesson the whole course keeps making - the
+software will not guess, and it says what it does not know. Note that
+the listings are in DEGREES, so the projection box is not the whole
+answer there; they still need projecting, which machine 3's box does
+and reports.
+Reviewed at 1.49.1: no change to the exercises, but the ratio
 ruling is worth a sentence in class - R is a RATIO, and it exceeds 1
 whenever numerator and denominator count different units. Every
 course exercise uses the same unit on both sides, so all the figures
@@ -298,6 +631,31 @@ extent 90 km further south**, and the graph covers all that ocean.
    400,000 and collapses blocks into fewer origins. For a barrier
    question at k=332 it is defensible anyway - you are asking which
    side of a motorway somebody is on, not resolving buildings.
+
+   **AND SINCE 1.54.0 THE SOFTWARE WILL SAY HOW FAR YOU CAN GO**
+   (BACKLOG 385), which turns this lever from a judgement into a
+   measurement. `equipop unit X_local Y_local, k(332)` - or the note
+   printed at the end of any run that did not set a cell size -
+   reports, per candidate size, how many cells the data makes and
+   **what share of PEOPLE end up in a cell that already holds k on
+   its own.** Those people have no measured radius: the whole
+   neighbourhood is that one cell, `Dist_k` comes from the
+   self-potential formula, and k has stopped being a parameter.
+
+   That is the number to raise the cell size against, and **it is the
+   same number this file already records below**: 41% of LA County at
+   100 m. The advisory exists so a student learns that before the run
+   rather than from a column of zeroes afterwards. It never changes
+   the size - it reports and the choice stays theirs.
+
+   **A teaching point worth making explicitly.** Raising the cell
+   size is cheap in time and expensive in meaning, and the two costs
+   are not on the same axis: 250 m may be defensible at k=332 and
+   indefensible at k=25, on the same data, because the question is
+   whether a cell already contains the neighbourhood you asked for.
+   Have students run the advisory at two very different k values on
+   the LA blocks and compare the recommendations. The point lands in
+   one table.
 2. **SELECT A SUBSET IN PRO AND RUN ON THE SELECTION.** John's note,
    session 12, and it is the neatest of the three: the tool reads
    through the LAYER, so a selection is honoured with no settings
@@ -322,6 +680,19 @@ was.
 
 **Exercise 1 step 3 asks a student to sort by `Dist_100` and find the
 smallest. They would have found a zero on the first attempt.**
+
+**AND 1.54.0 CLOSES THE OTHER HALF OF THAT.** 304 fixed the rounding
+so the correction fires; the zero is gone and the radius is estimated
+instead. But an estimated radius on 41% of LA County is still
+something a student has to be told about, and until now the only
+notice came after the run. The unit-size advisory (BACKLOG 385)
+reports the same share **before** one, at every candidate cell size -
+so "41% of LA County" stops being a thing this file knows and becomes
+a thing the software says. The slack `304` needed turns out to matter
+there too, and for a second reason: a WorldPop pixel carries a
+fractional population, so a cell total is an accumulated float sum
+and 1,000 pixels of 0.1 come to 99.9999999999986. Same trap, found
+twice, in two different places.
 
 That is the third defect this dataset has found, after the geodatabase
 and the shapefile sidecars. The pattern is consistent enough to state

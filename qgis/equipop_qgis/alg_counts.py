@@ -315,31 +315,12 @@ class CountsAndShares(EquipopAlgorithm):
         self.add(QgsProcessingParameterFeatureSink(
             self.OUT, "Results"))
 
-    def checkParameterValues(self, parameters, context):
-        """BACKLOG 305. Refuse BEFORE Run, not after.
-
-        processAlgorithm already refuses a run with neither k nor r,
-        which is right - but by then the user has pressed Run and the
-        answer arrives as a red exception. QGIS offers this hook so
-        the dialog can say so while the box is still in front of you,
-        and it was never implemented.
-
-        NEITHER BOX IS REQUIRED and that is deliberate: a radius-only
-        run is a perfectly good question, and so is k-only. What is
-        required is ONE OF THEM.
-        """
-        k = (self.parameterAsString(parameters, "k", context)
-             or "").strip()
-        r = (self.parameterAsString(parameters, "r", context)
-             or "").strip()
-        if not k and not r:
-            return False, (
-                "Give a neighbourhood size in box 3 (k - a number of "
-                "people), or a radius in box 4 - EquiPop needs one of "
-                "the two to know what a neighbourhood is. Either "
-                "alone is fine; both together gives you both sets of "
-                "columns.")
-        return super().checkParameterValues(parameters, context)
+    # BACKLOG 378, v1.53.2. The check this door used to carry by hand
+    # now lives in EquipopAlgorithm, so all four doors that can reach
+    # the engine's refusal share it. The hand-written version tested
+    # `if not k and not r`, which a single SPACE walks straight past -
+    # the inherited one asks is_blank().
+    NEEDS_A_NEIGHBOURHOOD = True
 
     def processAlgorithm(self, parameters, context, feedback):
         from equipop.doors.fields import predict_result_fields
@@ -661,15 +642,84 @@ class CountsAndShares(EquipopAlgorithm):
 
         ch.info(f"Calculating ({engine} engine, {pts.n} rows, cell "
                 f"size {float(unit):g} m).")
+        # BACKLOG 293. The record is opened here and filled BY THE
+        # ENGINE from the arguments it is given, so this door never
+        # maintains a list of what to record.
+        from equipop.meta import record
+        runlog = record(engine, pts.n, {},
+                        # BACKLOG 159. The destination is already known
+                        # here - base.py reads the same parameter forty
+                        # lines earlier for the field-name check - so
+                        # the record can be OPEN from now on instead of
+                        # appearing only if the run survives.
+                        destination=str(parameters.get(self.OUT) or ""),
+                        # BACKLOG 348/351. sourceName() is the label in
+                        # the layers panel, not a path. source() is the
+                        # provider URI, which is what identifies the
+                        # data - the same correction write_provenance
+                        # got, in the second place it was needed.
+                        source=self.source_uri(source))
         with stage(ch, "calculating"), speaking(ch):
-            res = dispatch(engine, pts.data["x"], pts.data["y"], **kw)
+            res = dispatch(engine, pts.data["x"], pts.data["y"],
+                           provenance=runlog, **kw)
 
         order = [n for n in names if n in res] + \
                 [n for n in res if n not in names]
+        # BACKLOG 410: each result field's description, as its alias
+        from equipop.describe import describe_all
         with stage(ch, "writing output"):
             dest = self.write(parameters, context, source, res, order,
-                              feedback)
+                              feedback,
+                              descriptions=describe_all(list(res), kw))
+        self.write_provenance(runlog, dest, res, ch, source=source)
+        self._unit_advice(ch, pts, kw, float(unit))
         return {self.OUT: dest}
+
+    # ---------------------------------------------------------------
+    def _unit_advice(self, ch, pts, kw, unit):
+        """BACKLOG 385. What cell size did this data want? Last, and
+        often nothing.
+
+        John, 9 October 2026: "knowing the unit size is a battle
+        between computing time and detail." The engine has just
+        measured both sides of it, so it would be a waste not to say
+        so - and QGIS is the door where the cell size is a spinbox the
+        user may never have opened.
+
+        `unit_was_set` is "did they move it off the default", which is
+        the same question the Stata door asks about a missing unit().
+        A user who deliberately typed 100 is told they could go
+        coarser, which is advice rather than a wrong number.
+
+        SILENT ON FAILURE, and deliberately: the output layer is
+        already written by this point, and an advisory must never be
+        the reason a finished run reports an error.
+        """
+        # The dialog's own default, read rather than retyped - but in
+        # its OWN try, so a QGIS version that will not give it up
+        # degrades to the documented 100 instead of silently costing
+        # the whole advisory. The broad except below is what makes an
+        # advisory safe to add after the output is written; it is also
+        # what would hide a mistake forever, so as little as possible
+        # lives inside it.
+        try:
+            default = float(
+                self.parameterDefinition("unit").defaultValue())
+        except Exception:
+            default = 100.0
+        try:
+            from equipop import unitsize
+
+            adv = unitsize.advise_unit(
+                pts.data["x"], pts.data["y"], kw.get("weight"),
+                k_values=kw.get("k_values") or [100], current=unit,
+                self_rule=kw.get("self_rule") or "include")
+            for line in unitsize.advise_on_run(
+                    adv, unit=unit,
+                    unit_was_set=abs(unit - default) > 1e-9):
+                ch.info(line)
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------
     def _effort_ingredients(self, parameters, context, ch, unit,

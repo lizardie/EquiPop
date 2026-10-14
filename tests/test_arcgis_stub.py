@@ -139,15 +139,46 @@ def _install_fake_arcpy(table: pd.DataFrame):
     class SpatialReference:
         """Fake CRS object; auto-projection is simulated by a simple
         deterministic degrees->metres transform (the glue only needs
-        to prove that projection HAPPENED and metres arrived)."""
-        def __init__(self, code):
+        to prove that projection HAPPENED and metres arrived).
+
+        BACKLOG 329: NO ARGUMENT means UNKNOWN, which is what real
+        arcpy returns for SpatialReference() and what EquiPop passes
+        deliberately rather than letting XYTableToPoint fall back to
+        its own default of WGS 1984. A string is accepted because a
+        saved ModelBuilder model can hold a projection by NAME.
+        """
+        _GEOGRAPHIC = {4326, 4258, 4277}      # WGS84, ETRS89, OSGB36
+
+        def __init__(self, code=None):
+            if code is None or code == "":
+                self.factoryCode = 0
+                self.type = "Unknown"
+                self.name = "Unknown"
+                self.linearUnitName = None
+                return
+            if isinstance(code, str) and not code.strip().isdigit():
+                raise RuntimeError(
+                    f"cannot create a spatial reference from {code!r}")
             self.factoryCode = int(code)
-            self.type = "Projected"
+            self.type = ("Geographic"
+                         if self.factoryCode in self._GEOGRAPHIC
+                         else "Projected")
             self.name = f"EPSG:{code}"
+            self.linearUnitName = (None if self.type == "Geographic"
+                                   else "Meter")
 
     def FeatureClassToNumPyArray(_layer, fields, skip_nulls=False,
                                  null_value=np.nan,
                                  spatial_reference=None):
+        # BACKLOG 380. Real arcpy refuses some layers outright - John
+        # met `cannot create NumPyArray. geometry type found` on a
+        # feature class holding NULL GEOMETRY. The simulator cannot
+        # know WHEN arcpy refuses, so it is told: a test sets
+        # state["fc_array_raises"] and this raises what arcpy raised.
+        # That makes the test an honest test OF EQUIPOP'S FALLBACK and
+        # NOT of Esri's reader - see the test's own docstring.
+        if state.get("fc_array_raises"):
+            raise ValueError(state["fc_array_raises"])
         t = _df_for(_layer)
         if spatial_reference is not None:
             t = t.copy()
@@ -312,12 +343,71 @@ def _install_fake_arcpy(table: pd.DataFrame):
         state.setdefault("copies", {})[out] = t
         state["active_copy"] = out          # results now target the copy
 
+    def XYTableToPoint(in_table, out_fc, xf, yf, zf=None, sr=None):
+        """A table of coordinates becomes a point feature class.
+
+        BACKLOG 329. Modelled on CopyFeatures and STRICTER than it in
+        the two ways that matter, because a stub is only safe where it
+        is stricter than the real thing (1.29.1's isAdvanced, 1.29.3's
+        polygon barriers, 164's renumbering):
+
+        (1) IT RENUMBERS FROM SCRATCH. A table has no identifier to
+            preserve at all, so the new feature class assigns its own -
+            a geodatabase from 1, a shapefile from 0. If the door
+            joined results on the table's own OBJECTID column, every
+            result would land one row out, which is BACKLOG 164
+            exactly.
+        (2) IT DROPS ROWS WITH NO COORDINATE, as real arcpy does, so
+            the row-count guard can be exercised. This is the one way
+            a table run differs from EquiPop's "missing coordinates ->
+            Null results" convention, and it must fail loudly rather
+            than misalign.
+        (3) IT RECORDS THE SPATIAL REFERENCE. The QGIS simulator used
+            to accept one and discard it (223/235), and a layer with
+            the wrong projection lands in the wrong part of the world
+            while looking perfectly healthy.
+        """
+        t = _df_for(in_table).copy()
+        keep = t[xf].notna() & t[yf].notna()
+        t = t[keep].reset_index(drop=True)
+        dst_oid = state.get("oid_names", {}).get(str(out_fc), "OBJECTID")
+        for c in list(t.columns):
+            if c in ("OBJECTID", "FID", "fid") and c != dst_oid:
+                t = t.drop(columns=[c])
+        start = state.get("oid_starts", {}).get(str(out_fc), 1)
+        t[dst_oid] = np.arange(start, start + len(t), dtype=np.int64)
+        state.setdefault("copies", {})[out_fc] = t
+        state.setdefault("tables", {})[str(out_fc)] = t
+        state.setdefault("written", {})[str(out_fc)] = {
+            "table": t, "xy": (xf, yf), "sr": sr}
+        state["active_copy"] = out_fc     # results now target the points
+        state.setdefault("shape_types", {})[str(out_fc)] = "Point"
+        return out_fc
+
     mgmt.DeleteField = DeleteField
     mgmt.CopyFeatures = CopyFeatures
+    mgmt.XYTableToPoint = XYTableToPoint
     mgmt.AddField = AddField
+
+    def AlterField(in_table, field, new_field_name=None,
+                   new_field_alias=None, *a, **kw):
+        """v1.56.0, BACKLOG 410. Real arcpy's signature. STRICTER than
+        the real thing where that costs nothing: a field that is not
+        there is refused, as real arcpy refuses it, and a target can be
+        made to refuse every alias (state["alias_refused"]) so the
+        door's handling of that can be tested."""
+        if state.get("alias_refused"):
+            raise RuntimeError(f"ERROR 000499: cannot alter {field}")
+        if field not in _tab().columns:
+            raise RuntimeError(f"ERROR 000728: Field {field} does not "
+                               f"exist within table")
+        state.setdefault("aliases", {})[field] = new_field_alias
+    mgmt.AlterField = AlterField
 
     def TableToNumPyArray(table, fields, skip_nulls=False,
                           null_value=np.nan):
+        if state.get("fc_array_raises"):
+            raise ValueError(state["fc_array_raises"])
         # A GeoPackage's dataSource is a connection DESCRIPTION, and
         # arcpy refuses to reopen it (field, Malta, v1.20). The
         # simulator refuses it too, or the door can quietly pass a
@@ -341,10 +431,42 @@ def _install_fake_arcpy(table: pd.DataFrame):
         return out
 
     class SearchCursor:
-        """Rows = state["geom_layers"][layer]: tuples whose first
-        element is a fake geometry (see _geom)."""
+        """Barrier layers: rows = state["geom_layers"][layer], tuples
+        whose first element is a fake geometry (see _geom).
+
+        ANY OTHER LAYER: the attribute table, row by row, in the field
+        order asked for - which is what real arcpy does and what
+        BACKLOG 380's fallback reader needs. **A NULL COMES BACK AS
+        None, NOT AS NaN**, because that is what arcpy hands over for
+        null geometry, and the whole point of the fallback is to turn
+        it into the NaN the convention downstream reads. A simulator
+        that handed back NaN directly would skip the step being
+        tested.
+        """
         def __init__(self, layer, fields, spatial_reference=None):
-            self.rows = state["geom_layers"][_unalias(layer)]
+            key = _unalias(layer)
+            if key in state.get("geom_layers", {}):
+                self.rows = state["geom_layers"][key]
+                return
+            df = _df_for(key)
+            if spatial_reference is not None:
+                df = df.copy()
+                zone = spatial_reference.factoryCode % 100
+                cm = -183.0 + 6.0 * zone
+                lat = df["SHAPE@Y"].to_numpy(float)
+                df["SHAPE@X"] = ((df["SHAPE@X"].to_numpy(float) - cm)
+                                 * 111320.0 * np.cos(np.radians(lat)))
+                df["SHAPE@Y"] = lat * 110540.0
+            rows = []
+            for i in range(len(df)):
+                row = []
+                for f in fields:
+                    v = df.iloc[i][f] if f in df.columns else None
+                    if v is None or (isinstance(v, float) and v != v):
+                        v = None
+                    row.append(v)
+                rows.append(tuple(row))
+            self.rows = rows
 
         def __enter__(self):
             return iter(self.rows)
@@ -3074,3 +3196,424 @@ def test_a_table_input_may_write_a_new_feature_class():
             f"disk is not a feature class. Got: {errs2!r}")
     finally:
         fake.Describe = real
+
+
+def test_a_table_input_really_writes_the_new_feature_class(tmp_path):
+    """BACKLOG 329, John's NEXT run of the fix above.
+
+        File "C:\\Data\\EQP\\EquiPop.pyt", line 1570, in _run_tool
+        arcgisscripting.ExecuteError: Table input has no feature class
+        to append to - set the output table (.csv).
+
+    The same sentence, from the EXECUTION path this time. It was not a
+    duplicated check: it was the only thing there. _run_tool read
+
+        if kind == "table":  ...  elif out_mode.startswith("New"):
+
+    so a table input could never reach the New-feature-class branch at
+    all. 1.49.1 had stopped the dialog refusing and left nothing to
+    run. THE CAPABILITY DID NOT EXIST, only the refusal.
+
+    AND THE 327 TEST COULD NOT HAVE CAUGHT IT, because it called
+    updateMessages and stopped there. A validator test certifies the
+    validator. This one RUNS THE TOOL.
+    """
+    rng = np.random.default_rng(329)
+    n = 90
+    tab = pd.DataFrame({
+        # John's grid: Irish Grid eastings/northings, no projection
+        # anywhere in the file
+        "X": 330000.0 + rng.uniform(0, 9000, n),
+        "Y": 355000.0 + rng.uniform(0, 9000, n),
+        "TOTAL_HOUSEHOLD": rng.integers(1, 40, n).astype(float),
+        # an identifier of its OWN, out of step with what the feature
+        # class will assign - BACKLOG 164's trap
+        "OBJECTID": np.arange(500, 500 + n, dtype=np.int64)})
+    seed = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                         "SHAPE@Y": [0.0]})
+    state = _install_fake_arcpy(seed)
+    state["aux_tables"] = {"grid": tab}
+    pyt = _load_pyt()
+    arcpy = sys.modules["arcpy"]
+    fc = r"C:\ni\work.gdb\TrialRun"
+
+    msg = _Messages()
+    pyt._run_tool("counts", "grid", msg, k_text="200",
+                  x_field="X", y_field="Y",
+                  weight_field="TOTAL_HOUSEHOLD",
+                  out_mode="New feature class", out_fc=fc)
+
+    wrote = state["written"][fc]
+    # what the CONVERSION was told is in `written`; the LIVE dataset
+    # is in `copies`, because ExtendTable replaces it afterwards and
+    # the creation-time snapshot goes stale
+    got = state["copies"][fc]
+    assert len(got) == n, "the points do not match the table's rows"
+    assert wrote["xy"] == ("X", "Y")
+    assert got["OBJECTID"].tolist() == list(range(1, n + 1)), (
+        "the fixture no longer exercises BACKLOG 164's renumbering - "
+        "the table's own OBJECTID ran 500..589")
+    assert "N_200" in got.columns, (
+        "no result columns on the new feature class - the run wrote "
+        f"nothing usable. Columns: {list(got.columns)}")
+
+    # THE NUMBERS, not just the column. A renumbered join that lands a
+    # row early leaves the last row Null and shifts the rest, which is
+    # exactly what BACKLOG 164 did in the field and what nothing but a
+    # value check can see.
+    from equipop.stata_bridge import dispatch
+    ref = dispatch("counts", tab["X"].to_numpy(), tab["Y"].to_numpy(),
+                   weight=tab["TOTAL_HOUSEHOLD"].to_numpy(),
+                   k_values=[200], treat_are_counts=True)
+    assert not got["N_200"].isna().any(), (
+        "Null results on the new feature class - the results were "
+        "joined on identifiers the conversion had renumbered")
+    assert np.allclose(got["N_200"].to_numpy(), ref["N_200"],
+                       equal_nan=True)
+    # Dist_200 VARIES ROW BY ROW, and N_200 does not - under
+    # `proportional` it reads 200 everywhere. That is why John's
+    # BACKLOG 164 misalignment was invisible for four releases: the
+    # only visible symptom was a single Null in the last row. A
+    # by-position check needs a column whose values differ.
+    assert got["Dist_200"].nunique() > n // 2, "the fixture is flat"
+    assert np.allclose(got["Dist_200"].to_numpy(), ref["Dist_200"],
+                       equal_nan=True), (
+        "Dist_200 is shifted - the results did not land on the rows "
+        "they were computed for")
+
+    # NO CRS WAS DECLARED, so the layer must say so - loudly - and
+    # must NOT be stamped with arcpy's own WGS 1984 default, which
+    # would read Irish Grid eastings as degrees of longitude.
+    assert getattr(wrote["sr"], "factoryCode", None) == 0, (
+        "a projection was invented for coordinates that declared "
+        f"none: {wrote['sr']!r}")
+    loud = " ".join(msg.log)
+    assert "NO COORDINATE SYSTEM WAS DECLARED" in loud
+    assert "29902" in loud, "the message does not name a way out"
+
+
+def test_a_declared_crs_reaches_the_new_feature_class(tmp_path):
+    """BACKLOG 329, the other half: when the user DOES declare the
+    projection of the X/Y columns it must arrive on the layer and in
+    the run manifest.
+
+    BACKLOG 235's lesson, transplanted: the QGIS simulator used to
+    accept a spatial reference and discard it, and a layer with the
+    wrong one lands in the wrong part of the world while looking
+    perfectly healthy. So the stub records it and this reads it back.
+    """
+    rng = np.random.default_rng(3291)
+    n = 40
+    tab = pd.DataFrame({"X": 330000.0 + rng.uniform(0, 4000, n),
+                        "Y": 355000.0 + rng.uniform(0, 4000, n),
+                        "pop": rng.integers(1, 20, n).astype(float)})
+    seed = pd.DataFrame({"OBJECTID": [1], "SHAPE@X": [0.0],
+                         "SHAPE@Y": [0.0]})
+    state = _install_fake_arcpy(seed)
+    state["aux_tables"] = {"grid": tab}
+    pyt = _load_pyt()
+    arcpy = sys.modules["arcpy"]
+    fc = r"C:\ni\work.gdb\Irish"
+    csv = tmp_path / "also.csv"
+
+    msg = _Messages()
+    pyt._run_tool("counts", "grid", msg, k_text="30",
+                  x_field="X", y_field="Y", weight_field="pop",
+                  out_mode="New feature class", out_fc=fc,
+                  out_table=str(csv),
+                  table_crs=arcpy.SpatialReference(29902))
+
+    assert state["written"][fc]["sr"].factoryCode == 29902, (
+        "the declared projection did not reach the feature class")
+    loud = " ".join(msg.log)
+    assert "NO COORDINATE SYSTEM WAS DECLARED" not in loud
+
+    # BOTH boxes were filled, so BOTH must be honoured - a box that
+    # does nothing is the fault this release is about
+    assert csv.exists(), (
+        "the .csv was thrown away because the feature class path "
+        "changed `kind` before the CSV writer was reached")
+    res = pd.read_csv(csv)
+    assert len(res) == n and "N_30" in res.columns
+
+    # and the manifest must record the CRS the user declared, not one
+    # left behind by a previous run in the same Pro session
+    man = pd.read_csv(tmp_path / "also_EquiPop_run.csv").set_index(
+        "item")["value"].to_dict()
+    assert "29902" in str(man.get("working_crs", "")), (
+        f"the manifest records {man.get('working_crs')!r}")
+
+
+def test_a_table_run_never_borrows_the_last_layers_projection(tmp_path):
+    """BACKLOG 329, found while building the above.
+
+    last_crs_text and last_unit are attributes ON _read_input, so they
+    survive from one tool run to the next inside one Pro session - and
+    the tabular branch set NEITHER. It read them with
+    getattr(..., "unknown"), which returns whatever the last FEATURE
+    CLASS read in that session left behind.
+
+    So: read a projected layer, then read a CSV of Irish Grid numbers,
+    and the second run's manifest recorded the FIRST run's coordinate
+    system. A manifest exists so a result can be reproduced a year
+    later; one that names the wrong CRS is worse than one that admits
+    it does not know.
+    """
+    rng = np.random.default_rng(3292)
+    n = 30
+    geom = pd.DataFrame({"OBJECTID": np.arange(1, n + 1),
+                         "SHAPE@X": rng.uniform(0, 900, n),
+                         "SHAPE@Y": rng.uniform(0, 900, n),
+                         "Persons": rng.integers(1, 9, n).astype(float)})
+    state = _install_fake_arcpy(geom)
+    state["aux_tables"] = {"plain": pd.DataFrame(
+        {"X": 330000.0 + rng.uniform(0, 3000, n),
+         "Y": 355000.0 + rng.uniform(0, 3000, n),
+         "Persons": rng.integers(1, 9, n).astype(float)})}
+    pyt = _load_pyt()
+    msg = _Messages()
+    # a FEATURE CLASS first: this is what leaves a CRS behind
+    pyt._run_tool("counts", "people", msg, k_text="10",
+                  weight_field="Persons")
+    assert "SWEREF99 TM" in getattr(pyt._read_input, "last_crs_text",
+                                    ""), "the fixture changed"
+    # then a TABLE, which declares nothing
+    out = tmp_path / "t.csv"
+    pyt._run_tool("counts", "plain", msg, k_text="10",
+                  x_field="X", y_field="Y", weight_field="Persons",
+                  out_table=str(out))
+    man = pd.read_csv(tmp_path / "t_EquiPop_run.csv").set_index(
+        "item")["value"].to_dict()
+    assert "SWEREF" not in str(man["working_crs"]), (
+        "the table run's manifest borrowed the previous run's "
+        f"coordinate system: {man['working_crs']!r}")
+    assert "unknown" in str(man["working_crs"]).lower()
+
+
+# ------------------------------------------- BACKLOG 405, v1.55.0
+def _pro_town(n=400, seed=4):
+    rng = np.random.default_rng(seed)
+    x, y = rng.uniform(0, 3000, n), rng.uniform(0, 3000, n)
+    cob = np.where(rng.random(n) < 0.3, "abroad", "Sweden")
+    inc = rng.lognormal(10, .5, n) * np.where(cob == "abroad", .7, 1)
+    return pd.DataFrame({"OBJECTID": np.arange(1, n + 1),
+                         "SHAPE@X": x, "SHAPE@Y": y,
+                         "Income": inc, "cob": cob})
+
+
+def test_pyt_machine_2_splits_mld_and_theil_through_the_engine():
+    """Pro reads only the fields it is told to read. The grouping
+    field must be among them, its values must reach dispatch, and the
+    answer must be the engine's.
+
+    BROKEN WITH: decompose_field left out of `extra` (the run dies on
+    a missing key); the `if decompose_field:` block removed (the
+    split columns never appear)."""
+    from equipop.stata_bridge import dispatch
+    t = _pro_town()
+    state = _install_fake_arcpy(t)
+    pyt = _load_pyt()
+    pyt._run_tool("stats", "people", _Messages(),
+                  value_fields=["Income"], stats_list=["mld", "theil"],
+                  k_text="100 300", decompose_field="cob",
+                  min_group=25.0, overshoot="proportional",
+                  originrule="include")
+    res = state["table"]
+    direct = dispatch("stats", t["SHAPE@X"].to_numpy(),
+                      t["SHAPE@Y"].to_numpy(), unit_size=100.0,
+                      k_values=[100, 300],
+                      values={"Income": t.Income.to_numpy()},
+                      stats={"Income": ["mld", "theil"]},
+                      decompose_by={"cob": t.cob.to_numpy(object)},
+                      min_group=25, overshoot_mode="proportional",
+                      self_rule="include")
+    for c in ("MLDsh_Income_300", "Theilw_Income_100", "Ng_Income_300",
+              "NgMin_Income_100"):
+        np.testing.assert_allclose(np.asarray(res[c], float),
+                                   np.asarray(direct[c], float),
+                                   equal_nan=True)
+
+
+def test_pyt_predicts_the_split_columns_before_running():
+    """Pro refuses a shapefile target BEFORE the run when the names
+    will not fit, so its prediction must include the split.
+
+    BROKEN WITH: the wrapper not forwarding `decomposing`."""
+    from equipop.stata_bridge import dispatch
+    _install_fake_arcpy(_pro_town(10))
+    pyt = _load_pyt()
+    rng = np.random.default_rng(1)
+    x, y = rng.uniform(0, 2000, 200), rng.uniform(0, 2000, 200)
+    res = dispatch("stats", x, y, values={"inc": rng.lognormal(5, .5, 200)},
+                   stats={"inc": ["mld", "theil"]}, k_values=[50],
+                   r_values=[300.0],
+                   decompose_by={"g": rng.integers(0, 2, 200)})
+    pred = pyt._predict_result_fields("stats", "50", "300", "", [],
+                                      ["inc"], ["mld", "theil"],
+                                      False, False, decomposing=True)
+    assert set(res.keys()) == set(pred)
+
+
+def test_pyt_dialog_offers_the_split_with_a_default_of_thirty():
+    """John's ruling: thirty people per group, user-settable. The
+    minimum is greyed out until there is something to split.
+
+    BROKEN WITH: no default set on mingroup; the enable rule removed
+    from updateParameters."""
+    _install_fake_arcpy(_pro_town(10))
+    pyt = _load_pyt()
+    tool = pyt.ValueStatistics()
+    ps = tool.getParameterInfo()
+    pm = {p.name: p for p in ps}
+    assert pm["mingroup"].value == 30.0
+    assert {"mld", "theil"} <= set(pm["measures"].filter.list)
+    pm["layer"].value = "people"
+    tool.updateParameters(ps)
+    assert pm["mingroup"].enabled is False
+    pm["decompose"].value = "cob"
+    tool.updateParameters(ps)
+    assert pm["mingroup"].enabled is True
+
+
+def test_the_help_generator_reads_the_checkout_not_an_installed_equipop(
+        tmp_path):
+    """External review of 1.55.0, finding 3, reproduced: with an older
+    equipop INSTALLED, the generator - run as a script, so its first
+    path entry is arcgis/ - imported that one, found no help for the
+    two new boxes, and two tests failed. Worse, a bundle built on such
+    a machine would ship OLD help silently whenever the old package
+    had every key. This machine never saw it: its install is editable.
+
+    So the test plants a POISONED equipop - one that refuses to be
+    imported - ahead of everything on PYTHONPATH, and the generator
+    must still write one sidecar per registered tool.
+
+    BROKEN WITH: the checkout insertion in make_help_xml.py removed."""
+    import subprocess
+    poison = tmp_path / "site" / "equipop"
+    poison.mkdir(parents=True)
+    (poison / "__init__.py").write_text(
+        "raise SystemExit('POISONED: an installed equipop was imported "
+        "instead of the checkout')\n")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = tmp_path / "xml"
+    env = dict(os.environ, PYTHONPATH=str(tmp_path / "site"))
+    p = subprocess.run([sys.executable,
+                        os.path.join(root, "arcgis", "make_help_xml.py"),
+                        "--out", str(out)],
+                       cwd=root, env=env, capture_output=True, text=True,
+                       timeout=300)
+    assert p.returncode == 0, p.stdout[-600:] + p.stderr[-600:]
+    pyt_src = open(os.path.join(root, "arcgis", "EquiPop.pyt"),
+                   encoding="utf-8").read()
+    n_tools = len([t for t in re.search(
+        r"self\.tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
+        if t.strip()])
+    assert len(list(out.glob("*.pyt.xml"))) == n_tools
+
+
+def test_the_loose_generator_never_puts_the_users_folder_on_the_path(
+        tmp_path, monkeypatch):
+    """The other side of the 407 fix. make_help_xml.py ships loose
+    beside EquiPop.pyt, in a folder like C:\\Data\\EQP whose PARENT is
+    the user's data. Putting that on sys.path could shadow any module
+    with a file of the same name. Only a real checkout - pyproject.toml
+    and equipop/__init__.py above the script - may be inserted.
+
+    BROKEN WITH: the guard removed, so the parent is always inserted."""
+    import runpy
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    loose = tmp_path / "Data" / "EQP"
+    loose.mkdir(parents=True)
+    import shutil
+    shutil.copy(os.path.join(root, "arcgis", "make_help_xml.py"), loose)
+    before = list(sys.path)
+    try:
+        runpy.run_path(str(loose / "make_help_xml.py"),
+                       run_name="not_main")
+        added = [p for p in sys.path if p not in before]
+    finally:
+        sys.path[:] = before
+    parent = os.path.normcase(os.path.abspath(str(tmp_path / "Data")))
+    assert parent not in [os.path.normcase(os.path.abspath(p))
+                          for p in added], added
+
+
+# ------------------------------------------- BACKLOG 410, v1.56.0
+def _pro_split_run(target, **state_extra):
+    t = _pro_town()
+    t = t.rename(columns={"Income": "income_obs"})
+    state = _install_fake_arcpy(t)
+    state["catalog_paths"] = {"people": target}
+    state.update(state_extra)
+    pyt = _load_pyt()
+    msg = _Messages()
+    pyt._run_tool("stats", "people", msg, value_fields=["income_obs"],
+                  stats_list=["mld"], k_text="100",
+                  decompose_field="cob", min_group=30.0,
+                  existing=state_extra.get("_existing", "Overwrite"))
+    return state, msg
+
+
+def test_pyt_a_geodatabase_field_carries_its_description_as_alias():
+    """John looked at the table HEADER for what MLDsh_ meant. Pro shows
+    a field's alias there, so the description goes there.
+
+    BROKEN WITH: the _set_aliases call removed from _run_tool."""
+    from equipop.describe import describe
+    state, msg = _pro_split_run(r"C:\Data\town.gdb\people")
+    al = state.get("aliases", {})
+    want = describe("MLDsh_income_obs_100", fields=["income_obs"],
+                    split_by="cob", min_group=30)
+    assert al.get("MLDsh_income_obs_100") == want
+    assert "fewer than 30 people" in al["MLDsh_income_obs_100"]
+    assert al.get("N_100") and al.get("Ng_income_obs_100")
+    assert any("carry a description as their alias" in m for m in msg.log)
+
+
+def test_pyt_a_target_that_cannot_keep_aliases_is_told_where_they_are():
+    """A GeoPackage is not dependable for aliases and a shapefile has
+    none: no alias is attempted, and the user is told where the
+    descriptions are instead.
+
+    BROKEN WITH: the geodatabase check removed - aliases are then
+    written to the GeoPackage."""
+    state, msg = _pro_split_run(r"C:\Data\town.gpkg\people")
+    assert not state.get("aliases")
+    assert any("need a geodatabase target" in m for m in msg.log)
+
+
+def test_pyt_an_alias_that_fails_never_fails_the_run():
+    """The results are written and verified before any alias is set.
+    A target that refuses an alias costs the description, not the run.
+
+    BROKEN WITH: the try around AlterField removed."""
+    state, msg = _pro_split_run(r"C:\Data\town.gdb\people",
+                                alias_refused=True)
+    assert "MLDsh_income_obs_100" in state["table"].columns
+    assert any("aliases could not be set" in m.lower() for m in msg.log)
+
+
+def test_pyt_a_renamed_field_keeps_its_meaning():
+    """"Keep both" renames a result that clashes with an existing
+    field. The alias is looked up under the ENGINE'S name, so the
+    renamed field still says what it holds - the run record's rule
+    since BACKLOG 348.
+
+    BROKEN WITH: the alias looked up under the FIELD's name - the
+    renamed MLD_income_obs_100 then gets none."""
+    t = _pro_town().rename(columns={"Income": "income_obs"})
+    t["MLD_income_obs_100"] = 0.0                  # already there
+    state = _install_fake_arcpy(t)
+    state["catalog_paths"] = {"people": r"C:\Data\town.gdb\people"}
+    pyt = _load_pyt()
+    pyt._run_tool("stats", "people", _Messages(),
+                  value_fields=["income_obs"], stats_list=["mld"],
+                  k_text="100", decompose_field="cob",
+                  existing="Keep both (rename the new ones)")
+    al = state.get("aliases", {})
+    renamed = [f for f in al if f.startswith("MLD_income_obs_100")
+               and f != "MLD_income_obs_100"]
+    assert renamed, sorted(al)
+    assert al[renamed[0]].startswith("Mean log deviation (MLD) of "
+                                     "income_obs")

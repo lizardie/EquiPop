@@ -66,12 +66,30 @@ HELP = {
               "(X/East/Easting/POINT_X...); no renaming is needed.",
     "yfield": "The northing column - only for tables or attribute "
               "mode.",
+    # BACKLOG 351, JOHN'S QUESTION. The last two sentences are here
+    # because the runtime refusal alone came too late: he asked
+    # whether a negative population could be allowed, meaning net
+    # migration, and the answer belongs where somebody chooses the
+    # field rather than only where they are stopped. Shared text, so
+    # all four doors say it - a second copy is how wording drifts
+    # (105, 338).
     "pop": "How many each point stands for - people, jobs, dwellings, "
            "services, anything countable. Leave empty when every point "
            "counts as one. k counts these, so this field decides how "
            "far the k-search must travel - and in Value Statistics "
            "every statistic is weighted by it, so a point standing for "
-           "40 counts 40 times a point standing for one.",
+           "40 counts 40 times a point standing for one. It must be "
+           "ZERO OR MORE: a neighbourhood grows outward until it holds "
+           "k of these, so a total that can FALL with distance has no "
+           "single radius at which k was reached, and the run is "
+           "refused rather than guessed at. Fractions are fine - "
+           "WorldPop counts are fractional and are carried as given. "
+           "A quantity that is legitimately negative - population "
+           "CHANGE, net migration, a balance - is a MEASUREMENT and "
+           "not a population: put it in Value Statistics' value field "
+           "and keep the headcount here, and you get its "
+           "population-weighted mean, median and spread over each "
+           "neighbourhood.",
     "treat": "Group counts: persons of the group at this point (use "
              "0/1 when points are individuals). Produces T_<group>_k "
              "(count) and R_<group>_k (share). These columns are "
@@ -83,8 +101,20 @@ HELP = {
     "k": "One or more k values, space-separated (200 1600). Each k "
          "gives its own neighbourhood: the nearest k PERSONS, so the "
          "radius floats and Dist_k reports it.",
-    "r": "Fixed radii in metres, space-separated. The mirror image of "
-         "k: the area is fixed and the population floats (N_r###).",
+    # BACKLOG 337/338. The shared text, so all three doors say it.
+    # Marina's pull request added a Stata-only copy of this; the box
+    # is not Stata-specific and a second copy is how the wording
+    # drifts (BACKLOG 105). What IS Stata-specific lives in
+    # STATA_EXTRA in tools/make_sthlp.py.
+    "r": "Fixed radii in your coordinate units, space-separated. The "
+         "mirror image of k: the area is fixed and the population "
+         "floats (N_r###), and there is no Dist_ - the radius IS the "
+         "distance. Each radius becomes part of a column name, with a "
+         "decimal point written as an underscore, so r=100.5 gives "
+         "N_r100_5. Radii are carried to six decimal places; two that "
+         "differ by less than that cannot be told apart in a name, "
+         "and the run stops rather than quietly writing one column "
+         "where you asked for two.",
     "model": "Distance decay weighting. 'no decay' counts every "
              "neighbour equally inside the neighbourhood.",
     "halflife": "A distance in metres that anchors the decay curve. "
@@ -305,11 +335,62 @@ HELP = {
              "characters.{formatnote}",
     "outtable": "Where a TABLE input's results are written (.csv). "
                 "The output carries your coordinates plus the result "
-                "columns, in the original row order.",
+                "columns, in the original row order. A table input "
+                "can take BOTH this and a new feature class, and then "
+                "both are written.",
+    "tablecrs": "The coordinate system your X and Y columns are in. "
+                "A table carries none - a CSV of eastings and "
+                "northings is two columns of numbers and nothing "
+                "more - so EquiPop has to be told, and it will not "
+                "guess. Leave it blank and the run still works: the "
+                "distances are in whatever unit the columns are, and "
+                "nothing about the numbers changes. What it costs is "
+                "the MAP - a new feature class written from a table "
+                "with no coordinate system declared cannot be placed "
+                "on a basemap or reprojected until you run Define "
+                "Projection on it. Filling this box is also what puts "
+                "an honest CRS in the run manifest instead of the "
+                "word 'unknown'. Only projected (metric) systems are "
+                "accepted: EquiPop measures neighbourhoods in metres, "
+                "and a degree is not a length.",
+    # JOHN, 10 OCTOBER 2026: "it doesn't indicate how to ask the data
+    # (i.e. run and rerun with information described in output)". The
+    # old text said the report exists and never said how to see it,
+    # which makes it a fact rather than an instruction. The LOOP is
+    # the answer and it is door-neutral: leave the size unset, read
+    # the note the run prints, set the size, run again.
     "unit": "The grid cell size in metres. Bigger cells mean fewer "
             "origins and much faster runs; smaller cells mean finer "
             "geography. This is the strongest speed control you "
-            "have.",
+            "have.\n\n"
+            "NOT SURE WHAT TO PUT HERE? Ask the data, in two runs. "
+            "Leave the size unset and run as usual: at the end, "
+            "EquiPop reports whether another size would suit this "
+            "data better, naming one. Then set it and run again. "
+            "The report gives, for each candidate size, how many "
+            "cells it makes - the cost - and what share of your "
+            "people would end up in a cell that already holds k on "
+            "its own. Those people have no measured radius: their "
+            "whole neighbourhood is that one cell, so k stops making "
+            "any difference to them. Nothing is ever changed for "
+            "you; the size stays whatever you set or inherited.",
+    # BACKLOG 385. One text, four doors: `equipop unit` in Stata, the
+    # report in the QGIS log and the Pro messages, and
+    # equipop.unitsize.advise_unit() in Python.
+    "unitadvice":
+        "What cell size does this data want? A read-only report, and "
+        "a cheap one - it needs no neighbour search, only a count per "
+        "candidate size. For each size it gives the number of cells "
+        "(the cost) and the share of people living in a cell that "
+        "already holds k on its own. Those people have no measured "
+        "radius: their whole neighbourhood is that one cell, the "
+        "distance comes from the self-potential formula instead of "
+        "from the data, and asking for a bigger k returns the same "
+        "answer. It also flags sizes finer than the data itself, "
+        "where the extra cells buy nothing. There is deliberately no "
+        "single recommended number, because density is not uniform - "
+        "what you get is the trade-off, and the choice stays yours. "
+        "Nothing is changed by running it.",
     "selfpot": "Self-potential: how far away what is LOCAL - what "
                "your own cell already holds, the quantity "
                "reported as N_local - is treated as being. Rows "
@@ -571,9 +652,10 @@ HELP = {
                  "proportional. 'Proportional share' takes the same "
                  "fraction of every cell in that ring, so N_k is "
                  "exactly k; it produces FRACTIONAL PEOPLE, which are "
-                 "estimates rather than persons, and value "
-                 "statistics refuse it because a quarter of a cell "
-                 "has no median, percentile or Gini. 'Sampled' takes "
+                 "estimates rather than persons. Value statistics "
+                 "weight by them, so a quarter of a boundary cell "
+                 "counts as a quarter of its people in a mean, a "
+                 "median, a Gini or an MLD. 'Sampled' takes "
                  "whole cells one at a time, in an order drawn from "
                  "the seed, until k is reached - this is the original "
                  "EquiPop method from the 2014 C# tool, kept so old "
@@ -601,10 +683,43 @@ HELP = {
                 "calculated. Leaving every box unticked means the "
                 "classic trio - mean, median and Gini. "
                 "Nv_<field>_k always reports how many neighbours "
-                "actually had a value.",
+                "actually had a value. MLD (mean log deviation) and "
+                "Theil are inequality indices that split exactly into "
+                "a part between groups and a part within them - give "
+                "a grouping field to get that split. MLD takes the "
+                "logarithm of every value, so it refuses a field "
+                "holding zeros; Theil accepts zeros. On a 0/1 field "
+                "neither adds anything to the share itself.",
     "pcts": "Percentiles as plain numbers, e.g. 10 25 75 90. Used "
             "only when 'percentiles' is ticked; results arrive as "
             "P10_<field>_k and so on.",
+    # v1.55.0, BACKLOG 405
+    "decompose": "Optional. A field holding each row's GROUP - born "
+                 "abroad or not, parental education: a circumstance "
+                 "with a few categories (up to 20), as text or codes. "
+                 "MLD and Theil are then split, in every "
+                 "neighbourhood, into the inequality BETWEEN the "
+                 "groups and WITHIN them - MLDb_ and MLDw_ (Theilb_, "
+                 "Theilw_) - and MLDsh_, the between-group share of "
+                 "the total. Ng_ says how many groups were present, "
+                 "NgMin_ how many people the smallest held, and NgN_ "
+                 "how many people the split covers - fewer than Nv_ "
+                 "where some have a value but no group. k still "
+                 "counts everybody, and rows with no group stay in "
+                 "every other statistic. Whether a between-group share "
+                 "measures OPPORTUNITY depends on whether the grouping "
+                 "is a circumstance beyond a person's control - that "
+                 "is your judgement, not the tool's. COST: small - "
+                 "measured on 50,000 points at k=400, one field split "
+                 "into twenty groups took 28 s against 20 s unsplit.",
+    "mingroup": "The smallest group, in people, for the split to be "
+                "reported. Between-group inequality is biased UPWARD "
+                "when a group is small - a handful of people have a "
+                "noisy mean, and noise between means reads as "
+                "inequality - so where any group present holds fewer "
+                "people than this, or only one group is present, the "
+                "split columns are left EMPTY rather than guessed. "
+                "Default 30; zero means no minimum.",
 }
 
 # THE TOOL NAMES, in one place. BACKLOG 237: the two doors had drifted
@@ -754,7 +869,9 @@ USAGE = {
         "reference population's count field whenever a point stands "
         "for more than one - people, jobs, dwellings, services. Gini "
         "refuses negative values, and percentiles need numbers in "
-        "their box. As with machine 1, cell size controls the "
+        "their box. Tick MLD or Theil and give a grouping field to "
+        "split inequality between and within groups. As with "
+        "machine 1, cell size controls the "
         "runtime and {container} avoids the shapefile name limit.",
 }
 

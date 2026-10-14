@@ -172,8 +172,52 @@ def check_versions(channel):
 class EquipopAlgorithm(QgsProcessingAlgorithm):
     """Everything both tools do the same way."""
 
+    # BACKLOG 378, v1.53.2. Which boxes this door reads a
+    # neighbourhood from, and whether one of them is compulsory.
+    # Declared here so the check below is INHERITED: BACKLOG 305 put
+    # "you need k or r" into one algorithm of the four that can reach
+    # the engine's refusal, by hand, and the other three went without
+    # it for eighteen months. A new door now gets it by existing,
+    # and a door that wants out has to say so in one line.
+    K_BOX = "k"
+    R_BOX = "r"
+    NEEDS_A_NEIGHBOURHOOD = False     # machines 1 and 2: k OR r
+    K_IS_REQUIRED = False             # machine 4: k, and it is needed
+
     def group(self):
         return "EquiPop"
+
+    def checkParameterValues(self, parameters, context):
+        """Refuse a bad k or r BEFORE Run, not after.
+
+        QGIS offers this hook so the dialog can answer while the box
+        is still in front of you. machine 2 never implemented it, so
+        a k of '1.000' ran happily with a neighbourhood of ONE PERSON
+        and a radius of '500,5' produced the raw Python message
+        `could not convert string to float` - which is the message
+        BACKLOG 320 exists to prevent.
+
+        Doors with no k box at all (fetch, inventory) skip it.
+        """
+        from equipop.doors.numbers import check_k_and_r
+        names = {p.name() for p in self.parameterDefinitions()}
+        if self.K_BOX not in names and self.R_BOX not in names:
+            return super().checkParameterValues(parameters, context)
+
+        def _text(box):
+            if box not in names:
+                return ""
+            return (self.parameterAsString(parameters, box, context)
+                    or "")
+
+        bad = check_k_and_r(
+            _text(self.K_BOX), _text(self.R_BOX),
+            need_one=(self.NEEDS_A_NEIGHBOURHOOD
+                      and self.R_BOX in names),
+            k_required=self.K_IS_REQUIRED)
+        if bad:
+            return False, bad[1]
+        return super().checkParameterValues(parameters, context)
 
     def groupId(self):
         return "equipop"
@@ -503,9 +547,175 @@ class EquipopAlgorithm(QgsProcessingAlgorithm):
                 "them, which shows up as mysterious write failures. "
                 "An ordinary local folder is safer.")
 
+    # -----------------------------------------------------------------
+    # BACKLOG 293. PROVENANCE, which this door has never had.
+    #
+    # Pro has written an _EquiPop_run.csv beside every output since
+    # 1.26; QGIS wrote nothing at all, so a result produced here could
+    # not be traced to the settings that made it. The record itself
+    # comes from equipop.meta, filled by the ENGINE from the arguments
+    # it was actually given - so this method is only about WHERE it
+    # goes, which is the one part that is genuinely QGIS's own.
+    # -----------------------------------------------------------------
+    @staticmethod
+    def source_uri(source) -> str:
+        """What IDENTIFIES the input layer, best available first.
+
+        BACKLOG 348 fixed write_provenance to stop using sourceName(),
+        the label in the layers panel - "my points", not a path, so
+        add_input() had nothing to measure. BACKLOG 159 then needed the
+        same thing at the other end of the run, where `record()` opens
+        the log, and that call was still passing sourceName(). The same
+        correction wanted in two places is a rule, so it lives in one.
+
+        source() is the provider URI; publicSource() is it with
+        credentials stripped; sourceName() is the human label and the
+        last resort. Returns "" for a layer that reports none - an
+        in-memory or scratch layer - which the caller must handle
+        rather than record as an input it cannot identify.
+        """
+        for attr in ("source", "publicSource", "sourceName"):
+            try:
+                got = getattr(source, attr, None)
+                uri = str(got() or "") if callable(got) else ""
+            except Exception:
+                uri = ""
+            if uri:
+                return uri
+        return ""
+
+    def write_provenance(self, runlog, dest, result, ch, source=None):
+        """A .meta.json and .meta.txt beside the output.
+
+        NEVER raises. A provenance write that loses a finished
+        analysis would be a worse bug than having no provenance, which
+        is the state this replaces. A failure is reported and the run
+        stands.
+        """
+        if runlog is None:
+            return None
+        try:
+            import os
+            if source is not None:
+                # BACKLOG 348. THE DATA SOURCE, not the display name.
+                # This used to call sourceName(), which is the label
+                # shown in the layers panel - "points", "Layer 1" -
+                # so add_input() was handed a string that is not a
+                # path, found nothing to measure, and recorded
+                # md5=null and bytes=null. On the stub, whose _Source
+                # has no sourceName at all, it recorded NOTHING: the
+                # empty string resolved to the current DIRECTORY,
+                # _md5 raised IsADirectoryError, and `except
+                # Exception: pass` swallowed it - so every QGIS
+                # provenance record in the test suite carried
+                # "inputs": [] and no test asked.
+                #
+                # source() is the provider URI and is what identifies
+                # the data; sourceName() is kept as the human label
+                # when both exist. A failure now SAYS so instead of
+                # vanishing.
+                uri = self.source_uri(source)
+                rows = None
+                try:
+                    rows = int(source.featureCount())
+                except Exception:
+                    rows = None
+                if uri:
+                    try:
+                        runlog.add_input(
+                            uri, rows=rows,
+                            crs_in=str(source.sourceCrs().authid()))
+                    except Exception as exc:
+                        ch.info("Could not record the input layer's "
+                                f"identity ({exc.__class__.__name__}). "
+                                "The settings below are unaffected.")
+                else:
+                    ch.info("The input layer reports no data source - "
+                            "an in-memory or scratch layer - so the "
+                            "record names its settings but cannot "
+                            "identify the data.")
+            # A QGIS destination is a path, possibly with a layer
+            # suffix - "out.gpkg|layername=x" - or one of the
+            # in-memory forms, which have no folder to write beside.
+            path, _, rest = str(dest or "").partition("|")
+            # BACKLOG 348. THE LAYER NAME IS PART OF THE IDENTITY. It
+            # used to be split off and dropped, so every layer in one
+            # GeoPackage shared a single out.meta.json and each run
+            # overwrote the last one's provenance - with nothing in the
+            # survivor saying which layer it described. Reproduced on
+            # out.gpkg|layername=k20 followed by
+            # out.gpkg|layername=k800: one sidecar, one run recorded,
+            # and the first analysis unaccounted for.
+            layer = ""
+            for part in rest.split("|"):
+                if part.lower().startswith("layername="):
+                    layer = part.split("=", 1)[1]
+            runlog.set_output(
+                destination=dest, layer=layer or None,
+                renamed_fields=getattr(self, "_field_renamed", None),
+                carried_fields=getattr(self, "_carried_fields", None))
+            # THE NAMES THE FILE ACTUALLY HOLDS. write() renamed any
+            # result column that clashed with one of the input's own
+            # (BACKLOG 316) and the record documented the pre-rename
+            # keys - so the definition a reader looked up belonged to
+            # a different field. The mapping is the identity for every
+            # run that needed no rename, which is nearly all of them.
+            fmap = getattr(self, "_field_map", None) or {}
+            named = {fmap.get(k, k): v for k, v in result.items()}
+            memoryish = (not path
+                         or path.startswith(("memory:", "ogr:"))
+                         or path.upper().startswith("TEMPORARY"))
+            if memoryish or not os.path.isdir(os.path.dirname(path)
+                                              or "."):
+                # A temporary or in-memory output has nowhere to put a
+                # sidecar, and that is the DEFAULT destination in
+                # QGIS - so the record is printed instead of silently
+                # not existing. The log is where a QGIS user's
+                # reproducibility already lives.
+                runlog.doc["run"]["status"] = "completed"
+                runlog.doc["columns"] = {k: "" for k in named}
+                ch.info("No file destination, so no provenance sidecar "
+                        "could be written. The settings this run used "
+                        "follow; save the output to a file to get them "
+                        "as .meta.json beside it.")
+                for line in runlog.render_txt().splitlines():
+                    ch.info("  " + line)
+                return None
+            # ONE SIDECAR PER LAYER. finalize() names the file from the
+            # output's stem, so two layers of one GeoPackage collided;
+            # the layer name goes into the stem when there is one, and
+            # a plain out.shp is unchanged (BACKLOG 348).
+            # ONE SIDECAR PER LAYER, and the rule for which name lives
+            # in equipop.meta.sidecar_for() rather than here (BACKLOG
+            # 159). It was written here when only this function needed
+            # it; `record()` now needs the same answer BEFORE the run,
+            # to open the log at the right file, and a rule that two
+            # places need is a rule that belongs in one.
+            from equipop.meta import sidecar_for
+            side = sidecar_for(dest)
+            stem = (side[:-len(".meta.json")] + os.path.splitext(path)[1]
+                    if side else path)
+            written = runlog.finalize(named, stem)
+            ch.info(f"Run provenance written to "
+                    f"{os.path.basename(written)} - every setting the "
+                    "engine was given, the input row count, the "
+                    "library versions and the column definitions.")
+            return written
+        except Exception as exc:                     # pragma: no cover
+            ch.info(f"Could not write the run provenance ({exc}). The "
+                    "results above are unaffected.")
+            return None
+
     def write(self, parameters, context, source, result, order,
-              feedback):
-        """Original columns, then the results, row for row."""
+              feedback, descriptions=None):
+        """Original columns, then the results, row for row.
+
+        `descriptions` (v1.56.0, BACKLOG 410): {result key: sentence},
+        given to each result field as its ALIAS. Whether the alias
+        survives depends on the output format and the QGIS version - a
+        temporary layer keeps it, a shapefile cannot - so the run
+        messages carry the same sentences regardless.
+        """
         out_fields = QgsFields()
         for f in source.fields():
             out_fields.append(f)
@@ -527,13 +737,26 @@ class EquipopAlgorithm(QgsProcessingAlgorithm):
                 self.channel(feedback).info(keep_both_message(renamed))
         except Exception:                            # pragma: no cover
             mapped, renamed = {n: n for n in order}, {}
+        # BACKLOG 348. KEPT, so the provenance record can name the
+        # fields THE FILE HOLDS. This mapping was computed here, used
+        # for the field definitions, and discarded - and
+        # write_provenance() then documented the engine's result keys,
+        # which are the names the output does NOT have whenever a
+        # rename happened. The two were written minutes apart and
+        # neither knew about the other.
+        self._field_map = dict(mapped)
+        self._field_renamed = dict(renamed)
+        self._carried_fields = [f.name() for f in source.fields()]
         # `order` STAYS THE RESULT KEYS. The loop below reads
         # result[name], so renaming `order` itself would have looked
         # up a key that does not exist - caught before it shipped, and
         # exactly the shape of a rename that half-lands.
         for name in order:
-            out_fields.append(QgsField(mapped.get(name, name),
-                                       QMetaType.Type.Double))
+            fld = QgsField(mapped.get(name, name), QMetaType.Type.Double)
+            text = (descriptions or {}).get(name)
+            if text:
+                fld.setAlias(text)                       # BACKLOG 410
+            out_fields.append(fld)
 
         sink, dest = self.parameterAsSink(
             parameters, self.OUT, context, out_fields,

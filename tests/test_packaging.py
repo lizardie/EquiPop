@@ -16,6 +16,7 @@ it will silently not travel.
 """
 import os
 import re
+import sys
 
 import pytest
 
@@ -86,7 +87,7 @@ def test_the_loader_never_reaches_above_the_package_at_import_time():
 
 
 def test_the_stata_fixture_refuses_by_explaining_where_to_get_it():
-    p = os.path.join(PKG, "..", "stata", "stata_test_data.dta")
+    p = os.path.join(PKG, "..", "stata", "equipop_test_data.dta")
     if os.path.exists(p):
         pytest.skip("running inside the repo, where the file exists")
     with pytest.raises(FileNotFoundError) as e:
@@ -287,7 +288,108 @@ def test_the_release_zip_builder_refuses_unextractable_names():
         assert "REFUSING" in str(e.value), bad
 
 
-def test_every_module_a_shipped_runner_imports_is_in_the_wheel():
+def test_the_release_zip_leaves_build_outputs_out_of_the_tree():
+    """BACKLOG 350. 1.51.0 SHIPPED A SECOND COPY OF THE WHOLE PACKAGE.
+
+    `python -m build` leaves `build/lib/equipop/` and `dist/`, and the
+    release zip was built from the whole tree - so the archive John
+    unzips over his working tree and COMMITS carried all 40 modules
+    twice, the second set frozen at whatever version last built. A
+    grep of the tree would then find every rule in two places, which
+    is this project's signature defect arriving through the directory
+    layout rather than through the code. Nothing noticed, because
+    every name is valid and the zip extracts perfectly - the 156 check
+    above asks whether members can be EXTRACTED, not whether they
+    should be there.
+
+    `dist/` is the same mistake 3 MB larger: the wheel and the source
+    archive are siblings of this zip in the release bundle.
+
+    Checked by walking a FAKE TREE through the builder's own member
+    list, so the test does not depend on whether a build has happened
+    in this checkout.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_mkzip", os.path.join(ROOT, "tools", "make_release_zip.py"))
+    mk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mk)
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        for rel in ("equipop/cells.py", "README.md",
+                    "build/lib/equipop/cells.py",
+                    "dist/equipop-9.9.9.tar.gz",
+                    "equipop.egg-info/PKG-INFO",
+                    "equipop/__pycache__/cells.cpython-311.pyc"):
+            p = os.path.join(tmp, rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w") as fh:
+                fh.write("x")
+        names = sorted(arc for _full, arc in mk.members(tmp))
+
+    assert names == ["README.md", "equipop/cells.py"], \
+        f"the builder swept in build outputs: {names}"
+
+
+def test_the_release_zip_builder_refuses_generated_sidecars():
+    """BACKLOG 404, v1.54.6. The 350 test above asks what the builder
+    SWEEPS IN by walking directories. The Pro help sidecars are not
+    swept in by a directory rule, because they live in arcgis/ beside
+    files that must ship - so neither check above can see them, and
+    the 1.54.0 bundle carried them until it was caught by hand.
+
+    They are build outputs: make_help_xml.py writes them, MANIFEST.in
+    ships them in the sdist, and the working tree must not hold them
+    (BACKLOG 45, asserted by
+    test_the_sidecars_are_not_committed_to_the_repository). The build
+    ORDER is therefore the trap - generate, build the Pro step from
+    them, delete - and that is the one thing this file's own docstring
+    says never to leave to memory.
+
+    REFUSE, NOT SKIP: a skip builds a clean zip and leaves the files
+    in the tree, so `pytest` fails next instead. The fault would move,
+    not go.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_mkzip", os.path.join(ROOT, "tools", "make_release_zip.py"))
+    mk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mk)
+
+    good = ["arcgis/EquiPop.pyt", "equipop/cells.py", "MANIFEST.in"]
+    mk.check_build_outputs(good)                      # must not raise
+
+    with pytest.raises(SystemExit) as e:
+        mk.check_build_outputs(
+            good + ["arcgis/EquiPop.CountsShares.pyt.xml"])
+    msg = str(e.value)
+    assert "REFUSING" in msg
+    assert "rm arcgis/*.pyt.xml" in msg, (
+        "the refusal must say what to do - a refusal without a remedy "
+        "is where 402 came from")
+
+    # ...AND THE REAL BUILDER MUST CONSULT IT. A checker nothing calls
+    # is this project's signature defect; `build` is where the order
+    # is actually got wrong, so the test drives `build` itself.
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        for rel in ("equipop/cells.py",
+                    "arcgis/EquiPop.CountsShares.pyt.xml"):
+            p = os.path.join(tmp, rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w") as fh:
+                fh.write("x")
+        out = os.path.join(tmp, "_out")
+        with pytest.raises(SystemExit) as e:
+            mk.build(tmp, "9.9.9", out)
+        assert "REFUSING" in str(e.value)
+        assert not os.path.exists(
+            os.path.join(out, "EquiPop-9.9.9-complete.zip")), \
+            "it refused and wrote the zip anyway"
+
+
+def test_every_runner_imports_only_modules_the_package_ships():
     """BACKLOG 241. run_fetch.py was delivered importing
     equipop.doors.fetching, which existed in the working tree and in
     NO WHEEL - so John got ModuleNotFoundError on his first command.
@@ -345,6 +447,164 @@ def test_the_pro_help_sidecars_are_shipped_beside_the_toolbox():
                for l in lines), (
         "MANIFEST.in does not carry arcgis/*.pyt.xml - Pro will show "
         "an empty comment beside every parameter box")
+
+
+def test_the_bundle_script_generates_the_sidecars_before_it_builds():
+    """BACKLOG 404, v1.54.6. THE OTHER HALF, AND THE ROOT CAUSE.
+
+    Up to 1.54.5 the 19-slot release bundle was built by a script
+    living OUTSIDE the repository, rewritten from the last one each
+    release. Three defects came out of that in one hour, and this is
+    the one that produced the other two: the Pro help sidecars were
+    present at build time only BY ACCIDENT of the order I happened to
+    work in. Put where the Pro slot needs them, the first 1.54.6
+    sdist shipped with ZERO of them while every check stayed green.
+
+    `tools/make_release_zip.py` had the rule all along - *"a manual
+    step in the right order is not a fix, because the order will be
+    got wrong again"* - and the bundle's order was the one step still
+    kept in a memory. `tools/make_bundle.sh` now carries it, and this
+    reads the order out of it.
+
+    POSITION IS THE PROPERTY HERE, so position is what is asserted -
+    1.54.5's lesson, where "the note exists" was true of the version
+    John complained about. The script also guards itself at runtime
+    (it fails if the sdist comes out with no sidecars), which is the
+    behavioural half; this is the half that fails in CI rather than
+    at 11pm on a release night.
+    """
+    path = os.path.join(ROOT, "tools", "make_bundle.sh")
+    assert os.path.exists(path), (
+        "tools/make_bundle.sh is gone - the bundle order is back in "
+        "somebody's memory, which is where BACKLOG 404 came from")
+    src = open(path, encoding="utf-8").read()
+
+    def one(pattern, what):
+        hits = [m.start() for m in re.finditer(pattern, src, re.M)]
+        assert len(hits) == 1, (
+            f"{what}: expected exactly one line matching {pattern!r}, "
+            f"found {len(hits)} - an ambiguous anchor makes this test "
+            "prove nothing")
+        return hits[0]
+
+    gen = one(r"^python arcgis/make_help_xml\.py", "the generate step")
+    bld = one(r"^python -m build ", "the wheel/sdist step")
+    assert gen < bld, (
+        "make_bundle.sh builds the wheel and sdist BEFORE generating "
+        "the Pro help sidecars, so MANIFEST.in's `include "
+        "arcgis/*.pyt.xml` has nothing to include and the sdist ships "
+        "without them - exactly the 1.54.6 regression")
+
+    # ...and it must leave the tree as it found it, or the next
+    # `pytest` fails on stray build outputs instead.
+    assert re.search(r"rm -f .*arcgis/\*\.pyt\.xml", src), (
+        "make_bundle.sh does not delete the sidecars it generates - "
+        "the tree is left dirty and the fault moves to the suite")
+    assert "trap cleanup EXIT" in src, (
+        "the cleanup is not on a trap, so a failure midway leaves "
+        "build outputs in the tree")
+
+    # The sdist self-check is what catches an order nobody re-read.
+    sd = one(r"tar tzf .*equipop-\$V\.tar\.gz", "the sdist self-check")
+    assert sd > bld, "the sdist is checked before it is built"
+    assert "carries no Pro help sidecars" in src, (
+        "make_bundle.sh does not verify that the sdist it just built "
+        "actually carries the sidecars")
+
+
+def test_the_sdist_really_carries_the_pro_sidecars(tmp_path):
+    """BACKLOG 404, v1.54.6. THE TEST ABOVE ASSERTS A LINE OF
+    MANIFEST.in. A line is a PERMISSION, not a guarantee: the five
+    files must EXIST at the moment `python -m build` runs, and whether
+    they do is a question of build ORDER - which nothing in the tree
+    answered, because the bundle has always been built by a script
+    living outside it.
+
+    MEASURED, and it is not hypothetical. 1.54.3, 1.54.4 and 1.54.5
+    shipped sdists carrying all five - by accident of the order I
+    happened to work in. The first 1.54.6 build, with the generation
+    step put where the bundle's Pro slot needs it, shipped an sdist
+    with **ZERO**, and every existing check stayed green: MANIFEST.in
+    was unchanged, the bundle's five loose copies were present, and
+    the suite passed. Only comparing the two tarballs by hand showed
+    it.
+
+    The test above states the lesson it then missed by one level -
+    *"a check on an artefact nobody ships is a check on nothing"*. So
+    this one builds the artefact and looks inside it.
+
+    WHAT THIS DOES **NOT** PROVE, said here rather than left to be
+    assumed: it generates the sidecars itself, so it proves that
+    MANIFEST.in and the packaging config DELIVER them when they
+    exist. It cannot prove they exist when the release is built -
+    that is the build ORDER, and the order is asserted on
+    `tools/make_bundle.sh` by
+    test_the_bundle_script_generates_the_sidecars_before_it_builds.
+    Two halves, and today's regression was in the second one.
+
+    Skipped where `build` is not installed, which is most of John's
+    hosts: the suite must pass there, and this is a release-time
+    property.
+    """
+    import importlib.util
+    import shutil
+    import subprocess
+    import tarfile
+    if importlib.util.find_spec("build") is None:
+        pytest.skip("the `build` package is not installed here")
+
+    arc = os.path.join(ROOT, "arcgis")
+    gen = os.path.join(arc, "make_help_xml.py")
+    made = []
+    try:
+        g = subprocess.run([sys.executable, gen], cwd=ROOT,
+                           capture_output=True, text=True, timeout=300)
+        made = [f for f in os.listdir(arc) if f.endswith(".pyt.xml")]
+        # v1.55.1, BACKLOG 407. THIS USED TO ASK ONLY THAT SOMETHING
+        # WAS WRITTEN, and compare the sdist with however much that
+        # was. Under an older installed equipop the generator wrote
+        # ONE sidecar, then refused for missing help - and this test
+        # passed, one of one. A generator that failed is not a
+        # generator that ran; and five tools need five sidecars.
+        assert g.returncode == 0, (
+            f"make_help_xml.py failed:\n{g.stdout[-800:]}{g.stderr[-800:]}")
+        pyt_src = open(os.path.join(arc, "EquiPop.pyt"),
+                       encoding="utf-8").read()
+        n_tools = len([t for t in re.search(
+            r"self\.tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
+            if t.strip()])
+        assert len(made) == n_tools, (
+            f"the generator wrote {sorted(made)} for {n_tools} tools")
+        out = tmp_path / "sd"
+        p = subprocess.run(
+            [sys.executable, "-m", "build", "--sdist", "--no-isolation",
+             "--outdir", str(out)],
+            cwd=ROOT, capture_output=True, text=True, timeout=900)
+        assert p.returncode == 0, f"sdist build failed:\n{p.stdout[-2000:]}"
+        tars = list(out.glob("*.tar.gz"))
+        assert len(tars) == 1, f"expected one sdist, got {tars}"
+        inside = [n for n in tarfile.open(tars[0]).getnames()
+                  if n.endswith(".pyt.xml")]
+        assert len(inside) == len(made), (
+            f"the sdist carries {len(inside)} of {len(made)} Pro help "
+            "sidecars. MANIFEST.in permits them; the build ORDER "
+            "decides whether they are there, and a Pro user with no "
+            "sidecar gets an empty comment beside every parameter box "
+            "(BACKLOG 34)")
+    finally:
+        for f in made:
+            try:
+                os.remove(os.path.join(arc, f))
+            except OSError:
+                pass
+        # `build` leaves this behind, and the release zip must not
+        # sweep it in (BACKLOG 350).
+        shutil.rmtree(os.path.join(ROOT, "equipop.egg-info"),
+                      ignore_errors=True)
+        left = [f for f in os.listdir(arc) if f.endswith(".pyt.xml")]
+        assert not left, (
+            f"this test left {left} in the tree, which breaks the test "
+            "below it - that is the fault moving, not going")
 
 
 def test_the_sidecars_are_not_committed_to_the_repository():
@@ -531,6 +791,54 @@ def test_the_bump_tool_refuses_to_touch_the_status_documents():
             "next routine bump will silence its own guard")
 
 
+def test_the_published_test_dataset_says_what_it_is():
+    """BACKLOG 237. John, from the field: "ValFloat is not float and
+    should be; ValCount holds counts."
+
+    It was declared Stata `double` under a name that says float, and
+    all nine variables had EMPTY LABELS - so the name carried the
+    whole burden of saying what a variable meant, and one of the names
+    lied. That matters more than it used to: the file now ships to
+    every SSC user who types `ssc install equipop, all`, next to the
+    paper, and it is the first thing a reader inspects.
+
+    THE VALUES ARE NOT CHECKED HERE and must not change without a
+    ruling - they are the answer key behind the showcase's pinned
+    `Nv 167.30 | Mean 1815.23 | Med 1248.10 | Gini .5806`. What is
+    checked is that the file still DESCRIBES ITSELF.
+    """
+    import pandas as pd
+    path = os.path.join(ROOT, "stata", "equipop_test_data.dta")
+    if not os.path.exists(path):                     # pragma: no cover
+        pytest.skip("the Stata test dataset is not present")
+    r = pd.io.stata.StataReader(path)
+    r.read(1)
+    types = dict(zip(r._varlist, [str(t) for t in r._typlist]))
+    labels = r.variable_labels()
+
+    assert types.get("ValFloat") == "f", (
+        f"ValFloat is declared {types.get('ValFloat')!r}, not a Stata "
+        "float. The name is the lesson - a continuous measure belongs "
+        "in values() and not in treat() - and a name that disagrees "
+        "with `describe` undercuts it every time somebody looks")
+    for coord in ("X_local", "Y_local"):
+        assert types.get(coord) == "d", (
+            f"{coord} must stay DOUBLE: these are metres in a local "
+            "projection and a float would lose sub-metre precision "
+            "on six-figure eastings")
+    empty = sorted(n for n, lab in labels.items() if not lab.strip())
+    assert not empty, (
+        f"{empty} have no variable label. In Stata the label is where "
+        "meaning lives; without one the NAME has to carry it, which "
+        "is how ValFloat came to teach the wrong thing. "
+        "tools/make_test_data.py holds the text")
+    assert "not a 0/1 marker" in labels.get("ValCount", ""), (
+        "ValCount's label must say what it is NOT - the pair "
+        "ValFloat/ValCount is the confusion 237 was raised about, and "
+        "block 20 of the field pass was invalid for a release because "
+        "of exactly that mix-up")
+
+
 def test_the_ssc_package_lists_every_ado_and_a_current_date():
     """v1.47.12. SSC shows Distribution-Date to users and uses it to
     decide what is new. It sat at 20260830 through twelve releases
@@ -551,6 +859,30 @@ def test_the_ssc_package_lists_every_ado_and_a_current_date():
         "they will not install, and the user finds out when a command "
         "is not found")
     assert "equipop.sthlp" in listed, "the help file must install too"
+
+    # BACKLOG 330, KIT BAUM ON THE SSC RELEASE. The archive builds its
+    # OWN .pkg and he included the worked examples and the test data;
+    # this one had never declared them, so `net install` from GitHub
+    # gave the commands and not the material the help and the paper
+    # tell people to run. TWO INSTALL ROUTES OFFERING DIFFERENT FILES,
+    # and only one of them was described anywhere.
+    #
+    # He also renamed them - example.do and stata_test_data.dta are
+    # not names one package may take on a flat archive - so the check
+    # pins the prefixed names: a generic name here is a name SSC will
+    # refuse, and finding that out by email costs a release.
+    ship = set(re.findall(r"^[fg] (\S+)", pkg, re.M))
+    for name in ("equipop_example.do", "equipop_showcase.do",
+                 "equipop_test_data.dta"):
+        assert name in ship, (
+            f"{name} is not in equipop.pkg, so `net install` from "
+            "GitHub installs less than `ssc install` does")
+    for name in os.listdir(os.path.join(ROOT, "stata")):
+        if name.endswith((".do", ".dta")):
+            assert name.startswith("equipop"), (
+                f"stata/{name} has a name the SSC archive cannot "
+                "take - every file there shares a flat, global "
+                "namespace, so it needs the equipop prefix")
 
     ver = re.search(r'^version\s*=\s*"([^"]+)"',
                     open(os.path.join(ROOT, "pyproject.toml"),
@@ -607,28 +939,87 @@ def test_stata_setup_does_not_force_user_in_a_virtual_environment():
     assert '"externally managed" in low' in src
 
 
-def test_setup_asks_for_an_engine_at_least_as_new_as_the_commands():
-    """BACKLOG 196. `equipop setup` installed a bare `equipop`, so a
-    1.40 command file could pull whatever PyPI had that day - and
-    `equipop doctor` then reported a drift that SETUP had created.
+def test_setup_asks_for_an_engine_at_least_as_new_as_it_needs():
+    """BACKLOG 196, corrected by 332. `equipop setup` installed a bare
+    `equipop`, so a 1.40 command file could pull whatever PyPI had that
+    day - and `equipop doctor` then reported a drift that SETUP had
+    created.
 
-    A FLOOR, NOT A PIN: the ado is the caller and the engine is the
-    library, so the library must be at least as new as the caller.
-    Exact pinning would stop an older ado ever receiving a bug-fixed
-    engine, which is the wrong failure.
+    A FLOOR, NOT A PIN, AND NOT THE ADO'S VERSION EITHER. 196 built
+    the floor out of the ado's own release number, which is not a
+    dependency: 1.49.2 touched only the ArcGIS toolbox and silently
+    raised the Stata engine floor, and a release that reaches SSC
+    before PyPI names an engine that does not exist, so pip installs
+    nothing at all.
 
-    This matters more from SSC than it did from GitHub: there the two
-    arrived together, on SSC they update on separate tracks.
+    The floor is now the oldest engine that satisfies the calls the
+    ado makes, declared by hand beside the list of what sets it.
     """
     import re
     src = open(os.path.join(ROOT, "stata", "equipop.ado"),
                encoding="utf-8").read()
-    assert 'args.append("equipop>=" + ado_version)' in src, (
+    assert 'args.append("equipop>=" + floor)' in src, (
         "no version floor - setup can install an engine older than "
         "the commands calling it")
-    assert '_equipop_setup_py(repair="", ado_version="")' in src or \
-        'def _equipop_setup_py(repair="", ado_version="")' in src, (
-        "the setup routine does not receive the ado's version")
+    assert 'args.append("equipop>=" + ado_version)' not in src, (
+        "the floor is the ado's own release number again, so a "
+        "release that reaches SSC before PyPI cannot be installed")
+    assert ('def _equipop_setup_py(repair="", ado_version="", '
+            'min_engine="")') in src, (
+        "the setup routine does not receive the engine floor")
+
+    # the floor must be declared TWICE and identically - setup asks
+    # pip for it, the doctor judges against it, and a floor the two
+    # disagree about is worse than no floor
+    floors = set(re.findall(r'local eqp_min_engine "([^"]+)"', src))
+    assert len(floors) == 1, (
+        f"setup and the doctor name different engine floors: {floors}")
+    floor = floors.pop()
+    assert re.fullmatch(r"\d+\.\d+(\.\d+)?", floor), floor
+
+    # AND IT MUST NOT BE BUMPED AUTOMATICALLY. The whole point is that
+    # it moves only when the commands start calling something new,
+    # which is a human decision - if bump_version.py touched it the
+    # fault would be back within one release and invisible.
+    #
+    # Checked by RUNNING EVERY PATTERN the tool applies against the
+    # floor's own line, rather than by grepping the tool for the
+    # name: the first version of this check did grep, and failed on
+    # the COMMENT that explains why the floor is left alone. A test
+    # that forbids documenting a rule is testing the wrong thing.
+    import sys
+    pkg_version = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        open(os.path.join(ROOT, "pyproject.toml"),
+             encoding="utf-8").read(), re.M).group(1)
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    try:
+        import bump_version
+    finally:
+        sys.path.pop(0)
+    floor_line = f'    local eqp_min_engine "{floor}"'
+    for entry in bump_version.DECLARATIONS:
+        rel, pat = entry[0], entry[1]
+        if not rel.endswith("equipop.ado"):
+            continue
+        assert not re.search(pat, floor_line, re.M), (
+            f"bump_version.py pattern {pat!r} matches the engine "
+            "floor, so the floor will follow the release number "
+            "again - BACKLOG 332 exactly")
+    # and the ado's own version line must still be matched by one of
+    # them, or the opposite fault is waiting
+    ado_line = f'    local eqp_ado_version "{pkg_version}"'
+    assert any(re.search(e[1], ado_line, re.M)
+               for e in bump_version.DECLARATIONS
+               if e[0].endswith("equipop.ado")), (
+        "no pattern matches the ado's own version line - it will "
+        "drift from pyproject.toml")
+    assert floor != pkg_version or floor == "0", (
+        f"the floor has caught up with the release number ({floor}). "
+        "That is allowed only if this release really did add an "
+        "engine call the commands need - if it did, say which in the "
+        "comment beside eqp_min_engine and change this test's "
+        "reasoning deliberately")
 
     # the version it passes in must be the SAME string the doctor uses,
     # or the two halves of the same guard disagree
@@ -727,3 +1118,473 @@ def test_every_module_compiles_on_the_oldest_python_we_promise():
                             f"{floor[0]}.{floor[1]}, which pyproject "
                             f"promises to support")
     assert not bad, "\n".join(bad)
+
+
+def test_the_bump_tool_does_not_translate_line_endings(tmp_path):
+    """REVIEW F5, and it reproduced only on Windows.
+
+    `bump_version.py` read and wrote in text mode with Python's
+    default newline handling. On Windows that converts every LF to
+    CRLF on write, so a release operation there rewrites EVERY LINE of
+    all ten declared files - including the 4,932-line ArcGIS toolbox -
+    and the byte-identical round-trip test below reports all ten as
+    changed. No analytical output moves; what it costs is whole-file
+    diffs and merge conflicts at exactly the moment a release is being
+    reviewed.
+
+    TWO CHECKS, because this platform cannot see the defect.
+
+    The READ side is directly testable anywhere: with newline="" a
+    CRLF file comes back with its CRLFs intact, and without it
+    Python's universal-newline translation silently turns them into
+    LF - so the tool would "fix" line endings it was never asked to
+    touch. That half is measured here.
+
+    The WRITE side cannot be measured on Linux, because text mode
+    writes LF as LF here whatever the setting. So it is asserted
+    structurally instead: every open-for-write in the tool must pass
+    newline="". A property over the AST rather than a grep, and the
+    honest statement of its limit is that it checks the mechanism
+    while the round-trip test below checks the result - on whichever
+    platform it runs.
+    """
+    import ast
+
+    spec_path = os.path.join(ROOT, "tools", "bump_version.py")
+    src = open(spec_path, encoding="utf-8").read()
+
+    # --- the read side, for real
+    f = tmp_path / "crlf.txt"
+    f.write_bytes(b'version = "1.0.0"\r\nsecond line\r\n')
+    with open(f, encoding="utf-8", newline="") as fh:
+        kept = fh.read()
+    assert "\r\n" in kept, (
+        "newline='' no longer preserves CRLF on this platform, so the "
+        "guarantee this test is about has changed")
+    with open(f, encoding="utf-8") as fh:
+        translated = fh.read()
+    assert "\r\n" not in translated, (
+        "universal newlines no longer translate, so the defect this "
+        "test is about is no longer possible and the test is stale")
+
+    # --- the write side, structurally
+    writes = []
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Call):
+            continue
+        name = getattr(node.func, "id", None)
+        if name != "open":
+            continue
+        mode = ""
+        for arg in node.args[1:2]:
+            if isinstance(arg, ast.Constant):
+                mode = str(arg.value)
+        for kw in node.keywords:
+            if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+                mode = str(kw.value.value)
+        if "w" not in mode and "a" not in mode:
+            continue
+        has = any(kw.arg == "newline" and
+                  isinstance(kw.value, ast.Constant) and
+                  kw.value.value == "" for kw in node.keywords)
+        writes.append((node.lineno, has))
+    assert writes, (
+        "no open-for-write found in bump_version.py - it writes "
+        "through something else now and this check has stopped "
+        "guarding anything")
+    bad = [ln for ln, has in writes if not has]
+    assert not bad, (
+        f"bump_version.py writes at line(s) {bad} without "
+        f"newline='' - on Windows that rewrites every line ending in "
+        f"every declared file")
+    # and the text those writes carry must have been read the same
+    # way, or the round trip is not byte-for-byte either
+    reads = re.findall(r"open\((?:path|p)[^)]*\)", src)
+    assert all('newline=""' in r for r in reads if '"w"' in r or
+               "'w'" in r), "a write path reads without newline=''"
+
+
+def test_the_version_bump_survives_a_round_trip(tmp_path):
+    """BACKLOG 352. The version lives in a dozen declarations across
+    ten files, and TWO FILES CARRY TWO DECLARATIONS EACH -
+    stata/equipop.ado has a `*!` banner and `eqp_ado_version`,
+    equipop_test_pass.do has a header and a body line. Any rewrite of
+    the bump tool that plans each declaration from a file's ORIGINAL
+    text and then writes them all will make the second write discard
+    the first, leaving a file bumped in one place and not the other.
+
+    That happened while cutting 1.52.0 and was caught by the
+    version-agreement tests within a minute - twice, because the same
+    release also had the tool die part-way through its writes when its
+    stdout was piped into `head`, leaving three files bumped and nine
+    not. Both failure modes are invisible to a human reading the tool's
+    output, which reported success in the first case and nothing in the
+    second.
+
+    TWO CHECKS, because the obvious one is not enough. A round trip -
+    bump away and back, every file byte-identical - catches a
+    declaration that is MISSED and the half-written repo. It does NOT
+    catch last-write-wins, and the break-check is what revealed that:
+    the patterns match any version string rather than the old one
+    specifically, so the second bump repairs whatever the first left
+    behind and the round trip comes out clean over a file that was
+    wrong in between. The check that catches it is the direct one -
+    after ONE bump, no declared file may still mention the old version.
+
+    Run against a COPY of the declared files so the repository is never
+    left mid-bump by a test.
+    """
+    import hashlib
+    import shutil
+    import subprocess
+    import sys
+
+    spec_path = os.path.join(ROOT, "tools", "bump_version.py")
+    assert os.path.exists(spec_path), "the bump tool has moved"
+
+    declared = ["pyproject.toml", "equipop/__init__.py",
+                "qgis/equipop_qgis/__init__.py",
+                "qgis/equipop_qgis/metadata.txt", "arcgis/EquiPop.pyt",
+                "stata/equipop.pkg", "stata/equipop.ado",
+                "CITATION.cff", "equipop_test_pass.do", "INSTALL.md"]
+    for rel in declared:
+        src = os.path.join(ROOT, rel)
+        dst = tmp_path / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+    shutil.copytree(os.path.join(ROOT, "tools"), tmp_path / "tools")
+
+    # ONE DECLARATION IS STAMPED "TODAY" BY DESIGN, so it cannot
+    # survive a round trip across midnight. This test passed on the
+    # day it was written and failed the next morning, which makes it a
+    # test whose answer depends on the clock - the shape the project
+    # keeps finding under a different name. The date line is
+    # normalised out rather than the test being deleted, because
+    # everything else in the file still has to come back identical.
+    import re as _re
+    _TODAY_FIELD = _re.compile(rb"^(d Distribution-Date:).*$", _re.M)
+
+    def digests():
+        out = {}
+        for r in declared:
+            raw = (tmp_path / r).read_bytes()
+            raw = _TODAY_FIELD.sub(rb"\1 <today>", raw)
+            out[r] = hashlib.md5(raw).hexdigest()
+        return out
+
+    import equipop
+    here = equipop.__version__
+    before = digests()
+
+    def bump(version):
+        r = subprocess.run(
+            [sys.executable, str(tmp_path / "tools" / "bump_version.py"),
+             version], capture_output=True, text=True, cwd=str(tmp_path))
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    # (1) ONE bump forward: no DECLARATION may still say the old
+    # version.
+    #
+    # v1.53.2: "declaration" is the point, and this used to test every
+    # LINE. The bump tool prints its own rule - "code comments,
+    # BACKLOG.md and MANUAL.md are left alone: a version in prose is a
+    # FACT ABOUT THE PAST" - and this test contradicted it, so the
+    # moment a release wrote `BACKLOG 377, v1.53.2` into a comment in
+    # EquiPop.pyt (a file that also holds a real declaration) the
+    # guard failed on nine comments that are CORRECT and must never
+    # move. A comment recording when something was fixed is history;
+    # bumping it would falsify the record.
+    # Narrowed to the patterns the bump tool itself declares, so the
+    # test now checks the thing its name says. Same mistake, third
+    # time this week: a test matching TEXT where it meant to match a
+    # KIND of line.
+    bump("9.9.9")
+    sys.path.insert(0, str(tmp_path / "tools"))
+    for mod in ("bump_version",):
+        sys.modules.pop(mod, None)
+    import bump_version as _bv
+    stale = []
+    for rel, pattern, *_rest in _bv.DECLARATIONS:
+        text = (tmp_path / rel).read_text(encoding="utf-8",
+                                          errors="replace")
+        for line in text.splitlines():
+            if not re.search(pattern, line):
+                continue
+            if here in line and "9.9.9" not in line:
+                stale.append(f"{rel}: {line.strip()[:72]}")
+    assert not stale, (
+        "a bump left these declarations at the old version - a second "
+        "declaration in the same file has overwritten the first, or "
+        "the tool stopped part-way:\n  " + "\n  ".join(stale))
+
+    # (2) and back again: every file byte-identical, which catches a
+    # declaration the tool does not know about at all.
+    bump(here)
+    moved = [r for r in declared if before[r] != digests()[r]]
+    assert not moved, (
+        "a bump round trip changed these files, so a declaration was "
+        f"written over or missed: {moved}")
+
+
+# =====================================================================
+# v1.57.1 - external review of 1.57.0 (BACKLOG 411). Every test below
+# was broken on purpose before it was believed.
+# =====================================================================
+def _tool(name):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        f"_{name}", os.path.join(ROOT, "tools", f"{name}.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _tree(base, files):
+    for rel, text in files.items():
+        p = os.path.join(base, *rel.split("/"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+
+_GOOD = {"pyproject.toml": 'version = "9.9.9"\n',
+         "equipop/__init__.py": '__version__ = "9.9.9"\n',
+         "tests/test_x.py": "x", "README.md": "x"}
+
+
+def test_windows_reserved_names_and_trailing_dots_are_refused():
+    """156's pattern saw drive letters, backslashes and refused
+    characters. Windows also refuses a reserved device name as ANY
+    path component - CON, aux.txt, LPT1.log - and strips a trailing dot
+    or space, so two members can land on one file.
+
+    BROKEN WITH: the reserved-name loop removed from windows_problem."""
+    mk = _tool("make_release_zip")
+    for ok in ("docs/console.py", "a/COM10.txt", "equipop/cells.py"):
+        assert mk.windows_problem(ok) is None, ok
+    for bad in ("docs/CON", "data/aux.txt", "logs/lpt1.log",
+                "a/b./c.md", "a/b /c.md"):
+        assert mk.windows_problem(bad), bad
+        with pytest.raises(SystemExit, match="REFUSING"):
+            mk.check(["README.md", bad])
+
+
+def test_a_run_record_in_the_tree_is_refused(tmp_path):
+    """THE 1.56.0 AND 1.57.0 DEFECT. A scratch script of mine drove the
+    simulated Pro door from the tree root with the input
+    C:\\Data\\town.gdb\\people; Pro writes its run record beside the
+    geodatabase, which on Linux is a folder literally named `C:\\Data`.
+    It shipped in two working-tree zips. A run record is never source,
+    and carries the local paths of whoever ran it - so it is refused
+    wherever it sits, under any name a run writes.
+
+    BROKEN WITH: build() not calling check_run_records."""
+    mk = _tool("make_release_zip")
+    with pytest.raises(SystemExit, match="run record"):
+        mk.check_run_records(
+            ["C:\\Data/EquiPop_runs/people_EquiPop_run.csv"])
+    for rec in ("examples/people_EquiPop_run.csv", "out/result.meta.json",
+                "out/result.meta.txt"):
+        root = tmp_path / rec.replace("/", "_")
+        _tree(str(root), {**_GOOD, rec: "item,value\n"})
+        with pytest.raises(SystemExit, match="run record"):
+            mk.build(str(root), "9.9.9", str(root / "_out"),
+                     out_name="t.zip", skip_build_outputs=True)
+        assert not (root / "_out" / "t.zip").exists(), rec
+    mk.check_run_records(["equipop/meta.py", "docs/run_record.md"])
+
+
+def test_the_bundles_tree_zip_is_built_checked_and_extracted(tmp_path):
+    """The reviewer's end-to-end test: a tree holding representative
+    junk, through the SAME call make_bundle.sh makes for its working
+    tree (`--name equipop_working_tree.zip --skip-build-outputs`), then
+    every member name inspected and the archive extracted.
+
+    BROKEN WITH: --skip-build-outputs not honoured (the sidecar the
+    bundle generates on purpose is then refused)."""
+    mk = _tool("make_release_zip")
+    root = tmp_path / "tree"
+    _tree(str(root), {**_GOOD,
+                      "arcgis/EquiPop.pyt": "x",
+                      "arcgis/EquiPop.CountsShares.pyt.xml": "generated",
+                      "build/lib/equipop/cells.py": "stale",
+                      "dist/equipop-9.9.9.tar.gz": "x",
+                      "equipop/__pycache__/cells.cpython-311.pyc": "x",
+                      "renamed.egg-info/PKG-INFO": "x",
+                      ".pytest_cache/v": "x"})
+    out, n = mk.build(str(root), "9.9.9", str(tmp_path / "out"),
+                      out_name="equipop_working_tree.zip",
+                      skip_build_outputs=True)
+    import zipfile
+    names = sorted(zipfile.ZipFile(out).namelist())
+    assert names == sorted(f"EquiPop-9.9.9/{r}" for r in
+                           list(_GOOD) + ["arcgis/EquiPop.pyt"]), names
+    assert mk.verify(out, tree_version="9.9.9") == n == 5
+
+
+def test_verify_refuses_the_zip_1_57_0_shipped(tmp_path):
+    """verify() re-opens a FINISHED archive. Fed a zip shaped like the
+    one 1.57.0 shipped - the stray run record under `C:\\Data` - it
+    must refuse; fed a tree whose stamps disagree, the same.
+
+    BROKEN WITH: verify() skipping the per-name check (it extracts on
+    Linux, where `C:\\Data` is a legal folder name)."""
+    import zipfile
+    mk = _tool("make_release_zip")
+
+    def make(path, extra):
+        with zipfile.ZipFile(path, "w") as z:
+            for rel, text in {**_GOOD, **extra}.items():
+                z.writestr(f"EquiPop-9.9.9/{rel}", text)
+        return str(path)
+
+    good = make(tmp_path / "good.zip", {})
+    assert mk.verify(good, tree_version="9.9.9") == 4
+    shipped = make(tmp_path / "shipped.zip", {
+        "C:\\Data/EquiPop_runs/people_EquiPop_run.csv": "item,value\n"})
+    with pytest.raises(SystemExit, match="REFUSING shipped.zip"):
+        mk.verify(shipped, tree_version="9.9.9")
+    # and by NAME alone, where no other rule applies - the run-record
+    # rule would otherwise catch the case above on its own
+    with pytest.raises(SystemExit, match="reserved device name"):
+        mk.verify(make(tmp_path / "aux.zip", {"docs/aux.txt": "x"}))
+    with pytest.raises(SystemExit, match="does not say 9.9.9"):
+        mk.verify(make(tmp_path / "stale.zip",
+                       {"pyproject.toml": 'version = "9.9.8"\n'}),
+                  tree_version="9.9.9")
+
+
+def test_the_bundle_script_builds_its_tree_through_the_safe_builder():
+    """What 411 actually was: the protection existed, and the path
+    that mattered went round it. So the script must CALL the builder
+    for its working tree, verify every zip, and zip no tree itself.
+
+    BROKEN WITH: step 7 restored to `zip -qr ... equipop_working_tree`."""
+    src = open(os.path.join(ROOT, "tools", "make_bundle.sh"),
+               encoding="utf-8").read()
+    code = "\n".join(ln for ln in src.splitlines()
+                     if not ln.lstrip().startswith("#"))
+    assert re.search(r"make_release_zip\.py \"\$V\" \"\$WORK\" \\\n\s+"
+                     r"--name equipop_working_tree\.zip "
+                     r"--skip-build-outputs", code), \
+        "the working tree is not built by tools/make_release_zip.py"
+    assert not re.search(r"zip -q?r[^\n]*equipop_working_tree", code)
+    assert "--verify" in code and "--tree-version" in code
+
+
+def test_the_output_guard_decides_before_anything_is_deleted(tmp_path):
+    """make_bundle.sh began `rm -rf "$OUT"`. Reproduced on copies of the
+    tree: `tests` deleted every test, `../EquiPop` the repository. The
+    decision now lives in tools/bundle_out.py, which DECIDES and never
+    deletes - so every dangerous answer can be tested here safely,
+    the top of the file system included.
+
+    BROKEN WITH: the inside-the-repository check removed."""
+    bo = _tool("bundle_out")
+    repo = tmp_path / "repo"
+    _tree(str(repo), {"pyproject.toml": "x", "tests/keep.py": "x"})
+    home = tmp_path / "home"
+    home.mkdir()
+    foreign = tmp_path / "foreign"
+    _tree(str(foreign), {"precious.txt": "x"})
+    made = tmp_path / "made"
+    _tree(str(made), {bo.MARKER: "#\n", "MANUAL.md": "x"})
+    (tmp_path / "empty").mkdir()
+    (tmp_path / "afile").write_text("x")
+    top = os.path.abspath(os.sep)
+    for out, words in ((repo, "repository itself"),
+                       (repo / "tests", "inside the repository"),
+                       (repo / "new", "inside the repository"),
+                       (tmp_path, "repository is inside it"),
+                       (home, "home folder"),
+                       (top, "top of a file system"),
+                       (foreign, "not empty"),
+                       (tmp_path / "afile", "not a plain folder")):
+        why = bo.problem(str(repo), str(out), home=str(home))
+        assert why and words in why, (out, why)
+    for out in (tmp_path / "new", tmp_path / "empty", made):
+        assert bo.problem(str(repo), str(out), home=str(home)) is None, out
+    # relative paths mean what the caller meant
+    here = os.getcwd()
+    try:
+        os.chdir(repo)
+        assert "repository itself" in bo.problem(str(repo), ".",
+                                                 home=str(home))
+    finally:
+        os.chdir(here)
+
+
+def test_installing_removes_only_what_a_bundle_made(tmp_path):
+    """A rebuild into the same folder replaces the bundle and NOTHING
+    ELSE - the release note written beside it survives. A file no
+    bundle made is never overwritten, and a marker naming anything
+    but a plain file name is refused before a byte moves.
+
+    BROKEN WITH: install() clearing every file in the folder."""
+    bo = _tool("bundle_out")
+    repo, out, work = tmp_path / "repo", tmp_path / "out", tmp_path / "w"
+    repo.mkdir()
+    _tree(str(work), {"a.zip": "1", "MANUAL.md": "1"})
+    bo.install(str(repo), str(work), str(out))
+    (out / "RELEASE_9.9.9.md").write_text("mine")
+    _tree(str(work), {"a.zip": "2"})                 # MANUAL.md dropped
+    rec = bo.install(str(repo), str(work), str(out))
+    assert sorted(p.name for p in out.iterdir()) == \
+        [bo.MARKER, "RELEASE_9.9.9.md", "a.zip"]
+    assert (out / "a.zip").read_text() == "2" and len(rec[0][0]) == 64
+    (out / "user.txt").write_text("mine")
+    _tree(str(work), {"user.txt": "bundle"})
+    with pytest.raises(SystemExit, match="no earlier bundle made"):
+        bo.install(str(repo), str(work), str(out))
+    assert (out / "user.txt").read_text() == "mine"
+    (out / bo.MARKER).write_text("abc  ../repo\n")
+    with pytest.raises(SystemExit, match="not a plain file name"):
+        bo.install(str(repo), str(work), str(out))
+
+
+@pytest.mark.skipif(os.name == "nt" or not __import__("shutil").which("bash"),
+                    reason="needs bash on a POSIX system")
+def test_the_bundle_script_refuses_a_dangerous_output_end_to_end(tmp_path):
+    """The script itself, run for real - in a THROWAWAY repository
+    holding a copy of it, so a broken guard can only destroy tmp_path.
+    Each dangerous output must be refused before anything is built or
+    deleted.
+
+    BROKEN WITH: the `bundle_out.py check` line replaced by the 1.57.0
+    path arithmetic."""
+    import shutil
+    import subprocess
+    repo = tmp_path / "repo"
+    _tree(str(repo), {"pyproject.toml": 'version = "9.9.9"\n',
+                      "tests/keep.py": "x"})
+    (repo / "tools").mkdir()
+    for f in ("make_bundle.sh", "bundle_out.py"):
+        shutil.copy(os.path.join(ROOT, "tools", f), repo / "tools" / f)
+    foreign = tmp_path / "foreign"
+    _tree(str(foreign), {"precious.txt": "x"})
+    env = dict(os.environ, HOME=str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    for out, cwd in ((".", repo), ("tests", repo), ("../repo", repo),
+                     (str(tmp_path), tmp_path), (str(foreign), tmp_path),
+                     (str(tmp_path / "home"), tmp_path)):
+        r = subprocess.run(["bash", str(repo / "tools" / "make_bundle.sh"),
+                            "9.9.9", out], cwd=cwd, env=env,
+                           capture_output=True, text=True, timeout=60)
+        assert r.returncode != 0 and "REFUSING" in r.stderr, (out, r.stderr)
+        assert (repo / "tests" / "keep.py").exists(), out
+        assert (foreign / "precious.txt").exists(), out
+
+
+def test_the_release_record_counts_what_pytest_reports():
+    """BACKLOG 411. The 1.57.0 note's count was true for my machine and
+    the reviewer's 1,763 for theirs - geopandas collects two modules
+    mine skipped whole. tools/release_record.py now runs the suite from
+    the SHIPPED tree zip under each interpreter and states the packages
+    behind each count; this pins the one piece of arithmetic in it.
+
+    BROKEN WITH: skips left out of the collected total."""
+    rr = _tool("release_record")
+    assert rr.collected("1747 passed, 16 skipped in 260.72s") == (
+        {"passed": 1747, "skipped": 16}, 1763)
+    assert rr.collected("2 failed, 10 passed, 3 skipped, 1 error in 3s")[1] \
+        == 16

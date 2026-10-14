@@ -196,9 +196,18 @@ class QMetaType:
 class QgsField:
     def __init__(self, name, type_=QVariant.Double, *a, **kw):
         self._name, self._type = str(name), type_
+        self._alias = ""
 
     def name(self):
         return self._name
+
+    # v1.56.0, BACKLOG 410. Real PyQGIS has had QgsField.setAlias and
+    # alias() throughout QGIS 3; the door now calls them.
+    def setAlias(self, text):
+        self._alias = str(text)
+
+    def alias(self):
+        return self._alias
 
     def type(self):
         return self._type
@@ -430,10 +439,21 @@ class _Source:
     """What parameterAsSource hands back: features, fields, CRS."""
 
     def __init__(self, table: pd.DataFrame, crs="EPSG:3006",
-                 geometry=True):
+                 geometry=True, source="", name=""):
         self._t = table.reset_index(drop=True)
         self._crs = QgsCoordinateReferenceSystem(crs)
         self._geometry = geometry
+        # BACKLOG 348. THE REAL CLASS HAS BOTH AND THE STUB HAD
+        # NEITHER, so base.py's provenance call reached
+        # getattr(source, "sourceName", lambda: "")(), recorded the
+        # empty string, and every QGIS provenance record in the suite
+        # carried "inputs": [] with no test noticing. A simulator that
+        # omits a method cannot fail the code that depends on it.
+        # source() is the provider URI - a path, possibly with
+        # |layername= - and sourceName() is the label in the layers
+        # panel.
+        self._source = source
+        self._name = name
         self._fields = QgsFields()
         for c in self._t.columns:
             if c in ("x", "y") and geometry:
@@ -442,6 +462,12 @@ class _Source:
                     if pd.api.types.is_numeric_dtype(self._t[c])
                     else QVariant.String)
             self._fields.append(QgsField(c, kind))
+
+    def source(self):
+        return self._source
+
+    def sourceName(self):
+        return self._name
 
     def fields(self):
         return self._fields
@@ -467,8 +493,21 @@ class _Source:
             f._id = int(i)
             f.setAttributes([row[c] for c in names])
             if self._geometry:
-                f.setGeometry(QgsGeometry.fromPointXY(
-                    QgsPointXY(row["x"], row["y"])))
+                # BACKLOG 380. A ROW WITH NO COORDINATES HAS NO
+                # GEOMETRY, and real QGIS hands back an EMPTY
+                # QgsGeometry for it - not a point at NaN. The stub
+                # built a point from the NaNs instead, so every test
+                # that thought it was exercising null geometry was
+                # exercising a point whose ordinates happened to be
+                # NaN, and the reader's `g.isEmpty()` branch had never
+                # been run by anything. A simulator that cannot
+                # produce the input cannot test the handling.
+                _x, _y = row["x"], row["y"]
+                if _x is None or _y is None or _x != _x or _y != _y:
+                    f.setGeometry(QgsGeometry())
+                else:
+                    f.setGeometry(QgsGeometry.fromPointXY(
+                        QgsPointXY(_x, _y)))
             yield f
 
 
@@ -509,9 +548,21 @@ class _Sink:
         names = self._fields.names()
         rows = [dict(zip(names, f.attributes())) for f in self.features]
         df = pd.DataFrame(rows, columns=names)
-        if self.features and self.features[0].hasGeometry():
-            df["x"] = [f.geometry().asPoint().x() for f in self.features]
-            df["y"] = [f.geometry().asPoint().y() for f in self.features]
+        # BACKLOG 380. An OUTPUT layer can hold a feature with no
+        # geometry - that is what the "missing coordinates -> Null
+        # results" convention writes for a row EquiPop could not
+        # locate. This assumed every feature had a point as soon as
+        # the FIRST one did, and died on `None.asPoint()`, so no test
+        # could ever read back an output containing such a row.
+        if self.features and any(f.hasGeometry() for f in self.features):
+            def _xy(f):
+                if not f.hasGeometry():
+                    return (np.nan, np.nan)
+                p = f.geometry().asPoint()
+                return (p.x(), p.y())
+            pairs = [_xy(f) for f in self.features]
+            df["x"] = [a for a, _ in pairs]
+            df["y"] = [b for _, b in pairs]
         return df
 
 
@@ -838,6 +889,17 @@ class QgsProcessingAlgorithm:
                 "QgsWkbTypes.Point, not a number.")
         sink = _Sink(fields, wkb, crs)
         parameters.setdefault("_sinks", {})[name] = sink
+        # BACKLOG 293. The DESTINATION STRING is what a door writes a
+        # provenance sidecar beside, so the stub has to hand back what
+        # QGIS hands back: a real path when the user chose a file, and
+        # one of the in-memory forms otherwise. It used to return
+        # "memory:<name>" unconditionally, which meant a door could
+        # only ever be tested on the branch that has nowhere to write.
+        asked = parameters.get(name)
+        if isinstance(asked, str) and not (
+                asked.startswith(("memory:", "ogr:"))
+                or asked.upper().startswith("TEMPORARY")):
+            return sink, asked
         return sink, f"memory:{name}"
 
 

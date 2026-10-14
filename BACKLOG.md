@@ -19,57 +19,84 @@ appeared twice; the weaker copy is gone.*
 
 ## What next — in priority order
 
-*Rewritten in full, 1.47.6. The list this replaces STOPPED AT ITEM
-164: everything from 165 to 293 — machines 3, 4 and 5, the registry,
-all four providers, the OSM lattice work, the eight external-review
-HIGHs — never entered it. The file opens by promising that its top
-answers "what next?" without reading the rest, and for eleven
-releases it could not. Two independent readers found the same thing
-in the same week, which is how long a stale index survives before it
-costs somebody a session.*
+*Rewritten 1.52.0, and the rewrite is itself the point. **The rule for
+this list is that an entry which is struck LEAVES it** - written at the
+top since 1.29.0, and broken every single time, because striking an
+item and updating the index are two actions and only the first feels
+like finishing. By 1.51.2 the list carried six struck entries, two
+items numbered 3 and two numbered 4, and a reader had to scroll past
+four releases of completed work to reach a plan. The corrections those
+entries carried are worth keeping and are now in the detail below,
+where done work lives; what is left here is a plan.*
 
-**The rule for this list: an entry that is struck leaves it.** Done
-items live in the detail below and in the manual's version history,
-not here. A list of completed work is not a plan.
+*This index has gone stale FOUR times - at 1.47.6 (it stopped at item
+164 for eleven releases), at 1.49.3 (the Machine 5 arc, with a claim
+that was false the day it was written), at 1.51.1 (four items done and
+still being asked for, which the external review pointed at), and at
+1.52.0 (this). It is the one document nothing in the suite checks.
+**If you are reading this at the start of a session, check two or
+three of its claims against the code before trusting any of them** -
+that is how the last three staleness findings were made.*
 
-### Now — the Machine 5 arc (one outcome, several releases)
-1. **248–265, 268, 278, 284** — a data BROWSER, not more message
-   fixes. One complete WorldPop path and one complete Geofabrik path
-   first; GHSL's dependent tuples and HDX's paged search follow on the
-   same contract. Needs John in the loop testing the dialog, so it
-   should not share a release with work that does not.
-2. **280, 282, 283 + 269** — the two finished engines with NO DOOR.
-   The OSM lattice join is reachable only from run_osm_friction.py;
-   doors/inventory.py is reachable from nothing at all. Both are QGIS
-   dialog work and belong with the browser.
+### Now — a release gate on real hosts
+1. **128, 80, 87, 198–199, 288** — small recorded end-to-end runs in
+   live QGIS and ArcGIS Pro, matching plugin/engine version checks,
+   cancellation, and a copyable diagnostic. **The oldest unaddressed
+   item on this list, and the only one of the original seven left.**
+   It needs John's machines: Claude can build the harness and the
+   diagnostic, and cannot run the hosts. Worth saying plainly, because
+   part of why it has stayed at the top is that the half that closes
+   it is not Claude's to do.
 
-### Next — reachability and trust
-3. **293** — RunLog is dead code and it is item 2. Analysis runs have
-   no provenance record, which is why neither `overshoot` nor the new
-   `originrule` can be written to one. Needs its own release and a
-   decision about which door writes the sidecar.
-4. **118** — the statistics path still rounds weights and expands
-   rows into persons though the engine has carried fractional weights
-   since 1.29. (205, a Stata door for machine 2, was RULED OUT in
-   session 12: Stata does weighted statistics natively and better,
-   and what it cannot do is build the neighbourhood. Each tool does
-   its own part.)
-5. **119** — resume compares parameters but not input CONTENT. The
-   same cell count and the same settings are not proof of the same
-   data. Not ready for an unattended world-scale run.
-6. **128, 80, 87, 198–199, 288** — a real-host release gate: small
-   recorded end-to-end runs in live QGIS and Pro, matching
-   plugin/engine version checks, cancellation, a copyable diagnostic.
+### Next — the exposome arc, now that machine 4 tiles
+**365 AND 363 ARE BOTH CLOSED** in 1.53.4, which is the item this
+list had at the head of the exposome arc for four releases. A
+continental demographic index now has a supported route: the tiles
+already carried T_num/T_den per origin, so it is a per-tile post-pass
+with memory bounded at one tile. **That changes what PROPOSALS.md may
+claim** - Europe-wide dependency ratios are no longer the piece the
+software cannot do at scale, and the standing warning not to promise
+them is retired. What is still true: the tiled index is float32,
+because machine 3 stores tiles that way and says so in its manifest.
 
-### Then — analytical capability already half-built
-7. **102 + 42** — QGIS variable bandwidth and its explanation.
-8. **117 + 120** — shared validation and construction, as those paths
+2. **349** — the continental door exposes none of the five engine
+   options the tiled wrapper takes (345), nor `decay` on either
+   branch, and it is now the LAST thing between a continental run and
+   the full engine. A uniform gap, so nothing is inconsistent - but
+   `originrule(exclude)`, the w(ii)=0 convention spatial regression
+   requires, is unreachable from a continental run, and the 13.6%
+   figure session 12 measured is a published number a continental user
+   cannot reproduce. Cheaper than it looks: `run_index` forwards
+   `**kw`, so machine 4 comes free once `run_folder`'s signature
+   grows, and machine 3 has no Stata door, so it is two dialogs.
+3. **hex cells at the GIS doors** — 158 removed the correctness
+   blocker in 1.52.0, so this is now a dialog decision rather than a
+   defect. `tests/reachability.py` holds it as a GAP with a witness in
+   each door's file, so the entry fails the day a box is added.
+4. **102 + 42** — QGIS variable bandwidth and its explanation.
+5. **117 + 120** — shared validation and construction, as those paths
    are touched. 120 is confined to machine 1; machines 3, 4 and 5 have
    none of it, so it gates changes to counts and nothing else.
-9. **158** — hex self-potential uses a square-cell area, overstating
-   the radius by 7.5%.
-10. **134, 132** — a golden dataset per host; a public ArcGIS Online
-    item.
+6. **134, 132** — a golden dataset per host; a public ArcGIS Online
+   item.
+
+### Housekeeping, worth pairing with a release rather than owning one
+7. **101** — the suite writes run manifests into the working
+   directory, and seven such files have been committed to the public
+   repository for over a year. The test-side fix is Claude's; the
+   `git rm -r --cached` is John's. **350** found the same shape in the
+   release zip and fixed the tool; `.gitignore` now covers `build/`,
+   but whether those files are tracked still needs one look.
+10. **299** — Pro's join box still takes the centroid only, where QGIS
+   offers three fidelities. Two doors disagreeing about what one box
+   DOES, which door_parity cannot see because both have the box.
+11. **406** — reachability witnesses are substrings, so a renamed
+   argument still satisfies them (405's break-check proved it). An
+   AST read of every row; its own release.
+12. **412** — a fractional k from Python (k=30.5) writes `Ng_inc_30.5`,
+   which the describer cannot read: no legend line, no alias, no
+   [decompose] summary. The doors refuse fractional k, so only
+   scripts meet it. Decide whether the engine accepts it at all.
 
 ### Waiting on John, not on code
 - **224, 232** — need the exact inputs, versions, choices and output
@@ -82,16 +109,52 @@ not here. A list of completed work is not a plan.
   recorded there. A methodological exercise, not a menu entry.
 - **257** — PAUSED by John, session 12. Four providers work; a fifth
   is capability, not a gap.
+- **321** — expected counts under a supplied rate schedule.
+- **407's last product suggestion** — per-group means as a long
+  companion table (one row per place, k and group). The coverage
+  column and the manual chapter shipped in 1.57.0 (407a). Needs
+  John's ruling on the table's format and where a door writes it.
+- **405, step 4** — the scale profile theta(k): the between-type share
+  over the WHOLE population, with types defined BY neighbourhood
+  character at each k, beside `seg_profile`. Needs John's ruling on
+  how that character is binned into types, because more bins push
+  theta up (the bias sandwich). Machine 2's split, shipped in 1.55.0,
+  is the plumbing it reads.
+- **Marina's `CHANGELOG.md`**, whether to adopt it; and the
+  `set varabbrev off` run, which is the one outstanding SSC check.
 
 ### Ruled out, recorded so they are not raised again
 - **203** — a radius run reports no distance. That is the design.
 - **100** — see 203.
+- **205** — a Stata door for machine 2. Stata does weighted statistics
+  natively and better; what it cannot do is build the neighbourhood.
 
 ## Still to do — detail, in the order above
 
 - ~~95~~ | DONE v1.29.5 | SELF-POTENTIAL, shipped. equipop/selfpot.py holds the rule once so the two engines cannot drift; both apply it; both doors offer `selfpot` and BOTH ARE CHECKED ON VALUES, not names. Default 1.0, John's ruling. Guards broken on purpose six ways before being trusted - including the Pro one, whose FIRST version passed against a deliberate break because it drove _run_tool and skipped the dialog hop where `or 1.0` eats a falsy 0. Rewritten through execute(). s=0 reproduces pre-1.29.5 numbers exactly, asserted not assumed.
 
 - ~~96~~ | DONE v1.29.5 | Fixed by 95 and made loud. The substitution now prints a WARNING with the count and percentage, and the reported bandwidth range is the range BEFORE substitution - it used to be after, which hid it completely. Field check: 6,000 rows with a dense block, s=0 -> 'WARNING: 3,000 of 6,000 rows (50.0%) ... given the MEDIAN bandwidth (632 m)'; s=1 -> no warning, and the dense block becomes its own bin at a 10 m half-life instead of hiding in a 632 m bin.
+
+- 349 | open v1.51.1 | THE CONTINENTAL DOOR DOES NOT OFFER THE FIVE
+  ENGINE OPTIONS THE TILED WRAPPER NOW TAKES.
+  345 threaded self_potential, overshoot_mode, self_rule, seed and
+  decay_eps through run_knn_counts_tiled, because fingerprinting an
+  option that cannot be varied would have been theatre. `run_folder`
+  still accepts none of them, ON EITHER BRANCH - so nothing is
+  inconsistent between tiled and untiled, which is why this is not a
+  correctness fix and did not go into 1.51.1.
+  WHAT IT COSTS TO CLOSE: four door dialogs, shared help text through
+  doors/help.py (not a second copy - see 105 and 338), door-parity
+  entries, and the box-changes-the-answer tests that 99 and 341
+  established as the standard for a new option. The untiled branch
+  also forwards no `decay`, so a continental run cannot ask for
+  distance decay at all; that belongs in the same piece of work.
+  WHY IT MATTERS: `originrule(exclude)` is the w_ii = 0 convention
+  spatial regression requires, and a continental run is exactly the
+  scale at which somebody wants it. Session 12 measured what the rule
+  does on coarse units - 13.6% on African American isolation at
+  k=100 - so this is not a preference, it is a published number that
+  a continental user cannot currently reproduce.
 
 - 101 | open v1.29.5 | THE TEST SUITE WRITES FILES INTO THE WORKING
   DIRECTORY. Found by Claude while staging 1.29.5: a clean clone had
@@ -1584,7 +1647,7 @@ not here. A list of completed work is not a plan.
   join, failed under test while being correct in QGIS. That file has
   now been wrong in this way five times.
 
-- 237 | OPEN, MINOR, NEXT RELEASE | stata_test_data.dta HAS TWO
+- ~~237~~ | DONE v1.50.0 | equipop_test_data.dta HAS TWO
   MISLEADING VARIABLE NAMES. John, from the field: ValFloat is not
   float and should be; ValCount holds counts.
   The names teach the wrong thing. The showcase and the field pass
@@ -1598,6 +1661,42 @@ not here. A list of completed work is not a plan.
   regeneration rather than on its own, because the file is a fixture
   and touching it invalidates pinned EXPECT numbers in
   equipop_test_pass.do - check those in the same pass.
+  THE STAKES ROSE BEFORE IT WAS DONE. The file is now published: it
+  reaches every SSC user who types `ssc install equipop, all`, beside
+  the paper, and it is the first thing a reader inspects. It is also
+  the file C. F. Baum renamed, which is how it came back into view.
+  DONE v1.50.0, and the regeneration was PROVED LOSSLESS BEFORE A
+  PUBLISHED FIXTURE WAS TOUCHED - which is the only reason it was safe
+  to do at all. ValFloat was declared Stata `double` (type 'd'). All
+  9,166 of its present values are whole numbers, the largest is
+  23,254, and float32 holds integers exactly to 16,777,216, so the
+  round trip is exact and NOT ONE PINNED NUMBER MOVED. The showcase's
+  `Nv 167.30 | Mean 1815.23 | Med 1248.10 | Gini .5806` still stands.
+  tools/make_test_data.py refuses to run if either of those two facts
+  stops being true.
+  AND ALL NINE VARIABLES HAD EMPTY LABELS, found while doing it. In
+  Stata the label is where meaning lives, so with none the NAME has to
+  carry it - which is how a name that lies does real damage. Labelling
+  them is a better cure for "misleading" than renaming: a rename would
+  break equipop_showcase.do, equipop_test_pass.do, the paper's
+  variable list and every student's notes, for a fault this item's own
+  text calls minor. ValCount's label says what it is NOT - "a count,
+  0-98 - not a 0/1 marker and not a magnitude" - because the
+  ValFloat/ValCount pair is the confusion the item was raised about,
+  and block 20 of the field pass was INVALID FOR A RELEASE because of
+  exactly that mix-up (1.40.5).
+  THE NAMES AND THE VALUES ARE UNTOUCHED, AND ONE QUESTION IS LEFT FOR
+  JOHN. ValFloat exists to demonstrate a CONTINUOUS measure - that is
+  the whole point of block 20 - and every value in it is a whole
+  number. Genuinely fractional values would teach the lesson better.
+  They would also want `double` storage to be worth having, which is
+  the OPPOSITE of what John asked for here, and they would change the
+  one pinned EXPECT line and diverge from the copy now hosted on SSC.
+  So: storage fixed as instructed, pedagogy recorded, his ruling.
+  Measured for whoever picks it up: ValFloat has 9,166 present values,
+  1,726 missing by design, 3,527 distinct, range 0-23,254, and
+  test_dist_monotone.py uses ValCount rather than ValFloat, so the
+  Python suite pins nothing that fractional values would move.
 
 - ~~238~~ | DONE | A REFUSAL NAMED A CHARACTER THE USER NEVER TYPED.
   External review of 1.43: 'fm:0-14,65-' was refused. Correct, and the
@@ -3525,6 +3624,2781 @@ not here. A list of completed work is not a plan.
   and vectorjoin.py shipped with no way to reach them, working on its
   own author.
 
+- ~~411~~ | DONE v1.57.1, 13 OCTOBER 2026 (external review of 1.57.0,
+  the same morning) | THE BUNDLE WENT ROUND ITS OWN PROTECTION, AND
+  COULD DELETE THE REPOSITORY.
+  The verdict: analytical code approved, individual artefacts
+  provisionally approved, the ALL zip "do not publish unchanged". Four
+  findings plus one optional point; all reproduced before anything was
+  fixed. Three held as stated, one held with its example corrected,
+  one was a different thing than reported, and the optional one was a
+  real defect.
+  (P0) `C:\Data/EquiPop_runs/people_EquiPop_run.csv` IN THE WORKING
+      TREE ZIP. Reproduced - AND WIDER: it shipped in 1.56.0 too, not
+      only 1.57.0 (1.55.1 and earlier are clean). THE CAUSE WAS ME: my
+      scratch script doors410.py drove the simulated Pro door from the
+      tree root with the input C:\Data\town.gdb\people, and Pro
+      writes its run record beside the geodatabase - on Linux, a
+      folder literally named `C:\Data`, in the working directory. The
+      suite itself runs from a temporary folder and did not do it;
+      confirmed by rerunning the Pro tests and finding nothing.
+      THE ROOT CAUSE IS THE PROJECT'S SIGNATURE ONE: 156 (1.29.6) is
+      this exact defect, and its fix lives in tools/make_release_zip.py
+      - but make_bundle.sh (1.54.6) zipped the tree with `zip -qr` and
+      never called it. A rule in one place and a path that went round
+      it. FIXED: the bundle's tree zip is built BY make_release_zip.py,
+      which now also refuses run records (*_EquiPop_run.csv,
+      *.meta.json, *.meta.txt) and Windows reserved names (CON,
+      aux.txt, LPT1...) and trailing dots or spaces; and every zip the
+      bundle ships is re-opened, CRC-checked, name-checked and
+      EXTRACTED (verify()) before the bundle is accepted. Fed the
+      shipped 1.57.0 tree zip, verify() refuses it; fed 1.55.1's, it
+      passes. The new builder ships exactly the old file set minus the
+      stray record.
+  (P1) `rm -rf "$OUT"` ON WHATEVER PATH WAS GIVEN. Reproduced on
+      disposable copies of the tree: `tests` deleted all 77 test
+      files, `../EquiPop` deleted the repository. The reviewer's own
+      example, `.`, is refused by rm itself - the finding stands, the
+      example does not. FIXED: the script deletes nothing it is given.
+      It builds in a fresh temporary folder; tools/bundle_out.py
+      decides FIRST whether the output may receive a bundle (refused:
+      the top of a file system, the home folder, the repository, an
+      ancestor of it, anything inside it, an existing non-empty folder
+      no bundle made), and installing removes only files a previous
+      bundle there listed in its marker (.equipop_bundle, which also
+      records each file's SHA-256). A release note beside a bundle now
+      survives a rebuild. A failed build keeps its logs.
+  (P2) "THE TEST COUNT IS STALE" - NOT SO, AND THE POINT STANDS
+      ANYWAY. The note said 1,744 collected; the reviewer collected
+      1,763 and attributed the 19 to tests added in 1.57. Reproduced
+      the other way: with geopandas installed this tree collects
+      EXACTLY 1,763 - test_vectorjoin and test_friction skip whole
+      without it. And the nine test_conformance_proportional tests
+      the review counted as new all existed in 1.56.0. So the count
+      was true and still not evidence: it did not say which machine
+      or packages. FIXED: tools/release_record.py runs the suite FROM
+      THE SHIPPED TREE ZIP, extracted, under each interpreter given,
+      and writes the note's record: totals, versions, absent optional
+      packages, and every file's SHA-256.
+  (P2) NO TEST OF THE ACTUAL BUNDLE PATH. Confirmed: the old test
+      read the script. Now: the production call itself on a tree full
+      of representative junk, extracted; verify() refusing a zip
+      shaped like 1.57.0's; the script required to call the builder
+      and to zip no tree itself; the guard's every decision; install's
+      rules; and the script RUN for real in a throwaway repository
+      against six dangerous outputs - none of which can reach a real
+      folder, so a broken guard can only harm tmp_path.
+  (OPTIONAL) "A SCALE-AWARE MARGIN FOR NgN_" - A REAL DEFECT. NgN_ and
+      Nv_ add the same people in different orders, so they differ by
+      rounding in proportion to the total: 7.8e-7 at 420 million.
+      With every row in a group, 1.57.0 said "In 1,268 places the
+      split leaves out people with a value but no 'g'" - and 87 places
+      at only 300 points weighing a million each. The margin is now
+      1e-9 plus 1e-12 of the total; half a person is still reported at
+      200 million. The COLUMNS were always right; the message was not.
+  BREAK-CHECK: 11 of 11 new, and 1.57.0's 29 rerun: 40 of 40. One gap
+  found by reading before the run: verify()'s test could not see its
+  name check, because the run-record rule caught the same zip. It
+  now feeds a reserved name that no other rule touches.
+  FOUND ON THE WAY: 412 (a fractional k from Python is undescribed).
+
+- ~~409~~ | DONE v1.57.0, 12 OCTOBER 2026 | THE SPLIT NOW COSTS FOUR
+  SUMS PER GROUP, NOT A SORTED STATISTIC PER GROUP.
+  BUILT AS RECORDED BELOW, with one change found on the way:
+  - build_cells(sum_vars=, sum_by=, sum_levels=) carries per-cell
+    ADDITIVE SUMS (CellData.sum_matrix), split by group codes inside
+    ONE bincount - so the per-person data is four columns per field
+    however many groups there are. Recording one column per group
+    would have cost a national register fields x groups x 4 columns.
+  - run_knn_stats adds them up over each neighbourhood with one vector
+    addition per ring, and a crossing ring contributes the same share
+    of them as of its people. The engine knows nothing about groups.
+  - decompose.Plan builds W, S, L, Q per field and assembles between
+    and within from them (split_from_sums). The sub-fields are gone,
+    and with them build_cells' `quiet_missing`, which only silenced
+    their missing values.
+  - THE CHANGE: the values are RESCALED by e^(mean log) before they are
+    summed, instead of centring the logs. Both indices ignore the
+    unit, and every mean then sits near 1, where its log loses
+    nothing. Measured against a reference free of cancellation, on
+    incomes near e^25 with a 0.1% spread (MLD 4.3e-7): plain sums off
+    by 0.8-3.3e-8 of the index over eight seeds, centred logs 3.5e-9,
+    rescaled 2.7e-10 - about 1e-16 absolute, the precision of the
+    incomes themselves. The direct MLD there is off by 4.9e-10.
+  MEASURED, same script and container as below:
+      1 field,  no split     19.7 s   peak  166 MB   (was 21.0 / 167)
+      1 field,  2 groups     25.8 s         177 MB   (was 44.7 / 206)
+      1 field,  5 groups     27.1 s         185 MB   (was 68.5 / 271)
+      1 field,  10 groups    27.8 s         214 MB   (was 107.4 / 379)
+      1 field,  20 groups    28.3 s         266 MB   (was 195.9 / 581)
+      3 fields, no split     40.2 s         199 MB   (was 43.5 / 199)
+      3 fields, 2 groups     52.8 s         226 MB   (was 108.2 / 326)
+      3 fields, 20 groups    58.6 s         390 MB   (was 595.2 / 1435)
+  What remains is per-record bookkeeping, nearly flat in groups.
+  CERTIFIED by 405's identity test, unchanged and still at rtol 1e-11
+  in all three overshoot modes (measured 1.4e-14); both shipped answer
+  keys regenerate byte-identically, so no other number moved.
+  FOUND ON THE WAY - A 1.55/1.56 DEFECT. Where everybody in a
+  neighbourhood has the same income, the share is 0/0. With
+  fractional weights 1.56.0 reported a share anyway in 282 of 600
+  constructed cases - mostly 1.0, "all of it between groups" - or a
+  between part of -2e-16, from rounding alone. Between and within are
+  now 0 there and the share EMPTY (NO_INEQUALITY = 1e-12); 0 of 600.
+  ALSO: a summary line where nothing was empty read "empty in 0 - only
+  one group present: 0"; it now ends at the count.
+  BREAK-CHECK (with 407a, the chapter and 408): 29 of 29, after three
+  corrections of mine. (1) The precision test passed with the
+  rescaling removed: pytest.approx adds an ABSOLUTE 1e-12 unless told
+  otherwise, which on an index of 4e-7 is a relative 2.5e-6, and the
+  break was 2.3e-8 off. abs=0 now. The other suite uses compare
+  values near 1 or larger, where the default does not dominate. (2)
+  and (3) are under 407a and the chapter. And dispatch's prefix
+  filter turned out to keep scaffolding out on its own, so assemble's
+  drop is pinned by a direct test of assemble on hand-computed sums.
+  The entry as opened:
+  THE SPLIT COSTS ONE ENGINE VARIABLE PER GROUP, AND AT 20 GROUPS
+  THAT IS NINE TIMES A PLAIN RUN.
+  Measured, 50,000 points, k=400, MLD and Theil, this container:
+      1 field,  no split     21.0 s   peak  167 MB
+      1 field,  2 groups     44.7 s         206 MB
+      1 field,  5 groups     68.5 s         271 MB
+      1 field,  10 groups   107.4 s         379 MB
+      1 field,  20 groups   195.9 s         581 MB
+      3 fields, no split     43.5 s         199 MB
+      3 fields, 2 groups    108.2 s         326 MB
+      3 fields, 20 groups   595.2 s        1435 MB
+  Close to linear: about 9 s and 20 MB per group per field on top of
+  the plain run. The binary case John designed it for costs about
+  twice a plain run, which is fine. Twenty groups over three fields
+  is 14 times the time and 7 times the memory, which on a large layer
+  is the difference between a coffee and an afternoon.
+  WHY: 405 splits each value field into one SUB-FIELD per group, and
+  the engine does its full per-variable work for each - sorting
+  included - though each holds a twentieth of the values.
+  THE FIX, VERIFIED BEFORE RECORDING: neither index needs sorting.
+      MLD   = ln(mu) - mean(ln y)
+      Theil = mean(y ln y) / mu - ln(mu)
+  So each group needs four ADDITIVE sums - sum w, sum w y, sum w ln y,
+  sum w y ln y - which a cell can carry and a crossing ring can
+  multiply by its share, exactly as the counts already are. Checked
+  against the sorted path over 3,000 random neighbourhoods with
+  fractional weights: 7e-10 relative for MLD, 1.5e-10 for Theil,
+  including near-equal incomes where the subtraction cancels most.
+  That removes the sub-fields entirely and makes a group cost four
+  additions per cell.
+  NOT IN 1.55.1: it changes what a cell carries, which is an engine
+  change, and it deserves its own release - certified by 405's
+  identity test, which is written so as not to care HOW the split is
+  computed. Until then the help says what the split costs.
+
+- ~~408~~ | DONE v1.57.0, 12 OCTOBER 2026 | MACHINE 2 IS IN THE
+  PROPORTIONAL ANSWER KEY, AND BOTH DOORS ARE RE-CERTIFIED AGAINST IT.
+  SPEC_PROPORTIONAL now asks the first key's questions - mean, median,
+  Gini of count_group at k=400 - and the key was regenerated. Machine
+  1's columns are bit-identical to the old key; the new columns
+  differ from the `whole` key in 2,286 rows (mean), 127 (median) and
+  2,287 (Gini) of 2,360, so the second key certifies something the
+  first cannot. Nv_ is compared within the tolerance, like T_: under
+  proportional it can be a fraction.
+  A TEST HAD BEEN ENFORCING THE GAP: test_the_second_key_carries_no_
+  column_no_door_can_produce asserted the key held no Mean_, Med_,
+  Gini_ or Nv_ - true to its reason in 1.30, a guard against the fix
+  from 1.31. Inverted: the two keys must now carry the same columns.
+  RE-CERTIFIED: QGIS and Pro run machine 2 under the spec's mode and
+  match the key on all 2,360 rows. Break-check: either door's machine
+  2 hardwired to `whole` - the pre-1.31 workaround - fails its
+  proportional conformance test; the `whole` key cannot see that.
+  The entry as opened:
+  CONFORMANCE-CHECKED UNDER THE DEFAULT OVERSHOOT MODE, FOR A REASON
+  THAT ENDED IN 1.31.
+  BACKLOG 162 made a second answer key under `proportional`, the
+  default, and gave it counts, shares and distances only, because
+  "under proportional machine 2 REFUSES, so a stats column here would
+  be a promise no door can keep". True when written; false since 1.31
+  (118). So the doors' machine 2 is checked against an answer key only
+  under `whole`, a mode most runs never use. The behavioural door
+  tests compare each door with dispatch under proportional, which is
+  why nothing is wrong today - but the cross-door ANSWER KEY, the
+  thing a reviewer can check against without trusting our code, does
+  not cover it. Fix: regenerate the proportional key with machine 2's
+  mean, median and Gini, and re-certify both doors against it. A
+  shipped data change, so its own release.
+
+- ~~407a~~ | DONE v1.57.0, 12 OCTOBER 2026 | TWO OF 407'S PRODUCT
+  SUGGESTIONS: A COVERAGE COLUMN, AND A MANUAL CHAPTER.
+  (1) NgN_ per field and k: the people the split covers - a value AND
+  a group - with the same share of a crossing ring as everyone else.
+  Beside Nv_ it shows, row by row, where people with no group were
+  left out; the summary line adds "In N places the split leaves out
+  people with a value but no 'cob' (NgN_ below Nv_)." Predicted,
+  described and in the legend, through the one naming function and
+  the one describer. Appended to GROUP_COLUMNS, so Ng_ and NgMin_ keep
+  their places.
+  (2) MANUAL_TOPICS.md section 10, "Inequality between and within
+  groups": one worked neighbourhood (A = [1, 3], B = [4, 4]) with
+  every column and its arithmetic; why MLD and Theil give different
+  shares there (45% and 56% - Theil weights the within part by income
+  share); empty-never-zero and its reasons; and why the empty area
+  shrinks with k, shown on a synthetic town of 5,000 (3,437 places
+  empty at k=100, 2,592 at 400, none at 1,600). The 1.56 release note
+  quoted a test town I could no longer reproduce, so the chapter uses
+  one that tests/test_manual_split.py BUILDS - and that file reads
+  every number out of the chapter and checks it against a run, so the
+  text and the code cannot drift apart.
+  Break-check found two of my BROKEN WITH claims untrue: `<=` with the
+  rounding margin kept is the same test as `<`, and a share written
+  "2%" for 1.875% is a correct rounding, not a break. Both corrected,
+  with the real breaks named.
+  LEFT: per-group means as a long companion table - John's ruling.
+
+- ~~410~~ | DONE v1.56.0, 12 OCTOBER 2026 (opened the same day from
+  John's first live Pro smoke test) | THE SPLIT RUNS IN PRO - AND
+  NOTHING ON SCREEN SAID WHAT ITS COLUMNS MEAN, OR WHY THEY ARE EMPTY.
+  **DONE - see the closing note at the end of this entry. The text
+  below is the entry as opened, kept, including a claim in it that
+  turned out half wrong.**
+  John ran 1.55.1 in ArcGIS Pro on EquiTown (6,005 points, field
+  income_obs, k=100) and it worked. His screenshot shows MLDb_, MLDw_,
+  MLDsh_, Theilb_, Theilw_, Theilsh_ - and <Null> in every visible
+  row. His words: "the w, sh, etc, are not explained what I can see
+  ... especially when we include groups, can be important."
+  TWO GAPS, and the second is the sharper one:
+  (1) NO RESULT COLUMN CARRIES A DESCRIPTION. Not the split's, and not
+      N_, R_, Mean_ or Dist_ either - checked: neither GIS door sets a
+      field alias, and the run messages name no columns. The help
+      explains b / w / sh, but in the dialog, which is closed by the
+      time anyone reads the table.
+  (2) AN EMPTY COLUMN DOES NOT SAY WHY. All-Null at k=100 is most
+      likely the minimum-group rule working: 30 people of 100 means
+      the smaller group must be 30% of the neighbourhood, which in a
+      segregated town most places are not. But the screen cannot tell
+      "the rule" from "a fault", and a careful user's first conclusion
+      would be the second. The minimum is in PEOPLE, deliberately -
+      sampling noise depends on how many, not what share - so the same
+      30 bites far harder at k=100 (30%) than at k=1600 (2%), and the
+      empty area should shrink as k grows. A user needs to be told
+      that, once.
+  PROPOSED, for when John says go:
+  - ONE DESCRIBER: a function that reads any EquiPop result name -
+    prefix, field, suffix - and says what it is ("MLD between-group
+    share of income_obs among the 100 nearest"). One source, used by
+    everything below, so the words cannot drift between doors.
+  - FIELD ALIASES in Pro (a file geodatabase keeps them; Pro's table
+    shows aliases in the header by default, which is exactly where
+    John looked), and in QGIS where the format keeps them.
+  - A LEGEND IN THE RUN MESSAGES for the columns just written, and a
+    closing line per k for the split: "MLDsh_income_obs_100 reported
+    in 1,204 of 6,005 places; empty in 4,801 - a group held fewer
+    than 30 people (4,650) or only one group was present (151)."
+  - the same descriptions in the run manifest, so they travel with
+    the result.
+  More pressing once per-group output arrives (407's suggestions),
+  which multiplies the columns.
+  CLOSING NOTE, v1.56.0. **"No result column carries a description"
+  was half wrong.** The run record HAD a describer - a list of
+  regular expressions in meta.py - and measured on a real run it said
+  "(no definition registered)" for 5 of 7 machine 1 columns (every T_
+  and R_ group column, machine 1's main output) and 12 of 19 machine
+  2 columns, and described Dist_k as "0 = satisfied within the origin
+  cell" in metres - untrue since self-potential (1.29.5) and in map
+  units since 160. A description nothing checked had rotted. A second
+  describer beside it would have been a rule in two places, so there
+  is ONE now: equipop/describe.py. Built:
+  - THE DESCRIBER reads a name as prefix_field_suffix, exact when given
+    the run's field names (a field may hold underscores and digits; a
+    radius writes its decimal point as an underscore) and the shortest
+    valid split otherwise. A name EquiPop does not write gets NO
+    sentence - a wrong alias is worse than none. Held to the column
+    PREDICTOR by test, so a family a door can produce and this cannot
+    describe fails the suite.
+  - THE RUN RECORD uses it, so Pro's manifest does too: 0 undescribed
+    columns where there were 17.
+  - A LEGEND in the run messages, printed by dispatch so QGIS and Pro
+    say the same words: one line per KIND of column on its first
+    instance, the emptiness rule said once.
+  - THE LINE JOHN'S SCREENSHOT NEEDED, per field and k: "split
+    reported in 1,335 of 6,005 places; empty in 4,670 - only one group
+    present: 2,670; a group below 30 people: 2,000." Counted in ROWS.
+    On a segregated test town the same field at k=1600 is empty in
+    106 places - which is the absolute minimum doing what it should,
+    and now visible rather than inferred.
+  - FIELD ALIASES in Pro, after the write is VERIFIED, on geodatabase
+    targets only, keyed on the engine's name so a renamed field keeps
+    its meaning (348's rule). A GeoPackage or shapefile target is told
+    where the descriptions are instead. An alias that fails warns and
+    never fails the run. QGIS sets the same sentence on each output
+    field with QgsField.setAlias; whether it survives depends on the
+    output format and QGIS version, which is John's live check to make.
+  - A legend that cannot be written SAYS so - not `except: pass`, the
+    shape that once made a feature unreachable from every door.
+  BREAK-CHECK, 16 OF 16 - after it caught one more test of mine: the
+  record test called set_output(columns), whose first argument is the
+  DESTINATION, so the record held no columns and "none undefined" was
+  trivially true. Third release running.
+
+- ~~407~~ | DONE v1.55.1, EXTERNAL REVIEW OF 1.55.0, 12 OCTOBER 2026 |
+  FOUR FINDINGS, ALL REPRODUCED, NONE OBSOLETE - AND THE POISONED
+  INSTALL THAT FOUND ONE MORE.
+  The verdict: "mathematically sound... unusually well synchronized",
+  with a 1.55.1 patch recommended before broad publication. John
+  wondered whether some findings were obsolete; none were. The zero
+  and Theil items sit under the reviewer's "what is strong" - checked
+  and confirmed correct - not under the findings.
+  (1) GROUP CODES COULD SILENTLY BECOME THE WRONG GROUPS. Reproduced
+      both halves. pd.NA was not recognised as missing, so A, A, <NA>,
+      B, B was three groups - missingness became an analytical group,
+      changing Ng_, NgMin_, the minimum rule and the split. And float
+      codes were formatted to ten digits and the LABEL named the
+      sub-field, so 1.0 and 1.00000000001 shared a sub-field, one
+      overwrote the other, and a total MLD of 0.1308 came out as
+      between 0, within 0. Fixed: missing is whatever pd.isna says,
+      plus Stata's missing and blank text; sub-fields are named by a
+      stable NUMBER; labels in messages are written at full precision.
+      AND THE SAME CLASS BY ANOTHER ROAD, found while fixing: two
+      distinct int64 codes above 2**53 became one float. Whole-number
+      codes now stay integers.
+  (2) THE OVERSHOOT HELP STILL SAID VALUE STATISTICS REFUSE
+      PROPORTIONAL. That ended in 1.31. Reproduced - and wider than
+      reported: the sentence was in both GIS dialogs, in Pro's
+      sidecars, AND in Stata's `help equipop`. Four code comments said
+      the same in the present tense; corrected to history. One of
+      them, in reference.py, was load-bearing and opened 408.
+  (3) TESTS DEPENDED ON WHICHEVER EQUIPOP WAS INSTALLED. Reproduced
+      exactly by putting 1.54.6 ahead of the checkout: the same two
+      failures, the generator saying "no text for parameters:
+      ['decompose', 'mingroup']". The cause: a script's sys.path[0] is
+      its own folder, so make_help_xml.py imported the installed
+      package - while tools/make_sthlp.py, generating the SAME text,
+      has always put the checkout first. A rule in two places. Fixed,
+      guarded so the copy shipped loose beside the toolbox never puts
+      the user's data folder on the path.
+      **THEN A POISONED INSTALL** - an equipop that refuses to be
+      imported, placed ahead of everything - over the WHOLE suite,
+      which turns every quiet use of an installed package into a loud
+      failure. It found one more the reviewer's run could not show:
+      the four lazy-import tests ran `python -c` from the suite's
+      working directory, which conftest moves into a temporary folder
+      (101), so they imported the INSTALLED equipop. On the reviewer's
+      machine they passed while measuring 1.54.1's imports, not the
+      code under review; here they pass because the install is
+      editable. Fixed as their two neighbours already were (cwd=ROOT),
+      and all three paths are pinned by tests that plant the same
+      poison.
+      AND ONE OF MINE: 1.54.6's sdist test passed under the old
+      package. The generator wrote ONE sidecar and failed; the test
+      asked only that something was written, then compared the sdist
+      with that one. It now checks the exit code and one sidecar per
+      registered tool. **A generator that failed is not a generator
+      that ran.**
+  (4) PER-FIELD MEASURES WERE UNIONED. Reproduced - and worse than
+      reported: asking MLD of income and Theil of rent wrote both
+      splits for both, AND when rent held a zero the run was REFUSED,
+      naming the scaffolding field 'rent[g=0]', for an MLD nobody had
+      asked of rent. Each field is now split by exactly the indices
+      asked of it, and held only to their domains.
+  BREAK-CHECK, 10 BREAKS, 10 CAUGHT - after one more correction of
+  mine: the large-integer test used 2**53+1 and 2**53+3, which round
+  to two DIFFERENT floats, so the break it named could not show.
+  2**53 and 2**53+1 are the same float; it uses those now. The second
+  release running in which break-check has caught a test of mine that
+  could not fail the way its docstring said.
+  THE REVIEWER'S PRODUCT SUGGESTIONS, recorded for John's ruling:
+  - a coverage column (NgN_ or a share) so the rows left out of the
+    split for having no group travel with the result, not only in the
+    run's messages;
+  - per-group means as a long-format companion table, which avoids
+    unpredictable field names;
+  - a manual chapter with one worked neighbourhood;
+  - live QGIS and Pro smoke runs before publication (128/80/87);
+  - the 20-group benchmark: done, see 409.
+
+- 406 | open v1.55.0, FOUND BY 405'S BREAK-CHECK | A REACHABILITY
+  WITNESS IS A SUBSTRING, SO IT CANNOT TELL A PASS-THROUGH FROM A
+  RENAME.
+  test_1 checks a door by `symbol in _read(path)`. 405's break-check
+  renamed QGIS's outgoing `kw["decompose_by"]` to `kw["decompose_byx"]`
+  - the grouping then lands in dispatch's **extra and is silently
+  dropped - and the matrix still passed, because "decompose_by" is a
+  substring of "decompose_byx". The behavioural door test caught it,
+  which is why 405 is safe; the matrix row on its own would not have.
+  **A SUBSTRING IS NOT A DEPENDENCY** (1.54.5's lesson) applies to the
+  whole matrix, not to one test. Every row is exposed the same way,
+  and a comment mentioning a symbol satisfies its witness too.
+  NOT FIXED IN 405, deliberately: it changes how every row in the
+  matrix is proven, and should be its own release. The likely shape
+  is an AST read - a Name, Attribute or string Constant equal to the
+  symbol, outside comments - with the behavioural door tests kept as
+  the real guard for anything that passes data.
+
+- ~~405~~ | DONE v1.55.0, JOHN'S DESIGN AND RULINGS, 12 OCTOBER 2026 |
+  MLD AND THEIL IN MACHINE 2, AND THEIR SPLIT BETWEEN AND WITHIN
+  GROUPS, IN EVERY GIS DOOR.
+  THE IDEA, from a conversation of John's about inequality of
+  opportunity: the k-profile method transposed to Roemer's
+  decomposition. Machine 2 now offers the two indices that split
+  EXACTLY into a part between groups and a part within them, and, given
+  a grouping field, writes that split for every bespoke neighbourhood.
+  JOHN'S THREE RULINGS:
+  (1) MLD REFUSES A ZERO. He asked first whether replacing zeros with a
+      small number would do, suspecting not; it was measured, not
+      argued. Three people on 167, 176, 189 have MLD 0.0013; a fourth
+      whose zero becomes 10, 1, 0.1, 0.01 or 0.001 gives 0.45, 1.01,
+      1.58, 2.16, 2.73 - the replacement IS the answer, each tenfold
+      step adding ln(10)/n. And "zero becomes 1" gives 2.73 in SEK,
+      1.01 in thousand SEK, 0.34 in million SEK: an index that depends
+      on the currency unit, which MLD never does by itself. On a k=200
+      neighbourhood with 5% zeros, eps 1 against 0.1 moves MLD from
+      0.355 to 0.470 against 0.129 for the positives alone, and the
+      shift grows with the share of zeros - the 154 shape again. So
+      MLD refuses and names Theil, which is defined at zero.
+  (2) A MINIMUM GROUP SIZE, default 30, settable in both doors. Below
+      it - or with only one group present - all three split columns
+      are EMPTY, not zero. Between-group inequality is biased upward
+      in small groups, so the between part is emptied with the share,
+      not left on the map.
+  (3) EX ANTE ONLY for now. The ex-post reading is later.
+  WHAT IT IS, and what it is not called: MLDb_ / MLDw_ / MLDsh_ (and
+  Theil's) are a between-group decomposition. Whether the share
+  measures OPPORTUNITY depends on whether the grouping is a
+  circumstance beyond a person's control - the reader's cut, not the
+  tool's - so the help says so and the names stay neutral.
+  BINARY VARIABLES - the other half of John's question - measured: for
+  a 0/1 variable with share p, Theil is exactly -ln p, the Gini exactly
+  1 - p, and MLD infinite. All three are the share in disguise. So the
+  binary family refuses MLD and Theil with that reason, a 0/1 VALUE
+  field asked for Theil gets a note (warn, never act), and the help
+  says where a 0/1 field belongs: as the GROUP.
+  HOW, WITHOUT TOUCHING THE ENGINE'S NEIGHBOURHOOD. The engine has
+  always computed a subgroup's statistics from a value present only for
+  its members - "counts towards k but not towards the statistic", its
+  own words since 1.31. Each value field is split into one sub-field
+  per group (named `inc[cob=abroad]`, which no GIS field can be), the
+  engine runs unchanged, and equipop/decompose.py assembles count,
+  mean and index per group into the split. k still counts everybody,
+  pinned by test.
+  THE IDENTITY THAT CERTIFIES IT, through two routes sharing no code
+  below run_knn_stats: between + within, assembled per group, against
+  the index computed directly over everyone - 1e-14 or better in all
+  three overshoot modes, with fractional weights, for k and for a
+  radius, and in neighbourhoods missing one of three groups.
+  THE COLUMNS ARE LEVEL-INDEPENDENT ON PURPOSE. A door predicts its
+  columns BEFORE reading the layer (Pro refuses an overlong shapefile
+  target in the dialog), and a group's values are not known then. So
+  per-group means are NOT written in this release - their names would
+  depend on the data - and Ng_ / NgMin_ say how many groups were
+  present and how big the smallest was. The prediction and the engine
+  name the columns with one function.
+  STATA: unchanged, by John's ruling 205. Stata decomposes MLD and
+  Theil by group natively (ineqdeco, bygroup()), so the ruling's
+  reopening condition is not met. The generic runner passes statistic
+  names through, so `equipop_run, engine(stats) stats(mld theil)`
+  works with nothing added.
+  FOUND IN PASSING, both fixed:
+  - QGIS machine 2 assigned the reference TYPES to `wanted`, the name
+    of the measures list, so under rung 3 its "Measures:" line printed
+    the types. Since 1.29.2.
+  - Pro's machine 2 description still said rows are "expanded
+    exactly", which 343 ended in 1.51.
+  AND TWO TEST LESSONS:
+  - test_rungs read the doors' menu lists with REGEXES, which split on
+    "a comma followed by a quote" - so a comment after a comma glued
+    two entries into 'theilpercentiles' - and ended the list at the
+    first `]`, which a comment holding `[0, 1, 2]` supplied. Replaced
+    with one AST reader. Break-check confirmed it still sees a real
+    drift.
+  - Break-check found my hand-arithmetic test's BROKEN WITH claim
+    UNTRUE: with every weight 1, "divide by distinct values" and
+    "divide by people" are the same number. It now carries a weighted
+    case worked by hand ([1, 3] at [1, 3] is [1, 3, 3, 3]). 40 breaks,
+    40 caught.
+  NOT DONE, needs John: the scale profile theta(k) beside seg_profile
+  - see the priority list.
+
+- ~~404~~ | DONE v1.54.6, FOUND WHILE VERIFYING 403'S OWN BUNDLE, 10
+  OCTOBER 2026 | TWO THINGS THAT EXISTED AND COULD NOT BE REACHED -
+  ONE IN THE RELEASE TOOL, ONE IN THE SUITE ITSELF.
+  Both came out of ONE leak check on the 1.54.6 archives, run on a
+  premise that turned out to be wrong: the sdist carries the five
+  `EquiPop.<Tool>.pyt.xml` sidecars, and I went looking for the
+  defect. MANIFEST.in had already answered - **"do not commit them,
+  do ship them"** - so the sdist is right and 1.54.3, 1.54.4 and
+  1.54.5 were right too. Checking the recorded reason before fixing
+  anything is what stopped a correct decision being undone.
+  (a) THE DURABLE RELEASE TOOL HAD NO GUARD FOR THEM, AND ITS OWN
+      DOCSTRING STATES THE RULE IT WAS MISSING.
+      `tools/make_release_zip.py` was written for BACKLOG 156 and says:
+      *"The clean-up HAD been run - before the test suite, which then
+      recreated the files. That is the lesson: a manual step in the
+      right order is not a fix, because the order will be got wrong
+      again. So the check lives here, runs every time, and REFUSES
+      rather than warns."*
+      The sidecars are precisely that kind of step - the bundle's Pro
+      slot needs them PRESENT, the working tree must not hold them
+      (45), so the order is generate, build, delete. My scratchpad
+      build script checks the zip for them; **the in-tree tool, the
+      one that survives the session, did not.** The 350 check sees
+      only whole directories (`build/`, `dist/`), and these sit in
+      `arcgis/` beside files that must ship, so no existing check
+      could see them. 1.54.0 shipped them and it was caught BY HAND.
+      Fixed: `check_build_outputs`, called from `build`, REFUSING with
+      the remedy in the message (`rm arcgis/*.pyt.xml`) - a refusal
+      without a remedy is where 402 came from. Not a skip: a skip
+      builds a clean zip and leaves the files in the tree, so the next
+      `pytest` fails instead - the fault moves, it does not go.
+      The test drives `build()` and not just the checker, because a
+      checker nothing calls is this project's signature defect.
+      It also asserts the zip was NOT written after the refusal.
+  (b) AND THE SAME QUESTION, ASKED OF THE SUITE: A TEST THAT COULD
+      NOT BE REACHED AS ITSELF.
+      Writing (a)'s test meant reading `test_packaging.py`, where one
+      function's body ran TWO tests - the 350 build-output check, and
+      then, after its assertion, a second docstring and the whole of
+      the BACKLOG 241 runner-imports check. **A `def` line had been
+      lost in an edit.** So the 241 check had no name, could not be
+      selected with -k, never appeared in any report - and ran ONLY
+      WHILE THE 350 ASSERTIONS PASSED. Break 350 and a guard stops
+      executing silently: the "guard made unreachable by the path that
+      would trip it" shape, now the fourth instance this session, and
+      the first one inside the suite rather than the package.
+      MEASURED, because it is the whole reason this was invisible:
+      with the two re-merged the file reports **34 passed instead of
+      35 - green either way, only the count moving.** Neither a green
+      suite nor a test count can show it, which is correction (c) of
+      403 from the other side.
+      Fixed: split back into `test_every_runner_imports_only_modules_
+      the_package_ships`, and a new `test_6` in test_reachability.py -
+      the right home, since that file's whole subject is whether a
+      thing can be reached - walks every `test_*.py` by AST and fails
+      on a string statement in the middle of a function body, which is
+      what a lost `def` looks like. Break-checked by re-merging the
+      two exactly as they were.
+      AND THE UNIQUENESS RULE EARNED ITS KEEP AGAIN: my first break
+      anchor matched 0 times, because I had inserted (a)'s test
+      between the two and the text had moved. The `count == 1`
+      assertion said so instead of reporting a cheerful SURVIVED.
+  (c) THEN MY OWN FIX FOR (a) SILENTLY EMPTIED THE SDIST, AND THAT
+      IS THE ROOT CAUSE OF ALL THREE.
+      Having the build script generate the sidecars rather than
+      trusting my memory, I put the step where the Pro slot needs
+      them - at step 3, AFTER `python -m build`. Measured on the two
+      tarballs: 1.54.5's sdist carries 5, the first 1.54.6 sdist
+      carries **0**. And every check stayed green - MANIFEST.in
+      unchanged, the five loose copies present in the bundle, suite
+      passing. Only `tar tzf | grep -c` on both showed it.
+      **`include arcgis/*.pyt.xml` IS A PERMISSION, NOT A
+      GUARANTEE**: the files must EXIST when the build runs. So
+      1.54.3, 1.54.4 and 1.54.5 shipped them BY ACCIDENT of the order
+      I happened to work in, and
+      test_the_pro_help_sidecars_are_shipped_beside_the_toolbox -
+      which asserts the MANIFEST LINE - states the lesson it misses
+      by exactly one level in its own docstring: *"a check on an
+      artefact nobody ships is a check on nothing."*
+      WHAT THE REAL CAUSE WAS: the 19-slot bundle has been built by a
+      script OUTSIDE the repository at every release, rewritten from
+      the last one each time. That is the whole of (a), (b) and (c).
+      So `tools/make_bundle.sh` is now in the tree, carrying the
+      order and the reason for each step, guarding itself at runtime
+      (it refuses if the sdist comes out with no sidecars, if the
+      working-tree zip has any, if the tree is left dirty, or if
+      pyproject's version is not the one asked for), and cleaning up
+      on a trap so a mid-way failure leaves nothing behind. It picks
+      the newest HANDOVER by number rather than naming one.
+      TWO TESTS, two halves, and the split is the point:
+      - `test_the_sdist_really_carries_the_pro_sidecars` BUILDS the
+        sdist (2.5 s, skipped where `build` is absent) and looks
+        inside it. It proves MANIFEST plus config DELIVER when the
+        files exist - and its docstring says plainly that it CANNOT
+        prove they exist, because it generates them itself.
+      - `test_the_bundle_script_generates_the_sidecars_before_it_
+        builds` asserts the ORDER in make_bundle.sh, position being
+        the property - 1.54.5's lesson again. Every anchor is
+        asserted unique inside the test itself, so a moved line
+        cannot make it prove nothing.
+      18 break-checks across the release, all caught, no survivors.
+
+- ~~403~~ | DONE v1.54.6, THIRD EXTERNAL REVIEW OF 1.54.5, 10 OCTOBER
+  2026 | A POSITIVE VERDICT THAT STILL FOUND TWO THINGS - AND BOTH WERE
+  CLAIMS, NOT CODE.
+  The verdict: "a credible release candidate... suitable for SSC". The
+  code findings from reviews one and two were confirmed fixed by
+  measurement in his environment, not by reading my notes. What he
+  found instead were THREE WRONG STATEMENTS IN MY OWN RELEASE NOTE and
+  TWO RESIDUALS. All five are recorded here because four of them are
+  the same mistake in different clothes: **A CLAIM IS A DELIVERABLE AND
+  HAS TO BE TESTED LIKE ONE.**
+  (a) THE NOTE SAID `equipop setup` WOULD INSTALL 1.54.5. It requests
+      `equipop>=` THE FLOOR, which is 1.48.0 - exactly what 332
+      decided and what the ado has done since (`floor = min_engine or
+      ado_version`). So setup works before the PyPI upload and cannot
+      install the unpublished release specifically. The local wheel
+      (INSTALL.md section 2) is the only pre-publication method, which
+      is what 402 fixed in the note and what this corrects the other
+      half of. I had written the fix and then described it wrongly in
+      the same note.
+  (b) THE NOTE'S GITHUB `net install` LINE FETCHES WHATEVER IS ON
+      MAIN. Handing it to a tester before the tree is pushed installs
+      the PREVIOUS release's .ado while the note claims it installs
+      this one - a silent version skew with a loud doctor warning
+      downstream, which is precisely the 401/402 alarm I had just
+      spent two releases making legible. The note now says: push
+      first, or install the supplied files locally.
+  (c) THE TEST COUNT HAD LOST ITS ENVIRONMENT QUALIFIER. He measured
+      1,616 passed / 28 skipped on Python 3.12.14 with Rasterio
+      1.5.2, against the same 1,644 collected. Nothing is wrong - the
+      skips are his environment - but a bare "1,644 pass" is a claim
+      about his machine that I cannot make. **A TEST COUNT IS AN
+      ENVIRONMENT MEASUREMENT, NOT A PROPERTY OF A RELEASE** (first
+      recorded at 1.54.1, re-learned here because I dropped the
+      qualifier while editing).
+  (d) RESIDUAL, FIXED: THE FLOORLESS NOTE CONTRADICTED ITSELF. 401's
+      fallback branch could print "this engine is too old to say"
+      and then "so it is checked here instead" - the second sentence
+      answering a question the first had just declared unanswerable.
+      Reproduced by stubbing `_lines_floor` out. There are two real
+      states and they now read as two: when the ado CAN borrow the
+      engine's own `_lines_floor` it prints the satisfied line and
+      says which statement to believe; when it cannot, it says the
+      requirement is UNCHECKED either way and claims nothing further.
+      The test runs BOTH branches - a presence test would have passed
+      on the contradictory version.
+  (e) RESIDUAL, FIXED AS FAR AS IT CAN BE: CACHE VALIDATION ACCEPTED
+      EDITED NUMBERS. Measured, on a hand-edited `char _dta`:
+      `people = -5` ACCEPTED, `people = 0` ACCEPTED, `points = -1`
+      ACCEPTED, an inconsistent `share_cells` ACCEPTED.
+      `_advice_is_coherent` now checks finiteness and sign, and
+      re-derives each share from the counts stored beside it
+      (`share_cells == saturated/cells`, and the two endpoints where
+      `share_people` is pinned to 0 or 1).
+      **WHAT IT STILL CANNOT CATCH, SAID OUT LOUD IN THE DOCSTRING
+      RATHER THAN PAPERED OVER:** `people = 999999` is accepted,
+      because the payload holds no per-cell populations to total. I
+      measured what that costs before accepting it: after unpacking,
+      `people` is read in exactly ONE place (the `format_advice`
+      header) and reaches no decision. 1.54.1 would have called this
+      "validated"; the limit is now written where the next reader of
+      the function will see it.
+  WHAT THIS REVIEW COSTS ME TO LEARN: the three note errors were all
+  in text no test reads. The release note is the one artefact in this
+  project with no suite behind it, and it is the first thing a new
+  user obeys.
+
+- ~~402~~ | DONE v1.54.5, JOHN AGAIN, 10 OCTOBER 2026 | "WHERE DID I GO
+  WRONG DURING INSTALLATION?" - HE HAD NOT, AND THE REPORT'S ORDER WAS
+  WHY HE THOUGHT SO.
+  401 added a note for the case where the engine is too old to be told
+  the floor. It worked - his output carries it - and it was printed
+  AFTER the VERDICT, pages below the loud release-number remark it
+  exists to correct. He read "THE ENGINE IS OLDER THAN THE COMMANDS,
+  and that combination does break", concluded he had mis-installed
+  something, and asked.
+  **A CORRECTION PRINTED AFTER THE ALARM IS READ TOO LATE.** The note
+  now comes first, before the report.
+  AND IT STATES THE VERDICT RATHER THAN THE CAVEAT. The first version
+  said only that the requirement could not be checked - true, and it
+  leaves an unresolved alarm below with no answer. The .ado knows the
+  floor and can read `equipop.__version__`, so it calls the ENGINE'S
+  OWN `_lines_floor` and prints `needs engine : 1.48.0 or newer -
+  satisfied`, then says which of the two statements to believe. One
+  source for the wording, so it cannot drift from what a current
+  engine prints - which is 332's whole point, reached from the door
+  that could not reach it before.
+  TWO TEST LESSONS, both from break-check:
+  - the test asserts the ORDER, not the presence. "the note exists"
+    was true of the version John complained about.
+  - `"_lines_floor" in src` also matches `_lines_floor = lambda a, b:
+    []`, which is how a local stub got past the first version of the
+    one-source assertion. **A substring is not a dependency**; the
+    test now reads the ImportFrom by AST.
+  NOT A CODE DEFECT, BUT MINE: the 1.54.4 release note's file table
+  says what to do with the wheel FOR PYPI - `twine upload` - and never
+  says how to get it onto his own machine before it is uploaded.
+  INSTALL.md has had that command since 1.47 (section 2, the `shell
+  ... pip install ... .whl` line) and the release note never points
+  there. Fixed in the note.
+
+- ~~401~~ | DONE v1.54.4, JOHN'S DOCTOR OUTPUT, 10 OCTOBER 2026 | 332'S
+  FLOOR CHECK HAD NEVER ONCE BEEN CONSULTED FROM STATA.
+  He sent a working doctor report and said "see if you find
+  something". It shows engine 1.54.2 against commands 1.54.3 and:
+  ```
+    THE ENGINE IS OLDER THAN THE COMMANDS, and that combination does break:
+  ```
+  **The floor those commands declare is 1.48.0, and 1.54.2 satisfies
+  it.** The correct line is `needs engine : 1.48.0 or newer -
+  satisfied`, and nothing was wrong with his install at all.
+  THE CAUSE, REPRODUCED: `report()` takes `min_engine`. **`run()` did
+  not.** The .ado calls `run()`. So `run(ado_version=..., min_engine=...)`
+  raised TypeError on EVERY doctor run since 332 landed, the ado's
+  fallback re-ran without the floor, and the report fell back to
+  comparing two RELEASE NUMBERS - which is the exact thing 332 exists
+  to stop, and whose docstring in this very file says "The loud
+  message belongs to the second and now goes only there."
+  **SIX RELEASES. The feature was built, documented at length, tested
+  through `report()` directly, and unreachable from the only door that
+  passes the argument.** 353, 368, 373, 380, 388 - and now this, found
+  not by a review but by a user pasting output that looked fine to him.
+  HIDDEN BY A BROAD EXCEPT, and the comment beside it even said what
+  it was for: "min_engine is newer than the argument list of every
+  engine before 1.49.3". A blanket `except TypeError` around a call
+  **cannot tell a missing parameter from a TypeError raised deep
+  inside the report**, and it degraded in silence either way.
+  THE FIX: `run()` takes and forwards `min_engine`; the ado ASKS
+  `inspect.signature(run)` instead of catching; and when the answer is
+  no, the report SAYS the floor could not be checked. A silent degrade
+  is the thing to avoid, not the old engine.
+  **AND I HAD ALREADY WRITTEN THE TEST THAT CATCHES THIS.** 1.54.0's
+  `test_every_door_calls_the_advisory_with_arguments_it_accepts` binds
+  every call site's keywords against the live signature, and its
+  docstring explains why: a call inside a broad except would fail
+  forever in silence. I pointed it at three doors and not at the
+  doctor and setup calls **in the same file**. It is now general over
+  every engine function the .ado's python block calls by keyword.
+
+- ~~400~~ | DONE v1.54.3, JOHN'S FIELD REPORT, 10 OCTOBER 2026 | THE
+  ONE WORD A CONFUSED USER TYPES, REFUSED BY THE THING THEY WERE
+  ASKING ABOUT.
+  He sent two things in one message: the doctor's clean verdict, and
+  ```
+  . equipop help
+  unknown subcommand: help
+    equipop doctor  - report on the Python this Stata is using
+    equipop setup   - install or update the calculating engine
+  ```
+  `equipop help` was never a subcommand, because Stata's convention is
+  `help equipop` - which is true, and is also not what anybody types
+  the moment a subcommand has just been refused. **The worst-timed
+  error message in the program.** One line of dispatch.
+  THE CAPTURE MATTERS AS MUCH AS THE BRANCH. A partial install - the
+  .ado files present and equipop.sthlp missing - makes Stata answer
+  "help for equipop not found", which reads as though the command
+  itself is absent. Captured, the message names the real cause and
+  gives the same reinstall lines the unknown-subcommand branch prints.
+  **AND MY TEST FOR THAT LIST WAS WORTHLESS.** It asserted
+  `"equipop unit" in text` over the whole .ado - which matches the
+  DISPATCH BRANCH, so the help line could have been deleted and the
+  test would still pass. John's paste is a list that names two
+  subcommands out of three. The list is now DERIVED FROM THE DISPATCH
+  and checked inside the unknown-subcommand block, so a fourth
+  subcommand is covered the day it is written.
+  Break-check then found a THIRD place the same omission can live:
+  deleting `equipop help` from the generated syntax section changed
+  nothing, because that test only reads the .ado. A companion test
+  now requires every dispatched subcommand to appear in
+  `help equipop` too. **Three places, one derivation.**
+  THE DOCTOR'S VERDICT GOT TWO LINES while I was there, and the pair
+  he sent is the reason: a user told `machine 1 can run in this
+  Python.` has nowhere obvious to go next, and `machine 1` is this
+  project's vocabulary rather than a Stata user's. It now says what
+  machine 1 is and names `help equipop` and `equipop unit` - printed
+  ONLY when there is nothing to fix, so it never competes with a real
+  diagnosis, which a test asserts.
+
+- ~~395~~ | DONE v1.54.2, SECOND EXTERNAL REVIEW, FINDING 1 | `help
+  equipop` WAS 746 LINES OF ONE CHARACTER EACH, AND I HAD LOOKED AT
+  THE FILE.
+  `_wrap()` returns ONE STRING of joined lines. Every other call site
+  in make_sthlp.py does `add(_wrap(...))`; mine was
+  `for line in _wrap(...): add(line)`, which iterates the string and
+  yields CHARACTERS. The generated help carried 816 one-character or
+  blank lines out of 1,103, and `help equipop` was unreadable from the
+  unit-advice paragraph onward - **in both the SSC submission and the
+  net-install archive.** A release blocker, and it shipped in the
+  1.54.0 and 1.54.1 bundles.
+  **FOUR THINGS FAILED TO CATCH IT, and each is worth knowing:**
+  - `make_sthlp.py --check` compares the malformed output against the
+    malformed generator and reports the file current. A currency check
+    cannot see a defect that is in the generator.
+  - `test_the_help_file_holds_no_broken_smcl` counts braces per line;
+    a line holding one letter has none.
+  - the paragraph's own words are all present, in order, so **any grep
+    for its content succeeds.**
+  - and I did grep it. I checked that the strings I expected were
+    there and never looked at the SHAPE of the file. `wrote ... (1103
+    lines)` was printed to me twice and I had no correct version to
+    compare it against - it is 385 lines now.
+  THE TEST: for every paragraph make_sthlp takes from HELP by name,
+  the whitespace-normalised text must appear in the whitespace-
+  normalised output. "What" split one letter per line normalises to
+  "W h a t" and does not match. General over every HELP entry, not
+  just the one that broke. Plus a direct shape check - no run of more
+  than three one-character lines.
+  TWO MORE DOCUMENTATION GAPS came with it, both found by writing the
+  tests rather than by reading: `r(applies)` was returned by the ado
+  and documented nowhere, which makes it useless for the one job it
+  has; and `candidates()`, `tolerance()` and `nocache` appeared in the
+  syntax line and were explained nowhere, because the options section
+  is built from OPTION_HELP - the RUN's option list - so a
+  subcommand-only option had no route into it.
+  **THE STRONGEST OF THE NEW TESTS DERIVES THE DOCUMENTED `r()` NAMES
+  FROM THE ADO'S OWN RETURN STATEMENTS**, in both directions. It found
+  `r(cmd)` and `r(cmdline)` missing too, the moment it was written -
+  the third and fourth undocumented results in the same block.
+
+- ~~396~~ | DONE v1.54.2, SECOND EXTERNAL REVIEW, FINDING 2 | HALF OF
+  393'S FIX WAS A FIX.
+  393 made rasterio's DECLARED requirements a recorded fixture.
+  `_absent()` still forced only the named packages absent and passed
+  every other lookup to the live environment - so the answer still
+  depended on what happened to be installed. The fixture declares
+  `click-plugins`; on a machine without it the doctor correctly
+  reported FOUR missing dependencies where the test expected three,
+  and two historical-case tests failed again on a defect that was not
+  there. **The same class of error, in the fix for that class of
+  error, one release later.**
+  A COMPLETE FAKE INSTALLED SET now: everything in the fixture is
+  present unless named in `gone`, and a lookup for anything in
+  neither list **raises** rather than falling through. A silent
+  fall-through is how this came back a second time, so it is no longer
+  silent.
+  VERIFIED BY SIMULATING BOTH HALVES of the reviewer's environment -
+  rasterio declaring no cligj/attrs/pyparsing/click-plugins AND
+  click-plugins uninstalled - under which all 37 doctor tests pass.
+
+- ~~397~~ | DONE v1.54.2, SECOND EXTERNAL REVIEW, FINDING 3 | A
+  FRACTIONAL k WAS SILENTLY TRUNCATED BY THE PUBLIC ADVISORY.
+  `_resolve_ks` did `int(k)`, so `k_values=[100.9]` came back as
+  advice labelled k=100 with nothing said. **The project already has a
+  rule about this**: the shared door reader refuses a non-whole k
+  because k counts PEOPLE and quietly rounding a count of people
+  produces a plausible wrong answer (320, 371). The new public
+  function undid a rule the typed doors enforce - and its own comment
+  claimed it validated what the engine would refuse.
+  `100.0` IS ACCEPTED, `100.9` IS NOT. A Python caller writing 100.0
+  means 100; the door reader is stricter about the typed string
+  "100.0" because a decimal point a human put into a count is a fact
+  about the human, which is a different question from this one.
+  A BOOL IS NOW REFUSED. `k_values=[True]` was accepted as k=1,
+  because bool is an int subclass - nobody's intention, and the sort
+  of value that arrives from a mis-indexed array. `nan` and `inf` were
+  raising raw ValueError and OverflowError from `int()`; they get
+  EquiPop's message now.
+  One resolver, used by `advise_unit` AND `request_key`, so 100 and
+  100.0 cannot be the same advice under two different cache keys.
+
+- ~~398~~ | DONE v1.54.2, SECOND EXTERNAL REVIEW, FINDING 4 | THE
+  SCHEME CHECK SAT BELOW THE CACHE LOOKUP.
+  394 put `_check_scheme` inside `fetch()`'s download branch. The
+  cache check comes first and builds its destination from the URL's
+  BASENAME - so with `payload.bin` already in the work directory,
+  `fetch("file:///etc/payload.bin", wd)` printed `[fetch] cached` and
+  returned the path. Nothing forbidden is read in that case, so it is
+  not the local-file-copy risk itself; it is worse as a CONTRACT,
+  because the caller is handed an unrelated file and believes it holds
+  that URL's content.
+  **AND MY TEST COULD NOT HAVE CAUGHT IT.** It asserted over the AST
+  that every function containing `urlopen` also contains
+  `_check_scheme` - which proves PRESENCE and says nothing about
+  POSITION. Ordering is a behavioural property and needs a
+  behavioural test: the new one primes the cache, calls fetch with a
+  forbidden scheme, and also checks that a refused call leaves no
+  work directory behind.
+  THE GENERAL LESSON, and it applies to several tests written in this
+  session: **an AST or source-text assertion can prove that something
+  is there and never that it runs first.** Where ordering is the
+  property, the test has to execute the path.
+
+- ~~399~~ | DONE v1.54.2, SECOND EXTERNAL REVIEW, FINDING 5 | THE
+  CACHE VALIDATED THE QUESTION AND NOT THE ANSWER.
+  389's key covers the REQUEST - fingerprint, k values, tolerance,
+  ladder, rule - and says nothing about the stored result. Measured:
+  editing `recommended` to 999999, a cell count to -42 or a share to
+  7.5 (750%) was accepted and returned.
+  **THE WORST CASE IS `applies`.** Flipped to false under `include` it
+  delivers the 388 defect straight out of a cache - the exact thing
+  CACHE_VERSION 2 was bumped to keep out - and flipped to true under
+  `exclude` it puts include-rule columns back onto an exclude report.
+  Two fields that must agree, with nothing requiring them to.
+  `_advice_is_coherent` now checks what `advise_unit` guarantees on
+  the way out: the rule is known, `applies` is DERIVED from it, the k
+  maps match `k_values`, shares are finite and within 0-1, saturated
+  cells do not exceed the cell count, an exclude payload carries
+  absences and never numbers, and **the recommendation follows from
+  the shares it was supposedly derived from** - the coarsest size
+  within tolerance, or none.
+  AND THE 1.54.1 NOTE WAS WRONG TO IMPLY A SECURITY BOUNDARY. Anybody
+  who can edit a dataset characteristic can recompute whatever we
+  store beside it. This is corruption and version-skew detection, and
+  the claim is now that a payload which does not describe a coherent
+  answer to the request is refused. **The reviewer was right that the
+  guarantee was broader than the protection; the fix narrows the words
+  and widens the protection.**
+
+- ~~388~~ | DONE v1.54.1, EXTERNAL REVIEW F1 | `originrule(exclude)`
+  WAS SHOWN INCLUDE-RULE ADVICE, AND I HAD WRITTEN DOWN WHY THAT WAS
+  WRONG BEFORE SHIPPING IT.
+  `advise_unit` took `self_rule` and used it as a LABEL ONLY. The
+  numbers were computed identically under either rule; the report then
+  announced "Assumes originrule(exclude)" over include-rule counts and
+  a footnote below said those counts do not apply. All three
+  ordinary-run doors pass the user's real rule in, so an exclude run
+  was told `100.0% of people are in a cell that already holds k` - and
+  given a recommendation derived from it.
+  **THE PART THAT MAKES THIS MINE RATHER THAN AN OVERSIGHT.** 385's
+  own module docstring says the criterion "IS ONLY TRUE UNDER THE
+  `include` ORIGIN RULE", and `tests/test_unitsize.py` ASSERTED the
+  engine differs under exclude. The knowledge was written down, tested
+  and then not used by the code path. That is 353, 368, 373 and 380 -
+  the four releases before 1.54.0 - committed again in the release
+  whose own handover section is about them.
+  **MEASURED, AND IT IS STRONGER THAN THE REVIEW SAID.** Not
+  "unreliable under exclude": fastcounts drops the origin's WHOLE CELL
+  (`keep = idx != oi_range`, fastcounts.py:164), so the saturated
+  count is STRUCTURALLY ZERO. Checked on four shapes, including one
+  where a single cell holds every person and k=1000 - include reports
+  1 saturated origin, exclude reports 0. The advisory was predicting a
+  phenomenon that cannot occur.
+  **AND A CORRECT EXCLUDE CRITERION DOES NOT EXIST IN THE CHEAP
+  FORM.** I guessed one: under exclude, a huge neighbouring cell
+  should serve every k, so Dist_k would stop varying. MEASURED AND THE
+  GUESS WAS WRONG - with a 10,000-person cell 100 m away, Dist_k came
+  back 57.02, 62.17 and 81.19 for k=100, 1000 and 5000, because the
+  engine spreads a cell's population across its area. So k keeps its
+  meaning under exclude at every cell size, and there is nothing to
+  warn about. Good news stated as such rather than as a limitation.
+  THE FIX: the rule now DECIDES whether the criterion applies.
+  `applies` is in the advice dict; under exclude the per-k fields are
+  **None rather than 0** (a zero reads as a measurement, and the next
+  step is to pick the coarsest size on the strength of it), the k
+  columns are not printed, no size is recommended, and a note says
+  why. The cost and resolution-floor columns stay, because they are
+  about the GRID and hold under either rule. `r(applies)` is new, so a
+  do-file can tell "too dense for any size" from "this criterion does
+  not apply" - both of which arrive as a missing `r(unit)`.
+  AND THE RULE IS VALIDATED EVERYWHERE. It used to be a free string in
+  the subcommand, so `originrule(inclde)` would have silently selected
+  the exclude branch. One `_equipop_originrule` reader now serves the
+  main command and the subcommand, carrying the `i=j` / `i!=j` aliases
+  and the refusal that previously existed in one place only.
+
+- ~~389~~ | DONE v1.54.1, EXTERNAL REVIEW F2 | THE CACHE ANSWERED A
+  DIFFERENT QUESTION AND REPORTED A HIT.
+  `unpack_advice` validated the format version, the data fingerprint,
+  the k values and the tolerance - and NOT the candidate ladder or the
+  origin rule. Reproduced: advice cached for candidates 25 and 50
+  under include was returned to a request for candidates 1,000 and
+  5,000 under exclude, with the old two rows and the old label, and
+  the user was told "read from this dataset's stored advice".
+  **THE RELEASE NOTE SAID "EVERY WAY OF BEING STALE RETURNS A MISS."**
+  It was false, and the reason nobody noticed is in the test: my own
+  `test_a_stale_cache_misses_rather_than_lying` checked three of the
+  five components and called that every. A test named after a property
+  it only partly checks is worse than no test, because it answers the
+  question for the next reader.
+  **FIXED STRUCTURALLY, AFTER THE FIRST FIX WAS WRONG.** The first
+  attempt added `candidates` and `self_rule` as optional keyword
+  arguments - and an optional check is one a caller can forget, which
+  would restore the same silent stale hit by a different route and is
+  the exact shape of 353/368/373/380. The request is now ONE value
+  from `request_key()`, `unpack_advice` REQUIRES it positionally, and
+  omitting it raises TypeError. Both sides build the key through the
+  same two resolvers `advise_unit` uses, so a key cannot describe a
+  differently-normalised request than the advice it validates; and the
+  key is re-derived from the stored advice on read, so a hand-edited
+  payload cannot pass by carrying a matching key field.
+  CACHE_VERSION is 2, so no v1 string already saved in a .dta can be
+  read back - a v1 advice has no `applies` field and would be treated
+  as applying, which is 388 arriving out of a cache.
+
+- ~~390~~ | DONE v1.54.1, EXTERNAL REVIEW F3 | THE DEGREE WARNING WAS
+  BUILT AND THEN THROWN AWAY.
+  `advise_on_run` appends the degree-envelope note to `out` at the
+  top, and three later branches returned a FRESH EMPTY LIST: when the
+  chosen unit is not on the ladder, when it does not saturate, and
+  when there is nothing better to recommend. Measured: degree-like
+  coordinates with a safe current unit gave a full report carrying the
+  warning and an `advise_on_run` returning zero lines.
+  **AND THOSE ARE THE BRANCHES WHERE IT MATTERS MOST**, which is the
+  part worth remembering. They are the quiet ones - nothing else is
+  printed - so the note was not competing with other output, it was
+  the only output there would have been. `return out` in all four
+  places, and a parametrised test per branch.
+  THE SHAPE: a warning assembled in a variable and discarded by a
+  later `return []` is invisible to every test that checks the full
+  report, because the full report is produced by a different function.
+  Worth looking for wherever two functions share a message.
+
+- ~~391~~ | DONE v1.54.1, EXTERNAL REVIEW F4 | A PUBLIC FUNCTION THAT
+  ACCEPTED INPUTS THE ENGINE REFUSES.
+  `advise_unit` took anything: a negative population, a zero total, a
+  tolerance of 5.0, an origin rule of "banana", and a candidate size
+  of `inf`. An advisory that accepts inputs the engine refuses is
+  advice about a run that cannot happen.
+  MEASURED, each one:
+  - weights `[10, -9]` in two cells -> total population 1, saturated
+    population 10, so `share_people` came out **10.0 - one thousand
+    percent** - and that was compared against the tolerance to choose
+    a cell size. `build_cells` has refused a negative population since
+    1.22.2 with a reason; now this refuses it in the same terms.
+  - a tolerance of 5.0 means every candidate passes, so `max(good)`
+    names the coarsest size on the ladder every time: a confident
+    recommendation to use 5,000 m cells, from a threshold that cannot
+    bind.
+  - `float("inf") > 0` is **True**, so inf passed the candidate filter
+    and produced a table row at an infinite cell size, sorting last
+    and therefore eligible to be recommended as "coarsest". `isfinite`
+    is the test that was meant. Zero, negative and nan were already
+    filtered, which is why this one survived review by eye.
+  - a zero total population divides every share by nothing.
+
+- ~~392~~ | DONE v1.54.1, EXTERNAL REVIEW F5 | THE VERSION BUMPER
+  REWROTE EVERY LINE ENDING ON WINDOWS.
+  `bump_version.py` read and wrote in text mode with Python's default
+  newline handling. The sources are LF; on Windows each write converts
+  them to CRLF, so a release operation there rewrites EVERY LINE of
+  all ten declared files - the 4,932-line ArcGIS toolbox included -
+  and `test_the_version_bump_survives_a_round_trip` reports all ten as
+  changed. Nothing analytical moves; the cost is whole-file diffs and
+  merge conflicts at exactly the moment a release is being reviewed.
+  `newline=""` on both the read and the write, so the round trip is
+  byte-for-byte whatever the file already uses.
+  THE TEST PROBLEM IS THE INTERESTING PART: the existing round-trip
+  test was CORRECT and was failing on Windows for the right reason -
+  it just never ran there. So the new test does the half that is
+  measurable anywhere (with `newline=""` a CRLF file round-trips; with
+  universal newlines it does not) and asserts the write side
+  structurally over the AST, with its limit stated in the docstring
+  rather than implied.
+
+- ~~393~~ | DONE v1.54.1, EXTERNAL REVIEW F6 | MY OWN TEST COUNT WAS
+  NOT A PORTABLE CLAIM.
+  Three doctor tests made `cligj` absent and expected the doctor to
+  name it - which works only while rasterio DECLARES cligj. Rasterio
+  1.5.2 does not; the reviewer's environment has 1.5.2 and mine has
+  1.4.4, so three tests failed for them and passed for me. **"1,588
+  tests pass" was true about rasterio 1.4.4 and I reported it as a
+  fact about the release.**
+  THE DEFECT IS USING THE INSTALLED PACKAGE AS BOTH FIXTURE AND
+  SUBJECT. The behaviour under test is EquiPop's - does it name every
+  missing dependency, does it quote a constraint, does it count them -
+  and none of that should move when a third party edits its packaging.
+  The requirement list is now a recorded fixture, and the strings are
+  the real ones from John's machine on 6 October, so the field
+  evidence is preserved rather than mocked away.
+  VERIFIED BY SIMULATING THE REVIEWER'S ENVIRONMENT: with rasterio
+  patched to drop cligj, attrs, pyparsing and click-plugins, all 37
+  doctor tests pass; and the counterfactual holds - under that
+  simulation the live-metadata scan returns `[]`, so the old
+  assertion failed on a defect that was not there.
+  A COMPATIBILITY TEST KEEPS THE REAL PACKAGE IN VIEW, asserting only
+  what is true of any version: the scan returns a subset of what is
+  actually declared, skips environment markers, and never produces an
+  empty package name. The risk of a supplied fixture is that it drifts
+  from reality and every test passes about a world that no longer
+  exists; that test is the guard against it.
+  **FOR FUTURE RELEASE NOTES: a test count is an environment
+  measurement, not a property of the release.** Say which environment,
+  or do not say the number.
+
+- ~~394~~ | DONE v1.54.1, EXTERNAL REVIEW H1 | DOWNLOADER SCHEMES, AND
+  AN MD5 FLAG THAT TURNED OUT TO MATTER.
+  A static scan flagged unrestricted `urlopen()` at three sites. No
+  exploit was demonstrated and none is needed to justify the fix:
+  `urlopen` accepts `file://`, and a bare path with no scheme it reads
+  as a LOCAL FILE, so a mistyped or pasted string could make `fetch()`
+  copy something off the machine and print `[fetch] saved ...` as if
+  it had downloaded it. One `_check_scheme` reader, called by all
+  three paths, http(s) only - one WorldPop mirror still serves plain
+  http, so that stays allowed.
+  THE MD5 HALF WAS WORTH MORE THAN THE SCANNER THOUGHT. Every md5 here
+  is non-adversarial - cache identity, change detection, or comparing
+  against a publisher-supplied md5 - so `usedforsecurity=False` is the
+  honest declaration. It is also FUNCTIONAL: on a FIPS-enabled host
+  `hashlib.md5()` RAISES, so `cells.fingerprint()`, the tile manifests
+  and the unit-size cache key would all crash on an institutional
+  machine configured that way - a plausible partner machine in a
+  consortium. Checked before touching it that the digest VALUE is
+  unchanged (identical for empty, short and 2,560-byte payloads and
+  for incremental updates), because bigrun verifies stored tile
+  checksums on every read and a different digest would make every
+  existing tiled run on John's disks fail verification.
+
+- ~~387~~ | DONE v1.54.0, MADE AND CAUGHT WHILE CUTTING 1.54.0 | I
+  EDITED FILES WHILE A BREAK-CHECK HELD A SNAPSHOT OF THEM.
+  `breakcheck_doors.py` reads every target file once, then for each
+  break writes a modified copy, runs the suite, and writes the
+  original back - with a final restore in a `finally`. Correct, and it
+  means **the script's snapshot wins over anything edited while it
+  runs.** I ran it in the background and kept working: four edits to
+  `stata/equipop.ado` - the fweight block, the `markout`, the
+  `gl("wvar")` read and the `unit_was_set=` argument at the call site
+  - were silently reverted by its next restore.
+  AND KILLING IT LEFT A BREAK APPLIED, the same end state as 384's
+  SIGPIPE: `pkill` interrupted a break between write and restore.
+  **THIS IS 352 AND 384 FOR THE THIRD TIME**, in the same family and
+  the same session that recorded 384. 352 was `| head -4` killing
+  bump_version mid-write; 384 was `| head -14` killing a break-check
+  before its final restore; this is neither a pipe nor a signal but
+  the identical hazard - **a script that mutates the tree owns the
+  tree while it runs.**
+  THE RULE, extended from 384's: a script that mutates the tree is
+  never piped, AND nothing else touches those files until it has
+  finished. If there is other work to do, do it on files the script
+  does not list - the documents, the backlog - or wait.
+  HOW IT WAS CAUGHT: a test, within a minute, for the second time -
+  `test_the_subcommand_takes_a_WEIGHT_both_ways_and_reads_it` failed
+  on an assertion I had written minutes earlier precisely because the
+  behaviour it checks is invisible at run time. Which is the argument
+  for writing that kind of test: the lost edit was the one whose
+  absence would have produced a plausible, complete, silently
+  unweighted table.
+  AND A SECOND LESSON FROM THE SAME HOUR, about break-checks
+  themselves: **a break anchor that is not unique reports a false
+  SURVIVED.** Verifying the weight test, I wrote a quick script whose
+  anchor - the "not both - they mean the same thing" refusal - exists
+  TWICE in equipop.ado, once in the main command and once in the new
+  subcommand. `src.replace(find, repl, 1)` took the first, broke the
+  main command's copy, and the subcommand's test passed: reported as
+  a gap in the test when it was a gap in the script. The standing
+  break-check scripts assert `src.count(find) == 1` for exactly this
+  reason; the ad-hoc one did not. Anchored on the last occurrence
+  instead, the break was caught at once.
+  **An ad-hoc break-check needs the same uniqueness assertion as a
+  standing one, because a false SURVIVED sends you to rewrite a test
+  that was already correct.**
+
+- 386 | open v1.54.0, FOUND WHILE BUILDING 385 | THE UNIT-SIZE
+  ADVICE HAS NO STANDALONE DOOR IN QGIS OR PRO.
+  Stata got `equipop unit`, a read-only subcommand a user can run
+  before committing to anything, and Python has
+  `equipop.advise_unit`. At both GIS doors the advice arrives ONLY
+  attached to a finished machine-1 run - so to get a cheap answer
+  about what cell size to use, a GIS user has to pay for the
+  expensive run first, at whatever size they were already unsure
+  about. The advisory itself costs 0.07 s on 100,000 rows; the run it
+  is currently bolted to can take hours.
+  Declared as a `door` in the reachability matrix rather than a gap,
+  and that is correct as far as it goes: the capability IS reachable
+  at all four doors. The asymmetry is in WHEN, and the matrix has no
+  vocabulary for that - worth knowing when reading the row.
+  WHAT IT COSTS TO CLOSE: a QGIS algorithm registered in
+  `provider.py` and a Pro tool in `EquiPop.pyt`, both thin - two
+  input fields, an optional population field, a k numlist, and the
+  table printed to the log or the messages. The text already exists
+  in `doors/help.py` under `unitadvice`, so no second copy. Pro would
+  need a sixth help XML sidecar from `make_help_xml.py`.
+  NOT URGENT: a GIS user sees the cell size in a box and gets the
+  advice after their first run, which is the point at which they
+  would reconsider anyway. Recorded so a future session does not
+  rediscover it, and because the dialog wording is John's call.
+
+- ~~385~~ | DONE v1.54.0, JOHN'S QUESTION, 9 OCTOBER 2026 | WHAT CELL
+  SIZE DOES THIS DATA WANT?
+  *"in all machines we assume that the unit size of grid should be 100
+  - it has a visual setting in GIS, but in stata it has to be claimed
+  with unit() to change. I wonder - is there a cheap way to determine
+  the average nearest neighbour or similar - that would enable us to
+  recommend a unit size? ... This is not an easy task to settle - in
+  many gis cases, you will have many things close, and others a great
+  distances - knowing the unit size is a battle between computing
+  time and detail."*
+  **THE CRITERION IS NOT NEAREST-NEIGHBOUR SPACING.** That says when
+  cells start being EMPTY; it does not say when the answer stops
+  being an answer. There is a precise threshold for that and this
+  file already named it, in 95: once a cell holds >= k people, the
+  whole neighbourhood IS the origin cell, `Dist_k` comes from
+  `selfpot.radius_for_k` rather than from the data, and **k has
+  stopped being a parameter** - k=200 and k=2000 return the same
+  number. So the question has an exact answer: at each candidate
+  size, how many cells already hold k, and how many people live in
+  them.
+  **MEASURED AGAINST THE ENGINE, not derived on paper.** The claim is
+  that `count(cell population >= k)` equals the figure fastcounts
+  reports after a run as `[selfpot] k=N: the whole neighbourhood was
+  the origin cell for X of Y origins`. Checked by RUNNING the engine
+  and parsing its own message, on three shapes - one dense cell among
+  sparse, four cells at four densities, and population as a WEIGHT
+  rather than a row count - with the boundary values of k in each. It
+  agrees exactly. It is also only true under `originrule(include)`:
+  under `exclude` the origin's own mass is removed before the search,
+  so measured, the advisory predicts 1 and the engine reports 0. The
+  report says which rule it assumed.
+  **BOTH SHARES ARE PRINTED, because they answer different questions
+  and differ by an order of magnitude.** On the Denmark fixture 1% of
+  cells can hold 40% of the people. The engine's own message counts
+  ORIGINS, so a reader has to be able to reconcile the two, and the
+  recommendation uses the PEOPLE share because a study is about
+  people.
+  **TWO THINGS THE OBVIOUS IMPLEMENTATION GETS WRONG**, both found by
+  break-check and both measured rather than argued:
+  - the `>= k - 1e-9` slack is load-bearing for a SECOND reason
+    beyond 304's. A WorldPop pixel carries a FRACTIONAL population,
+    so a cell total is an accumulated float sum: 1,000 pixels of 0.1
+    come to 99.9999999999986, short of 100 by 1.4e-12. Without the
+    slack the advisory reports 0 saturated cells where the engine
+    reports 1 - on exactly the data EquiPop is usually pointed at.
+  - the two grid indices are paired into one key, and the multiplier
+    has to be MEASURED. A fixed 1000 collides on a 120 km by 300 m
+    strip - an ordinary extent: 1,201 cells become 1,200, the largest
+    population reads 2.0 where every real cell holds 1.0, and k=2
+    goes from 0 saturated cells to 1. A recommendation off the back
+    of a hash collision. Checked against `build_cells`, which grids
+    by pandas group-by and pairs nothing.
+  **NO SINGLE RECOMMENDED NUMBER, AND NO DEFAULT IS CHANGED.** John's
+  own objection is the reason for the first: density is heterogeneous,
+  so one unit cannot be right everywhere, and a single number would
+  hide the variation that makes the question hard. What the user gets
+  is the trade-off. The second is 116's rule - reported, never
+  substituted: if EquiPop chose the unit, two runs on the same data
+  could silently use different ones and a published figure would
+  depend on a heuristic that might change between versions.
+  **THE CACHE JOHN ASKED FOR, AND THE MEASUREMENT THAT JUSTIFIES
+  IT.** `advise_unit` costs 0.07 s on 100,000 rows, 0.84 s on a
+  million and 16 s on ten million - nine linear passes, and
+  `np.add.at` is already the fastest of the three groupings tried
+  (bincount and argsort+reduceat are both slower at 10M). The
+  fingerprint that validates a cache costs 0.55 s, so the cache earns
+  its place on big data and is pointless on small. It lives in
+  `char _dta[equipop_unitsize]`, which travels with the data,
+  survives `save` and dies with `clear` - the right lifetime for a
+  fact about this dataset. Keyed on a digest of the COORDINATES, not
+  a path or a row count, because that is 344: a resumed run returned
+  the first run's numbers since counting rows could not tell two
+  tables apart. Every way of being stale returns a miss.
+  **ON AN ORDINARY RUN IT IS USUALLY SILENT**, and it runs on every
+  machine-1 run because it is free: measured against a real run on
+  the same data, 0.3% of `build_cells` plus the kNN search, at both
+  20,000 and 60,000 individuals. It speaks when the user did not set
+  a unit and a different one would do, or when they DID set one and
+  it saturates - with their own number. Otherwise nothing, because a
+  note printed after every run is noise and noise is how a real
+  warning gets missed.
+  **`Unit(real 100)` HAD TO GO.** It delivers 100 both when the user
+  typed `unit(100)` and when they said nothing, so the advisory could
+  not tell a choice from a default and would have nagged everybody or
+  nobody. Read as a string, defaulted in the body where the fact can
+  be recorded. `r(unit)` unchanged.
+  WHAT SHIPPED: `equipop/unitsize.py`; `equipop unit xvar yvar` as a
+  third subcommand beside `doctor` and `setup`, with `r(unit)`,
+  `r(cells)`, `r(estimated)`, `r(tolerance)`, `r(N)`, `r(people)`,
+  `r(k)`, `r(originrule)`, `r(fingerprint)` and the matrix
+  `r(advice)` - named `advice` and not `table` because `r(table)` is
+  by universal Stata convention an estimation command's coefficient
+  table; the advisory on a run at all three GUI/command doors; the
+  text in `doors/help.py` so one source still serves four doors.
+  THE TEST THAT MATTERS: every door calls the advisory inside
+  `except Exception: pass`, which is right - the output is already
+  written and an advisory must never turn a finished run into an
+  error - and is also a machine for hiding a mistake forever. A
+  single mistyped keyword would mean no door ever printed anything
+  and no test failed. So `tests/test_unitsize_doors.py` BINDS every
+  call site's keywords against the live signature, and checks that
+  both of Pro's two exits pass through the advisory. That is 353,
+  368, 373 and 380 turned into a test instead of a lesson.
+
+- ~~384~~ | DONE v1.53.3, MADE AND CAUGHT WHILE CUTTING 1.53.3 | I
+  KILLED MY OWN BREAK-CHECK WITH `| head` AGAIN.
+  `python bc153.py | head -14` - SIGPIPE kills the script once head
+  has its lines, so the FINAL `restore()` never ran and
+  alg_continental.py was left carrying the `383-join-silent` break.
+  The suite caught it inside a minute, as a test failure that read
+  like a real regression.
+  **THIS IS BACKLOG 352, IN THE SAME SESSION THAT RECORDED IT.** 352
+  is `| head -4` killing bump_version.py mid-write and leaving the
+  repository half-versioned. The entry is forty screens up in this
+  same file. Knowing a hazard and writing it down did not stop me
+  reaching for the same shortcut on a different script.
+  THE RULE, now stated so it is not a memory: a script that MUTATES
+  THE TREE is never piped. Redirect to a file and read the file.
+  `> bc153.log 2>&1; cat bc153.log` costs one line.
+  Two further breaks had gone stale in the same script - anchors into
+  a function I had since simplified - and the script reported them as
+  NOT APPLIED rather than passing silently, which is the one thing
+  that worked as designed.
+
+- ~~383~~ | DONE v1.53.3, THE 380 AUDIT | TWO SILENT DROPS THAT MADE
+  A REPORTED COUNT UNRECONCILABLE.
+  Both GUIs had a `continue` on null geometry sitting ABOVE the mask
+  that exists to count dropped features, so the warning printed
+  afterwards undercounted and the figure could not be matched against
+  the user's own layer. A user with 12,000 shops is told about 11,998
+  and has no way to find out why.
+  qgis/barriers.py point branch: `continue` -> append NaN, so the
+  `ok = isfinite(x) & isfinite(y) & isfinite(v)` eight lines below -
+  which was always correct - does the counting and the reporting.
+  alg_continental's centroid join: counted and reported at the drop
+  site, because there a NaN would flow into the lattice join and the
+  message belongs to the join layer rather than to points.
+  THE ASYMMETRY IS THE TELL: two lines further on in the same
+  function, an UNSUPPORTED GEOMETRY TYPE was already counted. One
+  kind of drop was reported and another hidden, side by side.
+
+- ~~382~~ | DONE v1.53.3, THE 380 AUDIT | THE ENGINE TRUSTED THE
+  DOORS.
+  `run_knn_stats` had 150 lines of validation - k, statistic names,
+  variable declarations, Gini negativity - and nothing about whether
+  a cell has a POSITION. Every door masks non-finite coordinates
+  before calling (in QGIS that is also how `keep_outside` is
+  implemented), so this was reachable only from the Python API.
+  Reached, it printed "[stats] 3 cells, k = [2]", built a distance
+  vector that was NaN throughout, sorted it in whatever order numpy
+  produced, and died on `int(nan)` with a bare numpy message - after
+  announcing that it was proceeding.
+  `fastcounts` is already strict here BY ACCIDENT: scipy's cKDTree
+  refuses non-finite input. So the counts engine was protected and
+  the stats engine was not, for no reason anybody chose.
+  **353's LESSON APPLIED ON PURPOSE**: a convention honoured at four
+  doors is still worth guarding in the engine, because the engine is
+  what a script calls. The refusal names the count and says what to
+  do - mask with isfinite before build_cells, or read through a door.
+
+- ~~381~~ | DONE v1.53.3, THE 380 AUDIT | `.isna()` AND `.notna()`
+  WHERE `isfinite` WAS MEANT, AND SOMEBODY ELSE'S VOICE REFUSING.
+  Two places tested coordinates for NaN-or-None when they meant
+  finite, so an INFINITE coordinate passed and reached an
+  `.astype(int)`, where pandas refuses with *"Cannot convert
+  non-finite values (NA or inf) to integer ... cast to Int64"* - a
+  sentence about pandas dtypes shown to somebody who typed a
+  coordinate.
+  **MEASURED, AND IT CORRECTS A CLAIM I MADE EARLIER IN THE AUDIT.**
+  I first recorded this as a SILENT WRONG ANSWER, on the grounds that
+  `np.array([inf]).astype(np.int64)` gives INT64_MIN - a cell
+  9.2e18 m away. That is true of raw numpy and NOT of the pandas path
+  these two actually take: pandas raises. **Nothing was silently
+  wrong; the answer was right and the voice was not EquiPop's.** The
+  audit over-claimed and the measurement corrected it, which is the
+  reason for the rule about measuring before recording.
+  cells.py: the right predicate was eight lines above, on the weight
+  column (`blank = ~np.isfinite(wv)`).
+  stata_bridge.py: `dispatch()` has used `np.isfinite(x) &
+  np.isfinite(y)` for releases and the COUNTS branch is the one path
+  that does not go through it - it re-derived a weaker mask of its
+  own. The correct predicate existed in the same file and this path
+  could not reach it: **380's shape, inside 380's own release.**
+  AND A FALSE CLAIM OF MY OWN, CAUGHT BY THE BREAK-CHECK. My first
+  version re-coerced the coordinate columns with
+  to_numeric(errors="coerce") and a test took credit for handling
+  non-numeric coordinates. Removing the coercion changed nothing:
+  build_cells already coerces both columns at the TOP of the
+  function, 200 lines earlier. The coercion came out and the test's
+  docstring now says what it actually covers. A test that takes
+  credit for a change it cannot see is how a suite comes to look more
+  thorough than it is.
+
+- ~~380~~ | DONE v1.53.3, JOHN'S FIELD FINDING | THE CONVENTION WAS
+  ANNOUNCED IN THE SAME FUNCTION THAT COULD NOT REACH IT.
+      ValueError: cannot create NumPyArray. geometry type found
+  from `arcpy.da.FeatureClassToNumPyArray` on a layer holding NULL
+  GEOMETRY, 8 October 2026. Forty lines below the failing call, in
+  the same function:
+      n_missing = int((~(np.isfinite(x) & np.isfinite(y))).sum())
+      if n_missing: ... "-> Null results (EquiPop convention)."
+  and `skip_nulls=False, null_value=np.nan` was passed DELIBERATELY
+  so those rows would survive as NaN and land there. The QGIS door
+  does it by hand and gets it right - `if g is None or g.isEmpty():
+  xs.append(np.nan)`. **So the convention was implemented in the
+  engine, named in its own message, honoured by one GUI, and
+  unreachable from the other.** Fourth release running of that shape:
+  353 a guard unreachable from the path that could trip it, 368 a
+  hint classified and never rendered, 373 a parse fixed downstream of
+  the parse that breaks.
+  JOHN'S WORKAROUND WAS SELECTING THE NON-NULL FEATURES, which works
+  and is NOT the same answer: those rows vanish from the output
+  instead of being present-and-Null. For the scenario comparison he
+  wants this for, present-and-Null is the one that matters - two runs
+  stay row-aligned, so a difference is a difference in the answer and
+  not a change of denominator. It is `keep_zero` from 1.53.0 one
+  layer up.
+  `_read_columns` keeps the fast reader and falls back to a cursor
+  only when it refuses, because FeatureClassToNumPyArray is far
+  quicker on millions of rows. **IT FALLS BACK ON ANY FAILURE AND
+  NEVER ON THE MESSAGE TEXT**: `if "geometry type" in str(exc)` would
+  break the day Esri rewords it, and 1.51.2 was already bitten by
+  tests that matched a phrase of the messages that release improved.
+  That also covers the neighbouring arcpy limitation for free -
+  `null_value` does not apply to TEXT fields, so a null in a category
+  column can kill the same call for an entirely different reason.
+  **MY FIRST FIX WENT INTO `_read_input` ONLY, AND WAS INCOMPLETE.**
+  A subagent audit of the property across the whole codebase found
+  the SAME defect at two more call sites - the barrier table and the
+  barrier point layer - each with a correct `isfinite` mask three or
+  four lines below a fast read that dies first. The regression test I
+  had written scanned only `_read_input`, so it could not have caught
+  them. The scan is module-wide now, and ALLOWS BY PROPERTY rather
+  than by name: a direct read is fine if it is inside a `try` (the
+  caller degrades) or reads an OBJECTID only (never null). The first
+  draft listed function names and every one of them was a guess the
+  test then corrected - a name list also goes stale on a rename,
+  which is how the reachability matrix went wrong in 333.
+  TWO SIMULATOR FAULTS FOUND IN PASSING, and both mattered:
+  the QGIS stub built a point from NaN ordinates instead of an EMPTY
+  geometry, so every test that believed it was exercising null
+  geometry was exercising a point at NaN and the reader's
+  `g.isEmpty()` branch had never been run by anything; and the sink
+  could not read back an output feature with no geometry, which is
+  exactly what the convention writes. **A simulator that cannot
+  produce the input cannot test the handling.**
+  AND THE TEST THAT GUARDED THE CORRECT DOOR WAS WATCHING ITS TEXT.
+  My first version asserted `re.search(r"g is None or g\.isEmpty\(\)")`
+  against the QGIS source, and a break that kept the condition while
+  turning `xs.append(np.nan)` into `continue` sailed past it - 370's
+  finding again, the mechanism watched and the consequence ignored.
+  Behavioural now, through the real reader, plus a test that the two
+  GUIs give the SAME answer for the same unlocatable row.
+  15 breaks, all caught, "never failed under any break: none".
+  **CONFIRMED IN THE FIELD, 8 October 2026**, on the layer that
+  produced the traceback: John ran it with the null-geometry features
+  LEFT IN and it completed. That is the half of this finding the
+  simulator could not establish - the stub is this project's own code,
+  so the tests proved the fallback and could never prove that arcpy
+  fails where he saw it fail, nor that a cursor succeeds against a
+  real geodatabase. It does. Recorded because the entry otherwise
+  ends by saying the last word is his, and a later session would have
+  no way to learn that it came.
+
+- ~~379~~ | DONE v1.53.2, JOHN'S MACHINE | THE PROPERTY TEST FOUND
+  TWO COPIES I HAD NOT.
+  The release began with FIVE k parsers counted by hand. The test
+  written to forbid a sixth found a sixth and a seventh immediately -
+  `int(float(piece))` inside Pro's ContinentalRasters.execute and
+  again in SpatialDemography.execute. I had read both files that
+  morning and not seen them.
+  **THAT IS THE ARGUMENT FOR PROPERTY TESTS IN ONE LINE.** A per-door
+  test asserts what its author already knows about; a property test
+  asks the codebase. 370 made the same case for tags last release and
+  this is the first time the method paid out on code I had just
+  edited.
+  THREE OF MY OWN BREAKS THEN FOUND THREE HOLES IN MY OWN TESTS,
+  which is the second half of the discipline and the more
+  uncomfortable half:
+  - Deleting `NEEDS_A_NEIGHBOURHOOD = True` from alg_stats reproduced
+    JOHN'S EXACT BUG and the whole suite stayed green. The test
+    checked that the shared hook existed and that no door had its own
+    copy, and never that a door DECLARED it needed a neighbourhood.
+    It now runs the real hook with both boxes empty.
+  - Restoring alg_stats' bare `[int(v) for v in k_text.split()]`
+    broke nothing: my ast scan looked for a call nested inside int(),
+    and the bare form passes a plain name. The scan now also refuses
+    int()/float() applied over a `.split()`.
+  - `test_the_engines_own_refusal_is_still_there` had never failed
+    under any break, because I never broke analysis.py.
+  Final: 19 breaks, all caught, "never failed under any break: none".
+
+- ~~378~~ | DONE v1.53.2, JOHN'S MACHINE, THE ONE THAT PRODUCED THE
+  TRACEBACK | 305's GUARD WENT INTO ONE DOOR OF FOUR, AND A SPACE
+  WALKED PAST IT.
+      ValueError: give k_values and/or r_values
+  BACKLOG 305 added "give me k or r" to the DIALOG in 1.47.11, after
+  John hit that same engine refusal while teaching. It went into
+  CountsShares in Pro and alg_counts in QGIS, by hand, and into
+  neither of the other two doors that reach the same refusal.
+  ValueStatistics had no such check at all - eighteen months - which
+  is why machine 2 answered with a traceback naming `k_values`, an
+  argument nobody typed, from a dialog that had reported nothing
+  wrong.
+  **AND THE DOOR THAT HAD THE GUARD COULD BE WALKED PAST.** It read
+  `if not _txt(pm, "k") and not _txt(pm, "r")`, and `_txt` does not
+  strip. Pro's `Required` asks whether a box holds A VALUE, and a
+  space IS a value - so one space satisfied Pro, satisfied the guard,
+  and reached the engine as None. Measured: `" "`, a non-breaking
+  space, a tab, `";"` and `"; ;"` all did it. `is_blank()` is the
+  question every door asks now.
+  THE CHECK LIVES IN EquipopAlgorithm FOR QGIS, so a new algorithm
+  gets it by existing rather than by somebody remembering; Pro has no
+  base class, so there the property is asserted against the source -
+  a class with a k box must have an updateMessages that calls
+  `_k_or_r_message`, and all four do.
+  THREE SHAPES, because the doors genuinely differ and flattening
+  them puts a wrong message in front of somebody: machines 1 and 2
+  take k OR r; machine 4 requires k and has no radius; machine 3
+  takes k and a BLANK k is a real choice, meaning the point table.
+  Also caught here: `1 500` in a RADIUS box reads as radii of 1 m and
+  500 m, both positive, so nothing downstream can refuse it - a 1 m
+  neighbourhood holds almost nobody. Same typo as k=1, in the box
+  John's ruling deliberately left permissive, so it is warned about
+  rather than reinterpreted.
+
+- ~~377~~ | DONE v1.53.2, JOHN'S MACHINE | SEVEN WAYS TO READ A k BOX,
+  AND THE CORRECT ONE WAS REACHED FROM ONE DOOR.
+  equipop/doors/numbers.py exists so that reading a typed number is
+  written once. Its docstring says so. `to_int` has said *"a silently
+  rounded k is a wrong answer that looks right"* since 1.47. Counted
+  at the start of this release:
+    1. doors.numbers.intlist      - correct; QGIS counts only
+    2. .pyt `int(round(_numlist))` - Pro counts and stats
+    3. alg_stats `[int(v) for v in k_text.split()]`
+    4. alg_continental._numbers   - `int(float(piece))`
+    5. alg_demography._numbers    - a verbatim copy of 4
+    6. Pro ContinentalRasters.execute - `int(float(piece))`
+    7. Pro SpatialDemography.execute  - a verbatim copy of 6
+  Six of the seven truncated silently, which is precisely what the
+  one correct reader was written to refuse. 6 and 7 were found by the
+  property test, not by me (379).
+  **THIS IS 354 AND 368 AGAIN AND THE COUNT IS NOW THE POINT.** 354
+  was four copies of the measurement rule, 368 two copies of the hint
+  rendering, this is seven copies of the k rule - three consecutive
+  releases of the same defect in different files. The shared module
+  being present and documented did not prevent any of them; what
+  prevents the eighth is a test that fails when a copy appears.
+
+- ~~376~~ | DONE v1.53.2, JOHN'S MACHINE | ONE FILE, ONE CHARACTER,
+  TWO MEANINGS.
+      to_float('1 000')  -> 1000.0     the space is a thousands separator
+      numlist('1 000')   -> [1.0, 0.0] the space is a list separator
+  Both in doors/numbers.py, which is the module whose whole purpose is
+  that there is one answer. The correct single-value reader was
+  destroyed by its own list wrapper, and '1 000' in a k box became
+  k=1 and k=0 and then refused with "got [0]" - a sentence about a
+  number the user never typed.
+  **THE AMBIGUITY IS REAL AND IS NOT RESOLVED SILENTLY.** '200 100'
+  IS two k values; nothing in the text distinguishes it from '1 000'.
+  So the split stays, and `thousands_hint()` adds the suggestion to a
+  refusal that was already justified - gated behind a zero in the k
+  list, or a radius under 10 m, so it never reaches a user whose
+  input was fine. A loose suggestion with a tight gate, said out loud
+  in the docstring so nobody tightens the wrong half.
+
+- ~~375~~ | DONE v1.53.2, JOHN'S RULING | '1,000' PEOPLE WAS ONE
+  PERSON, AND THE RUN FINISHED.
+      k typed as '1,000'  -> k = 1    writes Mean_income_1
+      k typed as '1.000'  -> k = 1
+      k typed as '10,000' -> k = 10
+  No refusal, no warning, columns written. The only evidence is a
+  name like `Mean_income_1` where `Mean_income_1000` was expected,
+  which reads as plausible unless you are looking for it. **A WRONG
+  ANSWER THAT COMPLETES IS WORSE THAN THE TRACEBACK THAT STARTED THIS
+  INVESTIGATION**, and John found the traceback first by luck.
+  THE CAUSE IS A GOOD FIX ONE NOTCH TOO WIDE. BACKLOG 320 made both
+  GUIs share one locale-proof reader so they could not drift - right
+  for a DISTANCE, where 500,5 metres is a real measurement a
+  Norwegian keyboard produces, and wrong for a COUNT OF PEOPLE, where
+  1,000 means one thousand in every notation anybody types. k is
+  coerced with int() immediately, so a fractional k is meaningless by
+  construction - which is the signal that tells the two apart.
+  JOHN'S RULING, 7 October 2026: *"yes - in the next round we should
+  refuse 1,000 - and good to keep it for radii"*. Refusing is the
+  honest half; interpreting guesses at intent, and the alternative
+  reading of '1,6' is one and a half people. The message suggests
+  without deciding.
+  TWO MISTAKES, TWO MESSAGES, which the first draft got wrong: a
+  thousands separator ('1,000') and a decimal ('1,6') are different
+  errors, and "write 1000" is nonsense advice for the second. The
+  test is the thousands PATTERN - three digits after the separator -
+  and NOT what `_clean()` makes of the text, because _clean is the
+  function that misreads it. My first version asked _clean and
+  advised *"if you meant 1, write 1"* for an input of '1,000'.
+  A COMMA STILL SEPARATES VALUES when it is not between digits.
+  Machines 3 and 4 have accepted '300, 500' since they were written
+  and test_qgis_continental asserts it - that test is what caught the
+  shared reader forbidding it, so the fix for one real defect would
+  have removed a real documented capability. A count cannot have a
+  decimal at all, which is exactly what frees the comma up.
+
+- ~~374~~ | DONE v1.53.2, JOHN'S MACHINE | 337's "ONE FORMATTER"
+  COVERED THE RADIUS AND LEFT k.
+  BACKLOG 337 made field-name PREDICTION and the engine share one
+  formatter, and the comment above `_fmt_num` says so. The line below
+  it read
+      ks = [t for t in (k_text or "").split()]
+  so k was never parsed at all. For k='1.000' the prediction promised
+  `N_1_000` while the engine made `N_1`: the shapefile-overflow
+  refusal, the "fields already exist" check and the user's own
+  preview all named columns the run would not produce. The prediction
+  now parses with the ENGINE'S OWN readers, so the two agree by
+  construction rather than by a test comparing them.
+
+- ~~373~~ | DONE v1.53.2, JOHN'S MACHINE, AND THE ONE THAT NAMES THE
+  PATTERN | THE FIX WAS PLACED AFTER THE FAILURE.
+  BACKLOG 320 exists to stop `could not convert string to float:
+  '500,5'` reaching a user. It added a locale-proof parse to
+  alg_counts at line 445. Field-name prediction, at line 395, had
+  ALREADY touched the same text with a bare `float()` through
+  labels.numeric_tag - so a decimal-comma radius produced **that
+  exact message, from 50 lines above 320's fix, in both QGIS doors**,
+  measured. 320 was never fixed; it was fixed in the second half of
+  one function, behind an earlier parse that failed first.
+  IN PRO IT IS WORSE: prediction runs inside `updateMessages`, so a
+  radius typed '500,5' crashed THE DIALOG'S VALIDATION CALLBACK while
+  the user was still typing, in both Pro doors. Measured through the
+  simulator.
+  **THE THIRD CONSECUTIVE RELEASE OF THIS SHAPE.** 353 was a guard
+  unreachable from the path that could trip it. 368 was a hint
+  classified and never rendered. This is a parse fixed downstream of
+  the parse that breaks. All three passed their tests. The rule worth
+  writing on the wall: **when you fix how an input is handled, start
+  at the EARLIEST point a door touches it, not at the line you happen
+  to be reading.**
+  numeric_tag is locale-proof now as well, though its callers no
+  longer hand it text - it is the last common point before a column
+  name, so a future caller must not be able to bring that message
+  back.
+
+- ~~372~~ | DONE v1.53.2, JOHN'S MACHINE | 320's OWN DEFECT, STILL
+  LIVE IN THE SIBLING DOOR.
+  doors/numbers.py's docstring describes the bug it was created for:
+  "alg_counts read k, radii and tau with bare int() and float()
+  straight on the typed text". alg_stats, written from the same
+  template, still did:
+      kw["k_values"] = [int(v) for v in k_text.split()]
+      kw["r_values"] = [float(v) for v in r_text.split()]
+  So the Norwegian student's radius of 500,5 that 320 was opened for
+  produced the raw Python message in machine 2 while machine 1 had
+  been protected since 1.47. A door-parity test does not catch it,
+  for the reason 320's own docstring already gives: parity compares
+  which BOXES exist, not how they are READ.
+
+- ~~371~~ | DONE v1.53.1, JOHN'S MACHINE | A TRUE VERDICT THAT READ AS
+  "ALL FINE".
+  His report ended `machine 1 can run in this Python.` on the line
+  after `rasterio : BROKEN`. The sentence is CORRECT - machine 1 needs
+  none of the six optional libraries - and it is the last thing on
+  screen, which makes it the thing a user remembers. Rasters are most
+  of what he does. The verdict still answers the machine-1 question
+  and then names any optional library that is INSTALLED BUT BROKEN,
+  with the capability lost.
+  AN ABSENT LIBRARY IS DELIBERATELY NOT MENTIONED THERE. The OPTIONAL
+  heading already promises that "absent only means the feature is
+  unavailable", and a verdict grumbling about every library a user
+  chose not to install would make a healthy machine look faulty and
+  teach them to stop reading it. absent is a choice; BROKEN is a
+  fault. A test pins each half, because `!=ok` instead of `==BROKEN`
+  is a one-character way to lose the distinction.
+
+- ~~370~~ | DONE v1.53.1, JOHN'S MACHINE | THE TEST THAT WATCHED THE
+  MECHANISM AND NOT THE CONSEQUENCE.
+  `test_a_windows_dll_failure_is_recognised_separately` asserted
+  `tag == "DLL"` and passed for its whole life while nothing on earth
+  printed a DLL hint (368). It is not a test that COULD NOT fail -
+  break the classifier and it fails - it is a test watching the wrong
+  half of the mechanism. The suite knew the tag was computed and had
+  no opinion about whether a human ever read it.
+  **THE FIX IS A PROPERTY, NOT ANOTHER CASE.** Testing tags one at a
+  time is what hid this: a tag with no renderer is invisible to a
+  per-tag test. `test_every_tag_that_can_be_classified_has_something_
+  to_say` scrapes the tags `_describe_failure` can return and asserts
+  each produces output, so a new tag with no hint fails on the day it
+  is written. The old test stays - classification is worth pinning -
+  but it is no longer the only thing watching.
+  This is the eighth entry on the project's own list of ways a test
+  can be worthless, and the first one that is not "the test cannot
+  fail": **the test can fail, and still not be watching the thing
+  that matters.** 20 breaks applied across the file; every test
+  function fails under at least one, including the seven that existed
+  before.
+
+- ~~369~~ | DONE v1.53.1, JOHN'S MACHINE, AND THE ROOT CAUSE NOBODY
+  WAS LOOKING AT | A HALF-DELETED PACKAGE, ANNOUNCED FIVE TIMES AND
+  READ AS NOISE.
+      WARNING: Ignoring invalid distribution ~yproj
+  pip printed that line five times in one install and it is the most
+  useful line in the output. When pip cannot delete a directory on
+  Windows it RENAMES it with a `~` prefix and carries on, so `~yproj`
+  is the corpse of a `pyproj` uninstall that never finished - usually
+  because a running Python, QGIS, Pro or an antivirus scanner held a
+  file open.
+  **THAT INTERRUPTED RUN IS WHY FOUR DEPENDENCIES WENT MISSING AT
+  ONCE** rather than four separate accidents, which is the question
+  367 could describe and not explain. It was visible from inside
+  Python the entire time: one `os.listdir` of site-packages. The
+  doctor exists to explain broken machines and was not looking at the
+  directory the breakage was sitting in.
+  LEFTOVERS is printed BEFORE the libraries, for this file's standing
+  reason: the cause above the symptom, and anything that cannot crash
+  above anything that imports. Silent on a clean machine, because a
+  section that appears when there is nothing to report is a section
+  users learn to skip - and then it goes unread on the one machine
+  where it matters. Named, never removed: the first line of the report
+  promises nothing is changed, and this is the one directory where a
+  guessed deletion is unaffordable, from a command run to ASK A
+  QUESTION.
+
+- ~~368~~ | DONE v1.53.1, JOHN'S MACHINE | A CASE CLASSIFIED, TESTED,
+  AND NEVER PRINTED - FOR EIGHTEEN RELEASES.
+  `_describe_failure` has returned a `"DLL"` tag since 1.35 and
+  `report()` rendered `if tag == "ARCH"` and nothing else. **On
+  Windows "DLL load failed" is the single most likely way rasterio,
+  geopandas and pyproj fail**, so the case that most needed advice was
+  the one case with none - on the platform where every one of this
+  project's users is.
+  AND THE RENDERING WAS WRITTEN TWICE: the same `if tag == "ARCH"`
+  open-coded in the REQUIRED loop and again in OPTIONAL. That is
+  **354's lesson arriving one release later in a different file** - a
+  rule written twice is a rule that gets extended once, and here it
+  was extended zero times in two places. `_hint_lines(lib, tag)` is
+  the one renderer now and both sections read it, so adding a tag is
+  one edit in one place. A test fails if `report()` formats a hint
+  itself again.
+  The DLL hint says what the ARCH hint could not: close every Python,
+  QGIS and Pro window first, because a file held open is how the
+  half-installed state happens, and `where gdal*.dll` names the
+  conda or OSGeo4W copy that is usually supplying the wrong library.
+
+- ~~367~~ | DONE v1.53.1, JOHN'S MACHINE, AND THE ONE THAT COST HIM
+  THREE EXCHANGES | THE FIRST MISSING MODULE IS THE WRONG UNIT OF
+  TRUTH.
+      rasterio     : BROKEN  No module named 'click'
+  Correct, and it took three round trips to become useful. He
+  installed click; pip then said rasterio also wanted `attrs`,
+  `cligj` and `pyparsing`. The doctor had a remedy for a processor
+  mismatch and NONE for a missing dependency, which is the commonest
+  cause of exactly that line - so the diagnosis was right and the user
+  was left nowhere to go. Same shape as the negative-population
+  message in 1.51.2, which is why it was taken the day he asked.
+  **THE COUNT IS ITSELF THE DIAGNOSIS.** One missing package is an
+  accident; four is an interrupted pip run (369). Reporting one hid
+  the distinction that explains the machine.
+  `_missing_requirements` reads the library's own declared metadata
+  and names EVERY dependency that is not installed, with one install
+  command. Keyed on the DISTRIBUTION through importlib.metadata, not
+  on an import: importing is what is already failing, and the import
+  name often differs from the distribution name (`click-plugins`
+  imports as `click_plugins`), which would make it a guessing game.
+  Standard library since 3.8, and it reads metadata rather than
+  importing, so asking the question cannot trigger the failure being
+  diagnosed - which the module docstring's no-third-party-imports rule
+  demands.
+  **THE CONSTRAINT IS QUOTED, AND THAT IS NOT COSMETIC.**
+  `pip install cligj>=0.5` pasted into cmd.exe REDIRECTS: the shell
+  eats `>`, writes a file called `=0.5` into whatever directory the
+  user is standing in, and hands pip a bare `cligj`. The advice would
+  appear to work while installing an unconstrained version. A bare
+  name is left unquoted so the common case still reads like something
+  a human would type.
+  A requirement carrying an environment marker is SKIPPED, not
+  guessed at - evaluating markers needs `packaging`, which this file
+  must not import, and accusing a user of a package their platform
+  does not want is worse than silence. Same rule as `_as_numbers`: go
+  quiet rather than guess. And a ModuleNotFoundError naming something
+  the library does not declare gets the reason line and NO
+  explanation, which is the surviving intent of the test this change
+  amended.
+  ONE OF MY OWN NEW TESTS WAS WRONG RATHER THAN THE CODE: I asserted
+  the advice prose contained the word "pyproj" when it never had
+  reason to. Same category as the two break-check predictions I got
+  wrong in the 1.53.0 review, and the second time in two releases that
+  my expectation, not the suite, was the thing at fault.
+
+- ~~366~~ | DONE v1.53.0, THE 1.52 REVIEW, JOHN'S RULING | THE INDICES
+  ARE BARE RATIOS AND NOW SAY SO.
+  John: "keep the bare ratios." Kept - no number moves. What changes
+  is that the field guide names the convention: a sex ratio is
+  conventionally men per 100 women and a child-woman ratio children
+  per 1,000, so a column reading 0.968 is read as 1% by anybody who
+  expects 97. The `about` text implies per-one ("per woman", "per
+  person of working age") and never reaches the attribute table.
+
+- ~~365~~ | DONE v1.53.4, JOHN: "WORTH PERSUING A SOLUTION" | MACHINE
+  4 CAN BE RUN TILED, AND THE CAPABILITY WAS SMALL BECAUSE THE SHAPE
+  WAS RIGHT.
+  364 made a tiled demographic run refuse up front instead of dying
+  after the work. **MEASURED BEFORE BUILDING ANYTHING**, as this
+  entry asked: a tiled machine-3 run with `groups=["num","den"]`
+  already writes `T_num_k` AND `T_den_k` into EVERY tile - 9 tiles,
+  both halves present in all of them - and the index is nothing but
+  their ratio per origin. So the capability is a PER-TILE POST-PASS
+  with memory bounded at one tile, which is the whole point of
+  tiling, rather than a new engine.
+  `bigrun.map_tiles(out_dir, fn)` is the primitive, and two of its
+  three design decisions are the ones that would have been got wrong:
+  **THE MANIFEST IS WRITTEN PER TILE, NOT AT THE END.**
+  `load_tiled(verify=True)` checks every md5, so a pass that rewrote
+  all the tiles and then wrote one manifest would, if interrupted,
+  leave a finished continental run in which EVERY tile fails its
+  checksum - days of compute unreadable because a post-pass was
+  killed. Progressive, an interrupt leaves a run that still READS and
+  is merely missing the column on the tiles not reached. Tested by
+  raising on the second tile.
+  **AND THE md5 IS VERIFIED BEFORE THE READ.** Rewriting a tile
+  computes a FRESH checksum, so a post-pass over an already-corrupt
+  tile would launder the corruption into a manifest that agrees with
+  it from then on, and load_tiled's guard would never fire again. The
+  one chance to notice is before the read. Tested by corrupting four
+  bytes of a tile.
+  **AND THE NEW COLUMN HONOURS THE MANIFEST'S DECLARED dtype.** The
+  first version did not: the counts were float32 as declared and the
+  index came out float64, because np.where on float64 returns
+  float64, so the manifest became a lie about its own tiles. The
+  manifest's honesty is a property of the RUN DIRECTORY, not of
+  whoever is calling, which is why map_tiles enforces it.
+  **ONE ARITHMETIC, AND THE COUNT WAS NOTICED BEFORE THE CODE WAS
+  WRITTEN.** run_index and run_indices each built the column names and
+  the ratio inline - `T_num_{k}` against `T_{code}_num_{k}` - so there
+  were already TWO copies, and giving each a tiled branch would have
+  made FOUR. `index_triples` names them and `apply_index` divides,
+  once; the in-memory and tiled branches agree BY CONSTRUCTION. That
+  is 354 (four copies of the measurement rule), 368 (two of the hint
+  rendering) and 377 (seven k readers) not happening a fourth time.
+  **THE DIFFERENCE FROM AN IN-MEMORY RUN IS float32 TILE STORAGE AND
+  NOTHING ELSE**, measured: machine 3 has stored tiles as float32
+  since it was written and its manifest declares it, so the tiled
+  index is float32(float32(T_num)/float32(T_den)), which is
+  BIT-IDENTICAL to recomputing it that way from the in-memory counts.
+  Max relative difference against the float64 answer over 1,980
+  origins: 1.3e-07, float32 epsilon.
+  TWO SMALLER THINGS. run_indices adds ALL the indices in ONE read
+  and write per tile - reading eleven million rows four times to add
+  four columns would undo the reason for tiling. And np.where
+  evaluates both branches, so a zero denominator made numpy print
+  "invalid value encountered in divide" into the user's log for a
+  value that is then discarded; silenced where it is meaningless,
+  because a warning nobody can act on teaches them to distrust the
+  output.
+
+- ~~363~~ | DONE v1.53.4, JOHN'S RULING | AGE BANDS ABOVE 90 FOLD INTO
+  90+, AND THE RUN SAYS SO.
+  John, 8 October 2026: *"I think we should fold into 90+ - but note
+  to user in output if found in the run."*
+  **FOLDED ONLY INTO A SIDE THAT ACTUALLY REACHES THE TOP BAND**,
+  which is the trap in the ruling as stated. A folder's f_95 belongs
+  in an ageing index's numerator, which is 65 and over and
+  open-ended. It does NOT belong in a children's numerator, and a
+  fold that ignored the side's own range would put centenarians among
+  the under-fives - a wrong answer no message would mention, because
+  the note would be busy reporting that the fold had happened.
+  **THE NOTE MOVED TO WHERE BOTH SIDES ARE KNOWN.** 362 wired it to
+  the numerator alone, reasoning that the note is about the FOLDER so
+  saying it twice per index would say it eight times for four
+  indices. True - and the ruling turned the hole that left from
+  cosmetic into substantive: all four built-in indices happen to carry
+  the open-ended side on top, but num_spec/den_spec are
+  user-overridable, so an index whose DENOMINATOR reaches the top band
+  folded cohorts into it and said NOTHING. A fold nobody is told about
+  is precisely what the ruling exists to prevent. `above_top_note`
+  is asked once, with both specs, and gives one message: the fold
+  where anything folds, and 362's original exclusion warning where
+  neither side reaches the top.
+  WHAT THE NOTE HAS TO SAY, and why it is not optional: folding is
+  the right answer and it still CHANGES WHAT 90+ MEANS in whatever is
+  published. It becomes the folder's own top, open above 100 rather
+  than above 90, and a reader comparing two studies can only learn
+  that from the run's own output.
+
+- ~~362~~ | DONE v1.53.0, THE 1.52 REVIEW | A COHORT THE TABLE DOES
+  NOT KNOW WAS DROPPED IN SILENCE.
+  `columns_for` selected on `int(age) in wanted` and anything else
+  fell through. So a folder carrying f_95/f_100 had those people
+  excluded from every index while `weight='sexes'` still counted them
+  in the reference population - that picks columns by the f_/m_ PREFIX
+  alone - and `restricted` reported None. The ageing index came out
+  biased down by exactly the oldest cohorts. Verified: sex_ratio over
+  a folder with 95 and 100 selected bands 0..90 and said nothing.
+  John asked what there was for him to rule here, and the answer is
+  that the SILENCE needed no ruling and the remedy does: 363.
+
+- ~~361~~ | DONE v1.53.0, THE 1.52 REVIEW | A FOLDER MISSING ONE SEX
+  PASSED THE COMPLETENESS CHECK UNFLAGGED.
+  346 closed the BAND dimension: a side is complete only when every
+  sex it covers carries every band it covers. It took the SEX SET as
+  given - and that set is derived from what is PRESENT, by pick_sex,
+  so the absence of a sex could never be a gap. A women-only folder
+  produced an "Ageing index", labelled "People 65 and over per person
+  under 15", with `restricted: None`. That is 1.45.4's defect - an
+  incomplete measure wearing a complete measure's name - surviving in
+  the one dimension 346 could not see.
+  JOHN'S RULING decided the remedy rather than my guess: his position
+  on user-entered specs is that experienced users' choices are not to
+  be altered, so the index is COMPUTED and the restriction is WRITTEN
+  DOWN. `noted` is deliberately separate from `gaps`, because gaps
+  REFUSE and this must not. A 't'-only folder is not restricted: t is
+  everybody.
+  ONE OF MY OWN 1.51.1 TESTS PINNED THE OLD BEHAVIOUR and failed -
+  correctly. It asserted `restricted is None` for a single-sex folder,
+  which is now true only for 't'. Amended rather than deleted: the
+  half it was written for - that a single-sex folder is not REFUSED -
+  still stands and is the half that matters.
+
+- ~~360~~ | DONE v1.53.0, THE 1.52 REVIEW | A SIDE MADE OF TWO RANGES
+  WAS REPORTED AS ONE.
+  The dependency numerator is "0-14 AND 65 and over". `effective_range`
+  forced `hi = None` whenever `plus` was set and returned
+  covers = (0, None) - which reads as EVERY AGE, and every age is also
+  its own denominator's range. A demographer reading the plan (it is
+  attached to the manifest as man["plans"]) would conclude the two
+  halves overlap. Worse, forcing hi = None made `exact`
+  unconditionally True, which switched OFF the moved-boundary note
+  for the one index that uses `plus`: asking for "0-17,65-" dropped
+  ages 15, 16 and 17 and still claimed to be exact.
+  JOHN ASKED WHAT HE WAS RULING ON HERE and the honest answer was
+  nothing - I had over-asked. The columns selected were right all
+  along; this was a reporting fault. `ranges` now carries each range
+  with its own asked/covers/exact, `exact` is true only when every
+  range is, and `covers`/`asked` keep their old shape so nothing that
+  reads them breaks.
+
+- ~~359~~ | DONE v1.53.0, JOHN'S RULING | 'fmt' IS REFUSED.
+  John: "fmt should not be accepted." 't' IS f+m, so naming it
+  alongside either counts those people twice. The rule was written
+  down at columns_for - "mixing it with either double counts" - and
+  enforced NOWHERE: `fmt:0-14,65-` was accepted, gave 30 numerator
+  columns where `fm:` gives 20, and because t repeats f+m the sum came
+  out at about twice the truth. Nothing flagged it, because every sex
+  carried every band so the completeness grid saw a perfect side - and
+  the error message for a bad sex letter even advertised multi-sex
+  specs ("or several, like 'fm:15-49'").
+  't' ALONE stays fine, and so does 'fm:': a t-only folder is
+  ordinary, and the refusal must not catch a correct configuration.
+
+- ~~358~~ | DONE v1.53.0, THE 1.52 REVIEW | A YEAR THE DATA DOES NOT
+  CARRY WAS BLAMED ON THE FILENAMES.
+  `plan` validated `year` against `years_in(labels)` only when
+  `year is None`. Asking for 2030 on a 2020 folder fell through to
+  pick_sex, found no cohort, and raised "No columns here look like a
+  cohort. Machine 4 needs labels of the form sex_age_year" - about
+  labels that are perfectly well formed. It sent the user to check
+  their naming convention instead of their year box, and `years_in`
+  had the right answer six lines above. Same family as 1.44.6 and
+  1.46.2: a message naming the wrong cause costs a support round trip
+  and a loss of trust in every other message.
+
+- ~~357~~ | DONE v1.53.0, THE 1.52 REVIEW | `pattern=` OUTLIVED ITS
+  CALL AND REPLACED THE REGISTRY IT CLAIMED TO PRECEDE.
+  Two faults in two lines. `CONVENTIONS["_user"] = pattern` wrote into
+  a MODULE-GLOBAL dict and never removed it, so in QGIS, ArcGIS Pro or
+  Stata's embedded Python - where the interpreter outlives the run - a
+  second load_folder on a DIFFERENT folder took its labels from the
+  first call's regex, and the answer depended on call history.
+  Verified: after one patterned load, `parse_name('zzz_whatever')`
+  with no arguments at all returned {'sex': 'zzz', '_convention':
+  '_user'}. It leaked between tests in one session too.
+  And `parse_name(stem, "_user")` made the convention EXCLUSIVE, while
+  load_folder's docstring promised the pattern was "tried before the
+  registry" - so giving a pattern for ONE oddly-named file silently
+  turned WorldPop parsing off for the other 119: every iso3 gone,
+  every label changed. The pattern is an ARGUMENT now, tried first and
+  then the registry, living exactly as long as the call. An unknown
+  `convention=` also stopped raising KeyError, which the docstring
+  ("Never raises") had always denied it could.
+
+- ~~356~~ | DONE v1.53.0, THE 1.52 REVIEW | A GROUP EQUAL TO THE
+  WEIGHT COLUMN REPORTED A SHARE OF 327%.
+  A group column is multiplied by the weight inside build_cells,
+  because a group is normally a 0/1 marker. A COMPOSED group is
+  already a headcount, so it is converted to a share first - and the
+  conversion was skipped when `gname == weight`, to avoid dividing a
+  column by itself. The correct value in that case is a share of 1.0:
+  the group IS the population. Left raw, build_cells computes
+  sum(v * w) - the SUM OF SQUARES of the population - and the reported
+  per-cell share came out between 0.0002 and 3.27 where the truth is
+  1.0 everywhere. A share of 327% is not a number anybody reads as a
+  loader bug. Reachable from a single-cohort folder where the user
+  names that cohort as the treatment, or weight='total' with
+  groups=['t_15_2026'].
+  A group the folder does not have is also NAMED now, rather than
+  skipped silently here and met downstream as a bare KeyError from
+  pandas.
+
+- ~~355~~ | DONE v1.53.0, THE 1.52 REVIEW | A FLOAT YEAR MEANT TWO
+  DIFFERENT WRONG THINGS IN TWO MACHINES.
+  A label's year is text, and both comparisons were written as
+  `str(year)`. For an int or a string that is right; `str(2020.0)` is
+  "2020.0", which no label equals. **Machine 3 then fell through to
+  `if same_year:` and KEPT EVERY YEAR, with no message** - 29,685
+  people became 59,369, exactly double, which is BACKLOG 273's
+  non-reproducibility reachable by passing a float. **Machine 4
+  refused**, with 358's message blaming the filenames. One input, two
+  machines, two different failures.
+  Floats arrive easily: a numeric from a spin box, a pandas value,
+  anything through read_csv. The QGIS door happens to use
+  parameterAsString and so escaped it; the Python API did not.
+  `normalise_year()` is now the one normaliser and both machines call
+  it. A year with a real fraction is REFUSED rather than truncated,
+  because 2020.5 is not a typo it is safe to guess at. And a year that
+  matches nothing is an ERROR naming the years that exist, because
+  answering a different question quietly is the defect itself.
+
+- ~~354~~ | DONE v1.53.0, THE 1.52 REVIEW | THE RULE SAID "DECIDED
+  ONCE" ABOVE FOUR COPIES OF ITSELF, AND THE FOURTH WAS STALE.
+  272 and 232 both came from "which columns are measurements" being
+  written as an exclusion list in more than one place. The comment
+  left behind said the rule was "decided ONCE" and sat above THREE
+  copies; by 1.52 there were FOUR, and the fourth - in
+  folder_to_cells, the one function that INFERS THE WEIGHT - was the
+  copy nobody updated when keep_index added gx and gy. So
+  `keep_index=True` made a perfectly good single-cohort folder
+  un-runnable: "this folder holds 3 population columns", two of them
+  grid indices, presented to the user as people.
+  AND `compose=` BROKE THE SAME PROMISE TWICE. A composed column is a
+  SUM OF OTHER COLUMNS, and the exclusion list did not know about it:
+  `compose={"copy": [...]}` with `sum_cohorts=True` counted everybody
+  in it exactly **2.0000x**, measured, with the composed column not
+  even visible in the output - and the same column was prefix-matched
+  into `weight='sexes'`, doubling the reference population by the
+  second route. John's documented use is
+  compose={"under5": [...]} + sum_cohorts, which counted every child
+  under five twice.
+  `measurement_columns(frame, derived=())` is the one rule now, and
+  `derived` is what keeps a composed column OUT of a total and IN the
+  table. A test fails if an open-coded copy reappears.
+
+- ~~353~~ | DONE v1.53.0, THE 1.52 REVIEW, AND THE ONE THAT MATTERED
+  FOR FEBRUARY | TWO LINES MADE "NOBODY LIVES HERE" THE SAME AS "THIS
+  IS THE SEA", AND THREW AWAY EVERY NEGATIVE VALUE.
+      arr = np.where(np.isfinite(arr) & (arr != nod), arr, 0.0)
+      rows, cols = np.nonzero(arr > 0)
+  THE EXPOSOME CASE FIRST, because it is why this was taken now.
+  PROPOSALS.md said climate rasters through machine 3 might need
+  "nothing new ... worth knowing before promising anything". It was
+  worth knowing. Measured on a temperature-anomaly field with a true
+  mean of -0.0046 degC: **it came back as +1.19 degC, warming
+  everywhere**, because every cooling pixel was discarded without a
+  word. A zero-floored PM2.5 surface came back **9.9% high** because
+  its clean-air pixels were read as absent. The single claim an
+  exposome consortium will test first - population-weighted exposure
+  per group, per neighbourhood - ran through the one path that cannot
+  carry an exposure surface.
+  **AND IT MADE MY OWN GUARD FROM TWO DAYS AGO UNREACHABLE.** cells.py
+  refuses a negative population and says, in its own comment, that it
+  exists because "rasterfolder hands a raster's own column straight
+  in, and a raster's NoData is frequently -9999". It could never fire
+  on this path: the negatives were gone before build_cells saw them.
+  The guard and the hole were forty lines apart in one package.
+  **AND `keep_zero` WAS COMPLETELY DEAD** - both branches. A pixel
+  zero everywhere was never created, so keep_zero=True could not
+  bring it back; every row that existed had a positive value, so
+  keep_zero=False dropped nothing. Documented as working and exposed
+  at the continental door. JOHN'S CASE FOR IT, which is why the
+  remedy is to implement rather than remove - my first recommendation
+  was to remove it and he corrected me: "if we have an instance where
+  we used to have populations some years ago, and we want to compare
+  how these places are doing now - we should have zeros in the deck.
+  Then they add nothing to reference or treatment but they hold a
+  place for results." That is HIS OWN RULE from 1.22.2, which the
+  Stata path honours through _add_empty_origin_cells. The raster path
+  had an option claiming to offer it and offering nothing. dnk_f_15_2020
+  in the project's own fixture carries 1,201 observed zeros; every one
+  was being dropped.
+  THE DISTINCTION EXISTS IN THE FILE - WorldPop ships
+  nodata=-99999.0 - so this was never a missing-information problem.
+  OBSERVED is the mask now; keep_zero decides only whether an observed
+  zero earns a row; negatives are carried as given and SAID OUT LOUD,
+  because silence is what let the sign flip pass.
+  **THE DEFAULT PATH IS BIT-IDENTICAL**, asserted against the old two
+  lines recomputed from the files rather than against stored numbers.
+  And the break-check found that the identity has TWO independent
+  gates - `pick` and the keep_zero row filter - either of which alone
+  preserves it. Recorded in the test, so nobody deletes one as
+  redundant.
+  ONE INTERACTION NEARLY UNDID IT: eight lines later, the
+  keep_zero=False filter dropped rows whose measures SUM to zero or
+  less, which for a headcount is "zero everywhere" and for a signed
+  surface is not - a pixel holding a single -1.2 degC anomaly sums
+  negative and was deleted immediately after being rescued. Fixing one
+  without the other would have shipped a fix that did nothing.
+
+- ~~352~~ | DONE v1.52.0, MADE AND CAUGHT WHILE CUTTING 1.52.0 | THE
+  BUMP TOOL COULD LEAVE THE REPOSITORY HALF-VERSIONED, TWO WAYS.
+  A version lives in a dozen declarations across ten files, and the
+  tool wrote and reported them one at a time. Both failures below
+  happened in one afternoon and **both were caught by the
+  version-agreement tests within a minute**, which is what those seven
+  tests exist for and the clearest demonstration yet that they earn
+  their keep.
+  **FIRST: the tool died part-way through its writes.** The command
+  was piped through `head -4` to keep the transcript short; `head`
+  exited, the fourth `print` raised BrokenPipeError, and the process
+  died with THREE files bumped and NINE not. The repo was internally
+  inconsistent and the tool had reported nothing wrong, because the
+  report IS the thing that killed it. My misuse, but it exposed real
+  fragility: a tool that mutates a dozen files should not depend on
+  its own stdout surviving. Every write now happens before any of the
+  reporting, so the worst a broken pipe can cost is the summary.
+  **SECOND: the rewrite that fixed the first one introduced a worse
+  bug.** Planning every declaration from each file's ORIGINAL text and
+  then writing them all means two declarations in one file produce two
+  full-file texts, and the second write discards the first. Two files
+  carry two declarations each - stata/equipop.ado has a `*!` banner
+  and `eqp_ado_version`, equipop_test_pass.do has a header and a body
+  line - so the .ado came out with its `eqp_ado_version` bumped and
+  its banner still at the old release. Edits accumulate per file now,
+  keyed by path.
+  **AND THE OBVIOUS TEST FOR IT DOES NOT WORK**, which is the part
+  worth keeping. A round trip - bump away, bump back, every file
+  byte-identical - is the natural check and it is SELF-HEALING for the
+  second defect: the patterns match any version string rather than the
+  old one specifically, so the return bump repairs whatever the first
+  left behind. The break-check proved it, by restoring last-write-wins
+  and watching the round trip come out clean. The check that catches
+  it is the direct one - after ONE bump, no declared file may still
+  mention the old version - and the test now does both, because the
+  round trip still catches a declaration the tool knows nothing about.
+  Third entry in one release for HANDOVER_15's shape 4: an assertion
+  with no counter-example left in the system.
+
+- ~~159~~ | DONE v1.52.0, OPEN SINCE 1.29.6 | THE RECORD CALLED ITSELF
+  PROGRESSIVE AND WAS NOT.
+  meta.py's own docstring: *"Written progressively: the file exists
+  from start_run onward, so a crashed run still leaves a record."* It
+  did not. With the default constructor `_path` is None, so every
+  `_flush()` in add_input, event, set_data and set_output was a NO-OP
+  and nothing reached disk until finalize(). **Both GUI doors used the
+  default constructor** - checked at the call sites, neither passed a
+  path - so a QGIS or Pro run that died mid-analysis left NOTHING AT
+  ALL. The claim was in the docstring, in the manual and in this
+  file's own description of item 2; it was never in the code.
+  SHARPEST AT THIS MOMENT, which is why it was taken now: 1.51.1 gave
+  TWO modules crash-survivable progressive records for exactly this
+  reason - bigrun writes each tile's manifest atomically (344) and
+  fetching commits after every verified asset (347). The class whose
+  docstring claimed the property is the one that did not get it.
+  THE DOORS ALREADY KNEW THE DESTINATION. `parameters.get(self.OUT)`
+  is read in base.py forty lines before the engine starts, for the
+  field-name check. It is now passed to `record(destination=)`, which
+  resolves it through a new `meta.sidecar_for()` - and the record
+  exists from that moment, saying `"status": "running"`. Verified by
+  killing the engine mid-run through the real door: the sidecar is
+  there, with the run id, the input row count and the settings the
+  engine had bound. `_flush()` is also replace-and-rename now rather
+  than `write_text`, which TRUNCATES BEFORE IT WRITES - the same
+  window 344 closed in bigrun, met many times per run here because a
+  progressive record is written often.
+  AND `sidecar_for()` IS WHY THE RULE MOVED. 348 gave each layer of a
+  GeoPackage its own sidecar, with the naming written inside
+  write_provenance. 159 needs the SAME answer before the run, to open
+  the log at the right file. A rule two places need belongs in one, so
+  write_provenance calls it too; if they ever drift, the record is
+  opened at one path and finalized at another, and a test fails.
+  TWO CORRECTIONS TO THIS ENTRY AS IT WAS WRITTEN. Its second half -
+  "if a different output path arrives at finalize() the logger writes
+  a new file and leaves the first marked running forever" - **did not
+  reproduce**: both files said `completed`, because nothing was
+  written before finalize in the first place. It describes a symptom
+  that only becomes POSSIBLE once the record is progressive, so it is
+  now guarded (`moved_from` records the earlier path rather than
+  leaving a stale file unexplained). And the honest limit is stated
+  rather than papered over: a QGIS temporary layer - QGIS's own
+  default - has nowhere to put a sidecar, and the record is printed to
+  the log instead.
+  ALSO HERE, a 348 follow-on found by needing the same thing twice:
+  `record(source=)` in both GUI doors was still passing `sourceName()`,
+  the label in the layers panel. 348 fixed that in write_provenance
+  and not at the other end of the run. `BaseAlg.source_uri()` now
+  holds the rule once and both ends call it.
+
+- ~~158~~ | DONE v1.52.0, OPEN SINCE 1.29.6 | HEX CELLS WERE CHARGED A
+  SQUARE'S AREA, AND THE DOCSTRING DEFENDED IT.
+  `hex.py` sets `unit_size = hex_size`, the width across flats, which
+  is right - that IS the grid's size. `selfpot.radius_for_k` then
+  squared it, and its own docstring said "cell side in metres (cells
+  are square by construction)". A hexagon 100 m across the flats holds
+  **8,660 m2, not 10,000**, so the self-potential radius came out
+  **7.46% too large** - 39.89 m where 37.13 m is right at k=50 of 100.
+  THE SECOND HALF WAS EASY TO MISS and is the one that would have been
+  fixed halfway: `decay_distance` used MEAN_INTRACELL = 0.3826, the
+  SQUARE's mean centre-to-point distance. A hexagon's is **0.3510** of
+  its width, so the intra-cell decay distance was **9.0% too large** -
+  on the mass a run knows least about, carrying the largest single
+  weight in the whole calculation. The radius is area-based and the
+  decay distance is a mean distance: two constants, two derivations,
+  and fixing only the first would have looked finished.
+  NOTHING PUBLISHED IS WRONG. Hexes are reachable from Python only -
+  one cookbook example - because tests/reachability.py refused them at
+  every door FOR THIS REASON: "it should not be offered at a door
+  until that is fixed." So this was a blocker with a capability behind
+  it rather than a live defect, which is why it could wait eight
+  releases and why it was worth taking now.
+  THE SHAPE IS THE ONE NEW FACT. `CellData.cell_shape` defaults to
+  "square"; `selfpot.SHAPES` maps a shape to an area factor and a
+  mean-distance factor; area and mean distance are DERIVED, so an area
+  cannot be set that disagrees with the geometry it came from. The
+  square factors are exactly 1.0 and the existing constant, **so every
+  square run is an identity** - asserted against the pre-1.52 formula
+  itself rather than against stored numbers, and the full suite passed
+  unchanged. Five call sites across fastcounts and analysis thread
+  `cd.cell_shape`; `run_knn` and the two effort engines take a
+  DataFrame or a FrictionGrid and cannot receive a hex CellData at
+  all, so square there is a fact about the input and now says so.
+  THE HEX CONSTANTS ARE DERIVED, NOT MEASURED. Area = (sqrt(3)/2)w2.
+  Mean distance = (1/sqrt(3))(1/3 + ln(3)/4) w, from the integral of r
+  over one of the twelve congruent sectors where the boundary is
+  h/cos(theta). A Monte Carlo check first DISAGREED at 2.4e-4 and the
+  closed form was right - quadrature confirms it to 1e-12. Worth
+  recording: the sampling noise looked like a discrepancy, and the
+  answer was a better instrument rather than a changed constant.
+  AN UNKNOWN SHAPE IS REFUSED. `SHAPES.get(shape, square)` is the
+  tempting line and it is this item's own defect: silently treating
+  something unknown as a square is how a hexagon came to be charged
+  10,000 m2 for eight years.
+  THE MATRIX ROW CHANGED CATEGORY, which is 333's mechanism working:
+  hexes at the GIS doors were a RULING justified by this bug, and are
+  now a GAP with a witness (`hexsize` in each door's file), so the day
+  somebody adds the box the entry fails instead of going stale.
+  Stata stays a ruling, on its own reasoning rather than on 158's.
+
+- ~~351~~ | DONE v1.51.2, JOHN'S QUESTION ON THE 343 RELEASE | A
+  REFUSAL THAT WAS RIGHT AND ADVICE THAT WAS WRONG.
+  John, reading 343: *"what if a negative population represented the n
+  the local has lost - I realize that would clash with some stats but
+  not all. Should there be a warning rather than refusal? - you
+  decide."*
+  **THE REFUSAL STAYS, and his ruling after the reasoning: "negative
+  population is refused and for a good reason."** The reason is a step
+  EARLIER than statistics, which is the part worth writing down,
+  because his instinct was that this is a statistics problem. k counts
+  PEOPLE and a neighbourhood is grown outward until it holds k of
+  them, so with a negative weight the running total is NOT MONOTONE IN
+  RADIUS: it can rise, fall and cross k several times, or never. "The
+  radius at which k was reached" stops having one answer, so Dist_k is
+  not wrong but UNDEFINED - and every self-calibrating bandwidth reads
+  Dist_k. `proportional`, the default since 1.30, divides by the
+  crossing cell's population to take a share of it, so a negative
+  denominator inverts the share and lands N on the wrong side of k.
+  R_k = T_k/N_k flips sign with its denominator. Only THEN come the
+  statistics: a weighted mean with mixed-sign weights can land outside
+  the range of the data, Gini has no definition for them, and a
+  weighted median found by cumulative weight has none when the
+  cumulative sum is not monotone. There is no warn-and-proceed that
+  yields a number either of us would defend.
+  **AND THE ROUTE HE WANTS ALREADY WORKS.** A change or net-migration
+  variable is a MEASUREMENT, not a population: it goes in values(),
+  weighted by the real headcount in pop(). Verified before answering,
+  not asserted - three places 100 m apart, ten people each, change
+  [-50, +20, -5], k=20: Mean_chg_20 = [-15, -3.75, 7.5], and -15 is
+  exactly (-50*10 + 20*10)/20, with a weighted SD and median alongside.
+  **SO THE DEFECT WAS THE MESSAGE.** It gave ONE cause - an undeclared
+  sentinel - and one remedy, missing(). For a genuine change variable
+  both are wrong, and the user is left with a refusal and nowhere to
+  go. 1.44.3's rule: if the code knows the right answer, a refusal
+  that only names the problem is a wasted trip. All three negative
+  guards - validate_weight, validate_treatment's count rule, and
+  build_cells' weights column - now name BOTH causes in the same
+  order, say why a negative population breaks the search rather than
+  only that it is impossible, and point at values().
+  TWO EXISTING TESTS MATCHED A PHRASE OF THOSE MESSAGES and so failed
+  when the wording improved while the guards were untouched - shape 7
+  in HANDOVER_15's list, added in the same release that then tripped
+  over it. Rewritten to assert the behaviour and to check that the
+  refusal names the offending value; the wording is pinned by 351's
+  own test, where it belongs.
+  ALSO HERE, found while checking the figure for 349: **the
+  origin-rule measurement existed in THREE copies and one was the
+  retracted one.** selfrule.py's header explicitly supersedes an
+  earlier 13.4% - a bench run with the neighbour search capped at 48
+  cells, which never reached k for remote blocks - and
+  `selfrule.CHOICES`, NINETEEN LINES BELOW THAT CORRECTION, still said
+  13.4%. Nothing renders it: the doors read doors/help.py, which has
+  always said 13.6%, and the shipped equipop.sthlp was checked and
+  says 13.6%, so no user ever saw the wrong number. A third copy that
+  disagrees with the other two is still 105's and 338's defect, and it
+  had already propagated into BACKLOG 349 and HANDOVER_15 before
+  anybody compared them - both corrected. A test now pins the copies
+  TO EACH OTHER rather than to a literal, so the next correction has
+  to move them together or fail.
+
+- ~~350~~ | DONE v1.51.1, FOUND WHILE BUILDING THE 1.51.1 BUNDLE | THE
+  RELEASE ZIP SHIPPED A SECOND COPY OF THE WHOLE PACKAGE, AND 1.51.0
+  WENT OUT THAT WAY.
+  `python -m build` leaves `build/lib/equipop/` and `dist/`, and
+  make_release_zip walks the whole tree. **The 1.51.0 working-tree zip
+  - the archive John unzips over C:\Data\EQP\ForGit\ and COMMITS -
+  contains all 40 modules twice**, the second set frozen at whatever
+  version last built. A grep of the tree would find every rule in two
+  places: this project's signature defect, arriving through the
+  directory layout rather than through the code, and the exact thing
+  272, 337 and 346 are each an instance of.
+  NOTHING NOTICED, and the reason is worth keeping. 156's check asks
+  whether a member can be EXTRACTED - drive letters, backslashes,
+  traversal - and every one of these names is perfectly valid. The
+  zip opens cleanly. A guard that checks the shape of a name cannot
+  see a file that should not be there at all.
+  FOUND BY READING THE SIZE. The 1.51.1 bundle's tree zip came out at
+  14.8 MB against 1.51.0's 12.0, which is the only reason I looked -
+  `dist/` had been swept in because I ran `python -m build` before the
+  zip this time. Checking 1.51.0 then showed `build/lib/` had been in
+  it all along, by the opposite ordering. **Both orderings are wrong
+  and the difference is which artefact you get**, which is why this
+  went in the TOOL and not in the release checklist - the tool's own
+  docstring makes that argument for 156 and it applies unchanged.
+  `build` and `dist` are in SKIP_DIRS, and a test walks a fake tree
+  through the builder's member list so it does not depend on whether a
+  build has happened in the checkout.
+  AND `.gitignore` HELD `dist/` BUT NOT `build/`, which is why the
+  committable copy was the one that shipped. It now ignores `build/`,
+  `*.egg-info/` and `arcgis/*.pyt.xml` - the last because those
+  sidecars are generated by make_help_xml.py and
+  test_packaging.py already fails if they are left in the tree, so the
+  tree was relying on a test to enforce what an ignore line states.
+  STILL JOHN'S, because I cannot see the git history from here: if
+  `build/` was ever actually committed, `git rm -r --cached build`
+  removes it without touching the working copy. Check with
+  `git ls-files build | head`. Same shape as 101's committed stray
+  CSVs, which are still in the public repository.
+
+- ~~348~~ | DONE v1.51.1, EXTERNAL REVIEW OF 1.51.0 (F9) | A
+  PROVENANCE RECORD THAT COULD NOT NAME ITS OWN OUTPUT.
+  THREE FAULTS IN ONE RECORD, all reproduced.
+  **One sidecar for every layer in a GeoPackage.** A QGIS destination
+  may carry a layer - `out.gpkg|layername=k20` - and write_provenance
+  split on "|" and threw the layer away, so k20 and k800 both wrote
+  `out.meta.json` and the second run OVERWROTE the first run's
+  provenance. Nothing in the survivor said which layer it described.
+  Several result layers in one container is the ordinary way to use a
+  GeoPackage. Each layer now gets its own sidecar - `out.k20.meta.json`
+  - and `run.output.destination` records the full string.
+  **The record documented field names the file did not have.** write()
+  renames a result column that clashes with one of the input's own
+  (316) and DISCARDED the mapping; write_provenance then described the
+  engine's result keys. With a source already carrying an N_20 the
+  layer held N_20 and N_20b while the record defined only `N_20` - THE
+  SOURCE'S COLUMN - so a reader looking up the run's own result found
+  somebody else's field described. Two functions written minutes
+  apart, neither knowing about the other.
+  AND FIXING THAT BROKE THE DEFINITION: `N_20b` matches none of the
+  patterns in _COLUMN_DOCS, which describe EquiPop's naming
+  convention, so the correctly-named field was documented as "(no
+  definition registered)". A definition belongs to the QUANTITY, so
+  _describe_columns now looks it up under the original name and
+  reports it under the new one, with `[renamed from N_20]`.
+  **The input was not identified at all.** The call read
+  `sourceName()`, which is the label in the layers panel - "my
+  points" - not a path, so add_input() found nothing to measure and
+  recorded md5=null. On the stub, which had NO sourceName, it recorded
+  the empty string: Path("") resolves to the current directory, _md5
+  raised IsADirectoryError, and `except Exception: pass` swallowed it.
+  EVERY QGIS PROVENANCE RECORD IN THE SUITE CARRIED `"inputs": []`
+  AND NO TEST ASKED. A simulator that omits a method cannot fail the
+  code that needs it, so tests/qgis_stub.py now has both.
+  `RunLog.set_output()` holds the schema, and render_txt() prints an
+  OUTPUT block - the .txt is what a QGIS user reads, so a record that
+  names its output only in the JSON names it only for programs.
+
+- ~~347~~ | DONE v1.51.1, EXTERNAL REVIEW OF 1.51.0 (F7) | 291 FIXED
+  ONE EXCEPTION TYPE, AND IT WAS THE ONE THAT ALMOST NEVER HAPPENS.
+  291 wrapped the fetch loop so "a failure must not erase what
+  succeeded" - and caught `FetchError`, the error this module raises
+  about its OWN checks. Every way a download actually dies went
+  straight past it: a reset connection or DNS failure (urllib raises
+  URLError), a timeout, a full disk or read-only folder (OSError), a
+  malformed response (HTTPException), or the user pressing Ctrl-C
+  forty files into fifty.
+  REPRODUCED with URLError on entry 2 of 3: file 1 downloaded,
+  verified, and left on disk WITH NO MANIFEST AT ALL - the exact
+  situation 291 exists to prevent, by the likeliest route to it. And
+  the consequence made it unrecoverable: with no record of where
+  pop_0.tif came from, the RETRY REFUSED TO CONTINUE rather than
+  attribute bytes it had not observed. Correctly. So the user could
+  neither resume nor repeat without moving files aside by hand.
+  TWO CHANGES. The manifest is committed AFTER EVERY VERIFIED ASSET
+  rather than once at the end, so what is on disk and what is recorded
+  never diverge by more than the file being fetched right now - a
+  kill -9 has no window to land in. And the wrapper catches whatever
+  arrives, records it BY CLASS AND MESSAGE ("timed out" and "no space
+  left on device" are different problems with different answers; str()
+  of some transport errors is empty), writes, and RE-RAISES THE
+  ORIGINAL - a transport failure must not come back dressed as a
+  FetchError.
+  Break-checked in both halves separately, which showed the per-asset
+  commit is the load-bearing one and the broad except adds the
+  attribution.
+
+- ~~346~~ | DONE v1.51.1, EXTERNAL REVIEW OF 1.51.0 (F4) | COHORTS ARE
+  PAIRS, AND THE CHECK VALIDATED TWO SETS.
+  279 asked whether a measure is entitled to its name. The check it
+  produced gathered the band numbers of whatever columns were
+  selected, compared that SET against the bands needed, and then -
+  separately - asked whether each sex appeared anywhere on the side.
+  BOTH SETS CAN BE COMPLETE WHILE NO PAIR IS.
+  Reproduced on the ageing index with f and m across every band except
+  `m_65`: f supplied 65 to the pooled age set, m appeared in the other
+  bands, no gap was reported, and "People 65 and over per person under
+  15" was published with MEN AGED 65-69 ABSENT FROM THE NUMERATOR. The
+  error is not loud - it biases the index by about one cohort of one
+  sex, in whichever direction the hole lies, and nothing in the output
+  says so.
+  MY FIRST PROBE WAS REFUSED and I nearly recorded the finding as
+  unconfirmed: giving f only the young bands and m only the old ones
+  IS caught, by the per-sex half. The hole is narrower than that and
+  needed a second attempt to find.
+  Now validated as the GRID - every (sex, band) the side covers,
+  which is what the sum ranges over - and the message names the
+  missing PAIR, because "fetch m_65" is an instruction and "the
+  numerator is incomplete" is not. allow_incomplete still records the
+  restriction, so a deliberate one stays legitimate; all four indices
+  on a full f/m grid, single-sex folders and 't'-only folders are
+  unchanged.
+  ALSO HERE, the review's housekeeping item: `effective_range` WAS
+  DEFINED TWICE, forty lines apart, so one was dead and nothing said
+  which. They were not identical in source - the dead one guarded the
+  open-ended top band with an extra branch - and I first reported that
+  "the executable logic differs", which was about the SOURCE and not
+  the behaviour. CHECKED RATHER THAN ASSUMED: over all 25,650
+  (lo, hi, plus) combinations the band table admits, ZERO differing
+  results, because _band_end() already returns None for the last band
+  start. The simpler one kept; an AST test now fails if a second
+  definition reappears. 272's lesson, which expected_bands() right
+  above it already carries: a second copy that happens to agree is
+  still a second copy waiting to stop agreeing.
+
+- ~~345~~ | DONE v1.51.1, FOUND WHILE FIXING 344 | FIVE ENGINE OPTIONS
+  WERE UNREACHABLE THROUGH THE TILED WRAPPER.
+  `run_knn_counts` accepts self_potential, overshoot_mode, self_rule,
+  seed and decay_eps. `run_knn_counts_tiled` accepted NONE of them, so
+  a tiled continental run silently took the defaults and the origin
+  rule a spatial regression needs could not be asked for at all.
+  FOUND BY TRYING TO FINGERPRINT THEM for 344: recording an option
+  that cannot be varied would have been theatre, and asking which
+  options the identity should cover is what exposed that five of them
+  had no way in.
+  Same shape as 340 (r_values honoured on the untiled branch and
+  dropped on the tiled one) and 341 (the bridge not telling the effort
+  engines which overshoot mode to use) - an option honoured on one
+  path and ignored on another, three times on the same branch. Now
+  threaded, and tests/test_rule_cross_product.py enumerates engine x
+  rule x mode so the next one of these fails a test instead of
+  shipping.
+  STILL OPEN, deliberately: the continental DOOR (`run_folder`) does
+  not expose them on EITHER branch, so this is a uniform gap rather
+  than a divergence. Exposing it means new door options, help text and
+  four-door parity - a feature, not a correctness fix, and it is not
+  going into a correctness release. See 349.
+
+- ~~344~~ | DONE v1.51.1, EXTERNAL REVIEW OF 1.51.0 (F3) | A RESUMABLE
+  RUN THAT COULD NOT SEE ITS OWN DATA.
+  276 taught resume to compare PARAMETERS, which stopped "k=100 then
+  k=200 into the same folder". What it recorded about the data was
+  `n_cells` and `unit_size`. REPRODUCED on two 9-cell tables with
+  identical geometry and different populations - 10 people per cell,
+  then 20 - where resuming the second against the first's folder
+  returned the FIRST run's numbers, reported success, and left a
+  manifest whose recorded parameters matched perfectly. The answers
+  genuinely differed: Dist_20 of 81.2 m against 56.4 m. A three-day
+  continental run is exactly where nobody will notice.
+  `CellData.fingerprint()` now digests everything the counting engine
+  reads - coordinates, population, each treatment's totals and
+  observed denominators - in a fixed order as little-endian float64,
+  so the digest does not depend on dtype or dict ordering. Value
+  arrays are deliberately OUT: the counts engine never reads them and
+  hashing a per-person list at continental scale would cost more than
+  the run it guards, which is written down in the method so a future
+  engine knows it owes this a line.
+  AND `calibration` WAS MISSING from the decay record, which is the
+  setting that turns a half-life into a beta - two runs at the same
+  half_life_m under the two calibrations have different betas,
+  different answers, and resume called them the same run.
+  `Decay.fingerprint()` now holds that knowledge with the class.
+  THE RULE FOR THE IDENTITY, written down: a key belongs there if
+  changing it changes a NUMBER, and must stay out if it changes only
+  the speed. m_neighbors and chunk are deliberately absent and a test
+  fails if they are added - a user who raises chunk to go faster must
+  not be told their finished run is a different analysis. The other
+  half of a good guard: no correct configuration may trip it.
+  ALSO: the manifest was written with `json.dump(man, open(mpath,
+  "w"))`, which TRUNCATES BEFORE IT WRITES, so a crash in that window
+  left a fragment and the whole finished run unresumable - the one
+  failure this module exists to survive. Tiles and manifest are now
+  written beside and renamed into place (os.replace is atomic within
+  a filesystem), and a failed write leaves no litter for the next run
+  to reason about. A hash mismatch also EXPLAINS ITSELF, because two
+  hex strings tell a user nothing.
+  This closes 119.
+
+- ~~343~~ | DONE v1.51.1, EXTERNAL REVIEW OF 1.51.0 (F2) | THE STATA
+  STATISTICS PATH ROUNDED PEOPLE AWAY, AND 118 HAD BEEN OPEN FOR IT
+  SINCE 1.29.
+  v1.16 implemented "weight by population" by repeating each row
+  np.round(weight) times - exact for whole numbers, and WorldPop
+  counts are not whole numbers. Three faults, all reproduced:
+  **Wrong answers.** Two cells, values [0, 10], weights [0.4, 0.6]:
+  the dispatcher reported a mean of 10 where the hand calculation and
+  the direct weighted-cells route both give 6.
+  **Deleted populations.** Six cells each weighing 0.4: every weight
+  rounds to zero, so the ENTIRE POPULATION VANISHED and every row got
+  N = 0 and a mean of MISSING. This is 118's WorldPop deletion -
+  measured on John's rasters at 50.5% of people lost, 39% in Rwanda
+  and 69% in Denmark, so the loss grew with latitude and any
+  Europe-against-Africa comparison was biased by construction -
+  reaching the Stata door EIGHT VERSIONS after the cell engine learned
+  to carry fractional weights. The engine had `value_weights` since
+  1.41; the door never used it.
+  **A memory ceiling set by the population, not the data.** Two rows
+  holding municipal totals materialised 5,000,000 rows, 3.25 s for an
+  answer that is two multiplications. Now 0.01 s and nothing
+  materialised.
+  The weight goes to `build_cells(weights=)` as a NUMBER. Median, Gini
+  and the percentiles come out weighted because run_knn_stats reads
+  `value_weights` rather than counting entries - checked against
+  hand-weighted arithmetic, and fractional against x10-whole weights
+  agree exactly, which is the test that distinguishes a weight from a
+  count. `Nv_` counts the WEIGHT of rows whose value is observed, which
+  is the denominator 168 ruled on. John's rule since 1.22.2 still
+  holds: a zero-count row is nobody's neighbour and still gets its own
+  results.
+  AND A NEGATIVE POPULATION WAS ACCEPTED BY BOTH MACHINES, which
+  disagreed about it: weights [-5, 10] gave N = 5 in machine 1 (it
+  summed them) and N = 10 in machine 2 (it zeroed the negative). A
+  population of minus five is not a quantity, it is a sentinel nobody
+  declared - the defect 168 closed for TREATMENTS and left open for
+  the weight itself. `validate_weight()` now refuses it in both, with
+  168's `missing()` guidance; a BLANK weight stays a blank, because
+  Stata's missing arrives that way and John's rule says a row with no
+  count still gets results.
+  ALSO FIXED, and correct only by accident until now:
+  `_add_empty_origin_cells` extended E, N, n, value_arrays and
+  binary_sums and left `value_weights` and `binary_valid` SHORT. Both
+  were always empty before this change, so the omission was invisible;
+  a zero-weight origin plus fractional weights is the combination that
+  finds it. Every parallel array now grows.
+  This closes 118.
+
+- ~~342~~ | DONE v1.51.0, EXTERNAL REVIEW OF 1.51.0 (F5) | A
+  SELF-CALIBRATING DECAY DREW TWO SEEDS AND REPORTED ONE.
+  Under `sampled` the seed decides which cells of a crossing ring are
+  admitted. A self-calibrating decay runs TWO passes - one to measure
+  each row's own Dist_k, one to use it - and each pass drew its own
+  seed, so the bandwidth was calibrated from one neighbourhood and
+  then applied to a different one, and NEITHER RUN WAS REPRODUCIBLE
+  FROM ITS OWN RECORD because the seed it reported was never the seed
+  it used. Reproduced on three cells 100 m apart, 10 people each,
+  k=15, whole: the whole-ring Dist_15 is 100 m at every origin and the
+  calibration pass reported 50-71 m - PROPORTIONAL's answer - giving
+  ND_15 [13.75, 15, 13.75] where the same bandwidth supplied as a
+  field gives [15, 20, 15].
+  The seed is now resolved ONCE in dispatch(), before anything can
+  draw its own, and reaches both passes and the provenance record as
+  one value. The calibration pass also gets `overshoot_mode`, which it
+  was never given.
+  AND THE FIX SHIPPED A REGRESSION THAT THE SUITE CAUGHT. Resolving
+  the seed means the engine below sees one, so it printed "sampled
+  order from seed N" - the line that means YOU chose - and
+  "[overshoot] no seed given; drew N. Enter that number to repeat this
+  exact run." disappeared from every door at once. My block had
+  written its own sentence instead of using `seed_message()`: a SECOND
+  VOICE on repeatability, in different words, which is 105's and 328's
+  fault exactly. test_6b - written after a deliberate break, for
+  precisely this - failed. seed_message() stays the one formatter and
+  the block appends a clause.
+
+- ~~341~~ | DONE v1.51.0, EXTERNAL REVIEW OF 1.51.0 (F1) | THE BRIDGE
+  DOCUMENTED THREE OPTIONS TO THE EFFORT ENGINES, RECORDED THEM IN THE
+  PROVENANCE, AND DID NOT PASS THEM.
+  `self_rule`, `overshoot_mode` and `seed` were accepted by dispatch,
+  taken by run_knn_friction and run_knn_slope, and dropped in between.
+  So a friction or slope run under `originrule(exclude)` included the
+  origin, and one under `overshoot(whole)` computed proportional.
+  WORSE THAN INCOMPLETE - ACTIVELY MISLEADING, because 293 had just
+  taught every run to record its settings from the engine's own
+  arguments: the record faithfully wrote down `overshoot_mode: whole`
+  while the engine computed something else. A provenance system makes
+  a pass-through gap into a false statement.
+  The suite had thorough coverage of each option and thorough coverage
+  of each engine, and NOTHING THAT CROSSED THE TWO.
+  tests/test_rule_cross_product.py now enumerates the pairs, and
+  catches this defect as shipped: reverting the fix fails four tests
+  that name exactly the two engines and the two options.
+
+- ~~340~~ | DONE v1.51.0, FOUND BY THE 1.51.0 CODE REVIEW | r_values
+  WAS HONOURED ON ONE BRANCH AND DROPPED ON THE OTHER.
+  The continental door accepted `r_values`, forwarded it on the
+  untiled branch, and silently dropped it on the tiled one - so a
+  tiled continental run asked for radii produced none, and a
+  RADIUS-ONLY tiled request reached the core with no neighbourhood at
+  all. Nothing compared the two branches' outputs, which is how a
+  parameter came to be honoured on one path and ignored on another.
+  See 341 and 345: the same defect twice more on the same branch.
+
+- ~~339~~ | DONE v1.51.0, EXTERNAL REVIEW OF 1.51.0 (F6), MY OWN
+  REGRESSION | THE TAU PRODUCER MOVED AND THE CONSUMER DID NOT.
+  337 replaced four separate float-to-label formatters with
+  equipop/labels.py. In friction.py I changed the producer to
+  `tau_suffix` and MISSED THE CONSUMER 110 lines below, which still
+  built its own name - so `tau=[2.5]` produced a column the caller
+  then looked for under a different spelling. My 337 test covered
+  RADII ONLY, so the suite was green on a half-landed rename, which is
+  the exact shape of the rename I had warned about in the same
+  release's comments. Fixed, and the test now covers tau: [3], [2.5],
+  [1000000] and [2.5, 3] all round-trip.
+
+- ~~334~~ | DONE v1.51.0, FOUND BY MARINA'S PULL REQUEST | `g` IS NOT
+  THE ANCILLARY KEYWORD, AND 330 SHIPPED FOR A DAY BELIEVING IT WAS.
+  330 declared the worked examples and the test data in equipop.pkg
+  with `g`, on my belief that `g` meant "ancillary". `g` is the
+  PLATFORM-SPECIFIC directive and its syntax is
+  `g PLATFORMNAME sourcefile targetfile` - for shipping a different
+  compiled plugin to WIN64A, MACARM64, LINUX64. So Stata read
+  "equipop_example.do" as a platform name with no files after it, and
+  THOSE THREE FILES WOULD NOT HAVE INSTALLED AT ALL from
+  `net install`. Marina's pull request had them as `f` all along.
+  `f` IS CORRECT: Stata decides what to do with a file from its
+  EXTENSION, installing .ado and .sthlp into the ado path and fetching
+  .do and .dta with `net get`, which is what the `all` option of
+  `ssc install` performs.
+  AND THE TEST I WROTE BESIDE 330 VALIDATED THE BUG. It walked the `g`
+  lines and asserted the named file existed in stata/ - which it did.
+  A test written beside a change encodes the change's assumption, and
+  this one encoded a wrong one. That is the seventh unfalsifiable-or-
+  wrong test of this stretch and the second that was mine.
+  The check now rejects a `g` line whose second word is not a real
+  platform name, and requires every .do and .dta in stata/ to be an
+  `f` line. Both break-checked against the exact bug.
+
+- ~~335~~ | DONE v1.51.0, MARINA'S PULL REQUEST | A RADIUS-ONLY RUN
+  WITH treat() CRASHED BEFORE COMPUTING ANYTHING.
+  `foreach ... of numlist `k'` with an EMPTY `k' is a SYNTAX
+  ERROR in Stata, not an empty loop. The name-length warning looped
+  over k() unguarded, so `equipop, x() y() r(500) treat(HighEdu)` died
+  with "invalid numlist has too few elements". k() and r() are each
+  optional and either will do (BACKLOG 305), so a radius-only run with
+  a treatment is an ordinary thing to ask for.
+  THE GUARD ALREADY EXISTED FORTY LINES ABOVE, in the replace drop
+  block, with a comment explaining this exact property of numlist. The
+  rule was written down in the file and not applied below it - the
+  same shape as 330, where the right version invariant sat in a
+  comment three files from the code that ignored it. A test now walks
+  every numlist loop in the ado and requires the guard, because the
+  lesson demonstrably does not stick on its own.
+
+- ~~336~~ | DONE v1.51.0, MARINA'S PULL REQUEST | -replace- LEFT THE
+  DECAY OUTPUTS BEHIND, so a second decay() run told the user to "use
+  option replace" when they already had.
+  The drop list cleared N_, Dist_, T_ and R_ and not ND_, TD_, RD_.
+  Her fix covers all three for the k loop and the r loop, and
+  correctly does NOT drop Dist_r - a radius run reports no distance,
+  because the radius IS the distance (203, John's ruling).
+  THE TEST READS THE FAMILIES FROM THE ENGINE, equipop.analysis.NAMES,
+  rather than listing them - so a new output family added to the
+  engine fails the test instead of quietly escaping the drop list,
+  which is how these three escaped it.
+  AND MY FIRST VERSION OF THAT TEST COULD NOT FAIL PROPERLY: it
+  searched the whole drop block, so deleting the decay drop from the
+  k half still passed, because the radius half's `drop ND_r`rl'`
+  matched the same pattern. Caught by breaking it. It now checks each
+  half separately.
+
+- ~~337~~ | DONE v1.51.0, DIAGNOSED BY MARINA, FIXED DIFFERENTLY | ONE
+  RADIUS, FOUR DOORS, FOUR DIFFERENT ANSWERS.
+  Marina found that two radii agreeing to six significant digits
+  collapse into ONE output column, silently, and that a radius needing
+  scientific notation makes an illegal Stata name. Both reproduced.
+  THE CAUSE WAS FOUR FORMATTERS FOR ONE LABEL:
+    fastcounts._lab            f"{x:g}"
+    analysis.record(suffix=)   f"r{rv:g}"
+    stata_bridge labs          f"r{r:g}"
+    doors/fields._fmt_num      str(int(f)) if whole else str(f)
+  `:g` carries six significant digits and goes exponential outside a
+  narrow range, so for r(1000000) - 1000 km, an ordinary continental
+  radius - Python got N_r1e+06, ArcGIS Pro stored the unreadable
+  N_r1e_06, QGIS got N_r1e+06 and STATA CRASHED. And the PREDICTION
+  disagreed with the engine: doors/fields promised N_r1000000 while
+  the engine made N_r1e+06, so Pro's shapefile-name check and its
+  "names will be shortened" warning were computed against a field that
+  never appears - in a function whose docstring says it is "validated
+  against the real dispatch ... and does not drift into a guess".
+  WHY NOT HER FIX. Hers raises ValueError for a label that is not a
+  legal STATA name, inside knn_to_rows and dispatch - so every door,
+  Python included, is refused r(1000000) because of a Stata naming
+  rule, and tests/test_menu.py uses 1e6 deliberately and calls it the
+  whole-world radius. The project's own rule, written in dispatch for
+  missing codes, is that no engine learns a door's concepts.
+  BUILT INSTEAD: equipop/labels.py, one formatter, used by the engine
+  AND by the prediction. Six decimal places, never scientific, the dot
+  already an underscore, fixed AT THE SOURCE so no name needs
+  repairing at an output boundary. EVERY RADIUS ANYBODY HAS USED KEEPS
+  ITS NAME - 50, 100, 500, 800, 2800 are unchanged - so no pinned
+  number moves. A true collision is still refused, which is her rule
+  kept; at six decimal places it fires only when the two radii are the
+  same radius.
+  AND tau HAD THE SAME EXPOSURE, found with it: friction.py formatted
+  effort budgets with `:g` too, so tau(3.5) made the illegal
+  Rounds_tau3.5. Same function, fixed together.
+  AND THE TEST SUITE WAS PINNING THE BUG. test_menu asserted the
+  column "N_r1e+06" - a name no Stata variable and no shapefile field
+  may have - for the one radius there that most needed checking, and
+  it computed the expected name with the same `:g` the code used. A
+  test that derives the expected name the way the code does cannot
+  catch a naming fault. The name is now spelled out, and a second
+  assertion refuses any result column containing an exponent or a dot.
+
+- ~~338~~ | DONE v1.51.0, MARINA'S PULL REQUEST, TAKEN DIFFERENTLY |
+  THE HELP'S EXAMPLES NAMED NO VARIABLES, AND A SHARED EXPLANATION
+  NEARLY GOT A SECOND COPY.
+  Her PR adds help text for r() and overshoot() as STATA_ONLY entries,
+  described as boxes that "had no help entry". THEY HAD ONE: OPTION_HELP
+  maps both to keys in equipop/doors/help.py, which is the mechanism
+  that makes a QGIS student and a Stata student read the same words
+  about the same box. STATA_ONLY REPLACES that text, so her version
+  would have given Stata its own copy of two paragraphs - BACKLOG 105's
+  fault exactly, where Pro said "additive (sum)" and QGIS said
+  "additive (costs add up)". I repeated her claim in my review before
+  checking it; the shared entries exist and I was wrong.
+  WHAT IS GENUINELY STATA-SPECIFIC IS REAL, THOUGH: overshoot(sampled)
+  is refused by the ado. So STATA_EXTRA now APPENDS a door-specific
+  sentence to the shared explanation instead of overriding it. The
+  permanent duplication of 105 exists only because a QGIS plugin may
+  not import the package at load time; the Stata help generator has no
+  such constraint, so it should not duplicate.
+  TAKEN FROM HER: the examples now say what they run ON - the help
+  named no variables, so a reader could not try them - with Kit Baum's
+  filenames and the findfile idiom 1.49.3 established, because an SSC
+  install puts ancillary files under PLUS and not in the working
+  directory.
+  ALSO HERS: the help sent users to TESTING_STATA.md, gone since 1.36.
+  1.49.3 pointed at `equipop doctor`; her README_STATA.md is the better
+  target for an installation question and is now named alongside it.
+
+- ~~333~~ | DONE v1.50.0, FOUND WHILE ANSWERING "WHAT NEXT" | A `no_door` ENTRY CANNOT FAIL, SO THE REACHABILITY MATRIX
+  GOES STALE IN THE ONE DIRECTION IT EXISTS TO WATCH.
+  tests/reachability.py was written in 1.47.6 after five capabilities
+  shipped with no way to reach them. It is the right instrument and it
+  has an asymmetry:
+    test_1 walks `entry[0] == "door"` and checks the named file still
+    mentions the named symbol. A door that DISAPPEARS is caught.
+    A `no_door(why, item)` names NO file and NO symbol, so NOTHING
+    about it is verified. A door that APPEARS is never noticed, and
+    the matrix goes on saying the capability is unreachable.
+  IT HAS ALREADY HAPPENED, to the entry the matrix was written for.
+  "vector to lattice join (OSM roads, polygons)" declares no_door for
+  QGIS, with Pro and Stata pointing at that reason:
+    "The headline engine of 1.46.0 and 1.46.1 has no GUI. Reachable
+     only from run_osm_friction.py"
+  Both GUIs have had it since 1.47.6. Verified in the code, not
+  inferred: alg_continental.py offers the `joinlayer` box at line 125
+  and calls paths_to_cells at 390; EquiPop.pyt declares joinlayer at
+  3759 and _join_layer calls paths_to_cells at 3539.
+  WHY THIS DIRECTION IS THE WORSE ONE. A false "no door" costs a
+  RELEASE: it tells a future session to build something that exists.
+  The backlog's own head did exactly that - "the two finished engines
+  with NO DOOR" - and I nearly recommended it as the next piece of
+  work before checking the code.
+  AND IT IS THE SESSION'S OWN THEME FOUND IN THE SESSION'S OWN
+  INSTRUMENT. Four tests that could not fail in 1.48.2-1.49.0, a
+  fifth in 1.49.1, my own sixth in 1.49.3 - and the guard built to
+  catch unreachable capabilities has an assertion of exactly that
+  shape. A matrix that can only be wrong in one direction will be.
+  PROPOSED FIX, small:
+  (a) A GAP AND A RULING ARE DIFFERENT THINGS and no_door conflates
+      them. "Downloading is not a Stata activity" is a ruling - it
+      needs no witness and should never fire. "No GUI yet" is a GAP,
+      and a gap should be able to announce its own obsolescence.
+  (b) So a gap carries a WITNESS: the file that would hold the door,
+      and a symbol that must NOT appear in it. For the lattice join
+      that is ("qgis/.../alg_continental.py", "joinlayer") - the BOX
+      name, not the engine function, because barriers.py and
+      EquiPop.pyt both call paths_to_cells for machine 1's barrier
+      charging, which is a different capability the matrix's own
+      docstring warns against conflating.
+  (c) A new test asserts the witness is absent. It fails the moment
+      the door is built, which is the moment the entry becomes a lie.
+  (d) Audit every existing no_door while doing it: this one was found
+      by accident, so the others are unaudited by definition.
+  BUILT. `no_door` is GONE as a name, which is deliberate: leaving it
+  available as a catch-all would have let the blind spot back in on
+  the next entry somebody wrote. Every absence is now `ruled_out(why,
+  item)` or `not_yet(why, item, absent=(file, symbol))`, and the
+  classification of all 26 forced the audit.
+  PROOF IT WORKS: restoring the exact 1.47.6 claim - no QGIS door for
+  the lattice join - now fails the suite, naming the file and the
+  symbol. Three breaks checked: the false claim, a same_as borrowing
+  another door's witness, and a gap declared with no witness at all.
+  THE AUDIT FOUND TWO MORE THINGS.
+  (a) "accessibility and FCA" was three identical lines reading "No
+      door. No demand recorded." - 28 characters, just past the
+      25-character minimum, saying nothing a future session could
+      act on. kFCA has been in the engine since 1.12.0. Rewritten,
+      and the two GUI rows now carry witnesses.
+  (b) `diagnostics (the doctor)` had `pro: same_as("qgis")`, which
+      cannot carry a witness - it would assert something about a QGIS
+      file and prove nothing about Pro. That is the SAME MECHANISM as
+      the lattice join's false Pro claim. Two gaps now, two
+      witnesses, and the resolver refuses a reference that lands on a
+      gap.
+  AND THE REPORT NOW SAYS WHICH KIND each absence is: 8 watched gaps,
+  18 rulings. It used to print "26 declared gaps, every one with a
+  reason", which told a reader nothing about whether what they were
+  looking at was a decision or an oversight - the exact distinction
+  the file exists to make.
+  THE STATA ROW FOR THE LATTICE JOIN became a ruling rather than a
+  door, on 296's reasoning: a vector layer put on a raster lattice is
+  a GIS operation on GIS inputs, and the result reaches Stata as the
+  point table machine 3 writes.
+
 - 321 | OPEN, PROPOSED 23 SEPTEMBER 2026 | WHAT OF PETER'S BURDEN
   METRICS COULD GO IN TOOL 4, AND WHAT MUST NOT.
   John asked which measures from the eBoD literature could be added to
@@ -3637,6 +6511,325 @@ not here. A list of completed work is not a plan.
   population that can be zero, so the explanation arrived with a
   fragment of a RuntimeWarning attached. Suppressed, and tested with
   warnings-as-errors.
+
+- ~~332~~ | DONE v1.49.3, JOHN'S QUESTION | THE ENGINE FLOOR WAS A
+  RELEASE NUMBER PRETENDING TO BE A DEPENDENCY.
+  John, after being handed the three-step release order for 331:
+  "wouldn't it be easier to generate a new version of equipop and I
+  will git it and py it and this will never happen again".
+  HALF RIGHT, AND THE OTHER HALF IS THE INTERESTING ONE. He needs no
+  new version - 1.49.3 exists nowhere, so releasing it IS his plan
+  with one step fewer. But a synchronised release does not make it
+  never happen again, because the gap REOPENS AT THE NEXT RELEASE:
+  SSC is an email to a person and PyPI is a command, and this
+  project's own submission notes say to submit to SSC rarely. PyPI
+  ahead of SSC is the steady state, not the accident.
+  SO WHAT MAKES IT NEVER HAPPEN AGAIN IS NOT A RELEASE, IT IS A
+  DEFINITION. Setup asked pip for `equipop>=<the ado's own version>`,
+  which BACKLOG 196 built and which reads "the engine must be as new
+  as this release". THAT IS NOT A DEPENDENCY. Two consequences, both
+  real and both live:
+    1.49.2 TOUCHED THE ARCGIS TOOLBOX AND NOTHING ELSE, and silently
+    raised the Stata engine floor to 1.49.2. The commands did not
+    need one byte of it.
+    AND A FLOOR THAT NAMES AN UNPUBLISHED ENGINE CANNOT BE SATISFIED,
+    so pip installs nothing at all - which is 331.
+  THE HONEST FLOOR is the oldest engine that satisfies the calls the
+  ado makes. Declared by hand as `eqp_min_engine`, beside the list of
+  what sets it:
+      equipop.stata_bridge   knn_to_rows, to_stata_values,
+                             project_for_stata, degrees_warning,
+                             zone_span_warning       long-standing
+      equipop.doctor.run(ado_version=)               1.40.1
+      equipop.decay.Decay(calibration=)              1.48.0
+  So 1.48.0, where the ado's own version is 1.49.3. It moves only
+  when the commands start calling something new, and only after that
+  engine is on PyPI - so it can never name something that is not
+  there, and the hard failure becomes IMPOSSIBLE rather than merely
+  documented. bump_version.py must not touch it, and a test asserts
+  that it does not: a floor that follows the release number is 332
+  back within one release and invisible.
+  AND THE DOCTOR NOW JUDGES THE FLOOR, not the two release numbers,
+  which is the better answer to 330 than the one I shipped two hours
+  earlier. Kit's case stops needing a paragraph of reassurance and
+  becomes one line:
+      engine       : 1.49.3   (the Python package)
+      commands     : 1.49.3   (the .ado files)
+      needs engine : 1.48.0 or newer - satisfied
+  330's calm note survives for a PRE-1.49.3 ADO, which sends no floor
+  and is installed on real machines - there the direction of the
+  difference is the best signal available.
+  THE TRADE-OFF, STATED SO IT CAN BE OVERRULED. The old design failed
+  LOUDLY AND EARLY: pip refused, at install time. A hand-maintained
+  floor can fail LATER AND LESS CLEARLY - add a call to a newer
+  engine, forget to raise the floor, and the user meets an
+  ImportError mid-run. So the imports are checked: a test reads every
+  `from equipop... import ...` in the ado's python block and asserts
+  each name exists in the installed engine, plus the one requirement
+  hasattr cannot see - Decay's `calibration` keyword, which is what
+  sets the floor today. That cannot prove the floor NUMBER is right,
+  only a matrix of old engines could, and that is not worth building;
+  it catches the failure that would actually reach a user.
+  AND THE ADO MUST NOT BREAK ON AN OLDER ENGINE THAN ITSELF: passing
+  min_engine to a pre-1.49.3 doctor raises TypeError, so the call
+  falls back to the old signature. The loss is one line of a report.
+
+- ~~331~~ | DONE v1.49.3, JOHN, BEFORE THE REPLY TO BAUM WENT OUT |
+  THE ENGINE MUST REACH PyPI BEFORE THE COMMANDS REACH SSC, AND THE
+  FIX FOR 330 IS IN THE ENGINE.
+  John, reading the batch I had just handed him: "short question -
+  this way ado will be 1.49.3 and the py version an earlier version
+  which would lead to a conflict, correct?"
+  CORRECT, AND WORSE THAN A CONFLICT. PyPI's newest was 1.49.1.
+  Verified against the real index rather than assumed:
+      pip install --dry-run "equipop>=1.49.3"
+      ERROR: No matching distribution found for equipop>=1.49.3
+  So `equipop setup` - the FIRST INSTRUCTION IN THE PAPER - would have
+  failed outright for every new reader, not warned. I had built the
+  whole 330 fix, bumped the version, written the covering letter, and
+  not checked the one number that decides whether any of it installs.
+  AND THE 330 FIX ITSELF IS IN THE PYTHON PACKAGE. The doctor's entire
+  report comes from equipop/doctor.py; the ado only does
+  `from equipop.doctor import run`. So sending Kit the ado alone would
+  have changed NOTHING HE COULD SEE - he would have run the new
+  commands against the old engine, read the same "VERSION MISMATCH"
+  paragraph, and reasonably concluded it had not been fixed. A reply
+  that says "fixed" and demonstrably is not is worse than no reply.
+  RECORDED AS A HARD PRECONDITION, section 0 of SSC_SUBMISSION.md,
+  with the two commands that compare the numbers - and in
+  tools/bump_version.py, printed at the moment the two versions part
+  company, because that is where the mistake is made and not where it
+  is discovered.
+  THE PIP ADVICE FOR IT WAS CONFIDENTLY WRONG. "No matching
+  distribution" fell into the network branch: "pip could not reach
+  PyPI, or could not find a build for this Python. Check the network
+  and any proxy, and that this Python is 3.10 or newer." All true,
+  none of it the cause, and the user cannot fix it in any case. THAT
+  IS BACKLOG 319'S EXACT FAULT, WRITTEN IN THE RELEASE THAT FIXED 319.
+  Setup now recognises its own floor in pip's message, says the
+  mistake is ours, and gives the fallback that works - the newest
+  engine there is, plus the doctor to see the gap it leaves.
+  AND THE .ADO'S PYTHON BLOCK IS REACHABLE BY TESTS AT LAST. Its own
+  comment said so, for releases:
+    "Code in here can only be run by Stata, so the Python test suite
+     cannot reach it - which is how ... and 173 survive."
+  True, and it is why every guard in `equipop setup` - the venv
+  detection, the ensurepip advice, the externally-managed advice, the
+  whole dispatch on what pip said - was verified by GREPPING THE FILE
+  FOR STRINGS. That is how the 1.48.2 ensurepip test came to assert
+  nothing, and how a branch of advice could point the wrong way for a
+  whole release with tests passing over it.
+  The block needs Stata only for `sfi`. Everything else is standard
+  library BY DESIGN, because setup runs before the package exists - so
+  tests/test_stata_python_block.py stubs sfi, EXECUTES the block, calls
+  the functions with pip's real output, and reads the advice back from
+  what was PRINTED. Nine tests; each one fails when the thing it
+  describes is broken, checked one break at a time. The block's
+  comment now says what keeps it reachable: an import of numpy, pandas
+  or equipop on a setup path would put it back out of reach and take
+  its tests with it.
+
+- ~~330~~ | DONE v1.49.3, FOUND BY C. F. BAUM ON THE SSC RELEASE |
+  THREE VOICES CALLING A CORRECT INSTALL A FAULT, AND THE FILENAMES
+  THE ARCHIVE COULD NOT TAKE.
+  equipop is on SSC. Kit Baum installed it by following the
+  manuscript exactly - `equipop setup`, full restart of Stata - and
+  wrote: "I am a bit confused as to why the doctor routine identifies
+  a version mismatch." He had commands 1.48.2 from SSC and engine
+  1.49.1 from pip.
+  HE WAS RIGHT TO BE CONFUSED AND THE PACKAGE WAS WRONG. That state
+  is not a mismatch to repair: IT IS WHAT OUR OWN INSTALLER PRODUCES.
+  `equipop setup` asks pip for `equipop>=<ado version>` - deliberately,
+  since 1.48.2, because new commands need a new engine - so pip takes
+  the newest there is, which is ahead of SSC whenever PyPI has moved.
+  And PyPI and SSC are on separate tracks BY DESIGN, which 1.48.2's
+  own note says. So the package shipped an installer that creates a
+  state and a diagnostic that calls that state a fault. BACKLOG 328's
+  lesson arriving from the other direction: a second voice
+  contradicting the first is worse than no voice at all.
+  THE DIRECTION IS THE WHOLE DIAGNOSIS, and `!=` cannot see it:
+    engine NEWER than commands   expected, harmless. Commands only
+                                 ever call engine functions that
+                                 existed when they were written.
+    engine OLDER than commands   the real fault, and the ONLY one
+                                 that produces `ImportError: cannot
+                                 import name ...` - which is the
+                                 error the old message illustrated
+                                 BOTH cases with.
+  The loud message now goes only to the second. The first gets three
+  calm lines that quote what setup asked pip for, because the two
+  version numbers differ on screen and an unexplained difference is
+  its own kind of alarm. An unreadable version string makes the
+  doctor go quiet rather than guess.
+  AND THE ANSWER WAS ALREADY WRITTEN DOWN, WHICH IS THE WORST PART.
+  The comment beside the pip call in equipop.ado, put there for
+  BACKLOG 196 in 1.48.2, says it exactly:
+    "A FLOOR, NOT A PIN... doctor then reports a mismatch that SETUP
+     CREATED... THE REAL INVARIANT: the ado is the caller and the
+     engine is the library, so THE LIBRARY MUST BE AT LEAST AS NEW AS
+     THE CALLER."
+  So the reasoning was correct, recorded, and eleven releases old, and
+  the diagnostic three files away was never told. Nothing connects a
+  comment to the code that should obey it - which is the same shape as
+  BACKLOG 103 and 320, two doors disagreeing, with prose as one of the
+  doors. The tests now hold the doctor, the test pass and the setup
+  floor to one rule.
+  AND IT WAS IN TWO MORE PLACES, both found by looking for it:
+    equipop_test_pass.do, block 0: `"$EQP_ENGINE" == "$EQP_EXPECT"`.
+      So the pass FAILS A CHECK on a correct SSC installation - while
+      SSC_SUBMISSION.md instructs the submitter to run it and expect
+      every check to pass. Now "at least", with a note when newer.
+    SSC_SUBMISSION.md itself, which told the reader to make "the
+      doctor's mismatch message current before submitting". It was
+      current. It was wrong.
+  THE FILENAMES. Kit also renamed two files, and his reasoning is
+  correct: "We obviously cannot host a file named example.do on the
+  archive... Likewise stata_test_data.dta is not a workable name (as
+  it could be used by many package authors)". SSC's filename space is
+  FLAT AND GLOBAL. The repository now uses HIS names -
+  equipop_example.do, equipop_test_data.dta - so that one file has
+  one name everywhere, and a test asserts the prefix on everything in
+  stata/.
+  WHICH EXPOSED THE CONSEQUENCE HE COULD NOT HAVE SEEN: both sample
+  do-files open with `use stata_test_data, clear`, so AS HOSTED they
+  fail on their first data line. Renaming the data without renaming
+  the reference breaks the example - and the reference was in a file
+  he was not renaming. Both now use findfile, which fixes a second
+  fault underneath the first: ancillary files install into Stata's
+  PLUS folder, not the working directory, so `use equipop_test_data`
+  would not have found it even under the right name. The shipped
+  examples had only ever been runnable from a clone of the repository.
+  AND THE .PKG HAD NEVER LISTED THEM AT ALL. Eleven releases of `net
+  install` from GitHub handed over the commands and not the material
+  the help and the paper tell people to run, while SSC - whose .pkg
+  the archive generates from the zip - handed over both. TWO INSTALL
+  ROUTES OFFERING DIFFERENT FILES, and neither route's contents
+  written down anywhere. Now declared with `g`, and a test walks both
+  the `f` and the `g` lines.
+  THE HELP FILE NEVER NAMED THE EXAMPLES either, which left the paper
+  as the only place they appeared - by the filenames SSC then changed.
+  It names them now, with the findfile idiom, so an SSC user can find
+  what they installed.
+  AND THE HELP FILE'S SMCL WAS BROKEN, found while editing it. Every
+  escaped brace shipped malformed, since the generator was written:
+  _smcl_escape chained two .replace() calls and the second ATE THE
+  FIRST ONE'S OUTPUT - `{` became `{c -(}`, whose closing brace the
+  second replace turned into `{c )-}`, giving `{c -({c )-}` - and the
+  line wrapper, which knows nothing about SMCL, then broke the wreck
+  across a newline. FIVE OF THEM WERE IN THE FILE KIT READ. str
+  .translate does it in one pass and never re-scans its own output.
+  Five paragraphs were also being brace-escaped when they WANTED live
+  markup, so `{help python}` had shipped as the words rather than the
+  link for as long as the line existed; they go through a new _smcl
+  that wraps without escaping and refuses to break inside a
+  directive. One of those paragraphs pointed at TESTING_STATA.md,
+  which has not existed outside stata/historical/ since 1.36 - a help
+  file naming a missing file, now on SSC. It points at
+  `equipop doctor` instead.
+  THE SIXTH UNFALSIFIABLE TEST OF THE WEEK, and my own: the
+  output-side check for broken SMCL could not fail once the five
+  paragraphs moved off the escaper, because nothing reached it with a
+  brace any more - breaking _smcl_escape again changed no shipped
+  byte and the test passed over the restored bug. _smcl_escape is now
+  pinned by a unit test of its own, and the output check is kept for
+  the two regressions it CAN catch.
+
+- ~~329~~ | DONE v1.49.2, FOUND BY JOHN IN THE FIELD, THE SAME DAY AS
+  327 | THE CAPABILITY DID NOT EXIST, ONLY THE REFUSAL.
+  John ran 1.49.1 - the release that fixed 327 - and met the SAME
+  SENTENCE:
+
+      File "C:\Data\EQP\EquiPop.pyt", line 1570, in _run_tool
+      arcgisscripting.ExecuteError: Table input has no feature class
+      to append to - set the output table (.csv).
+
+  MY FIRST READING WAS WRONG AND WORTH RECORDING. I assumed a second
+  COPY of the check on the execution path - that I had fixed the one I
+  happened to find instead of grepping for the message. There was no
+  second copy. The message at line 1570 was the ONLY thing _run_tool
+  did with a table input, because the four lines read
+
+      if kind == "table":   ...
+      elif out_mode.startswith("New"):   ...
+
+  and an `elif` after `if kind == "table"` is unreachable for a table.
+  So 1.49.1 stopped the DIALOG refusing and left the engine with
+  nothing to run. FIXING A VALIDATOR DOES NOT BUILD A FEATURE. The
+  toolbox had offered "New feature class" to table inputs for as long
+  as the box had existed, and no code anywhere could do it.
+  AND THE 327 TEST COULD NOT HAVE CAUGHT IT. It called
+  updateMessages() and stopped - a validator test certifies the
+  validator. Fifth unfalsifiable-or-insufficient test this week
+  (ensurepip in 1.48.2, the two 306 greps and the .message attribute
+  in 1.49.0, this). The common shape: the test exercises the layer the
+  fix touched instead of the behaviour the user asked for.
+  BUILT: arcpy.management.XYTableToPoint, which is the right tool and
+  was used nowhere in the toolbox. It carries EVERY column of the
+  table across, not only the ones EquiPop read, so John's census
+  counts arrive on the layer beside the results computed from them.
+  After the conversion `kind` becomes "point" and the whole ordinary
+  write path runs unaltered - the shapefile name check, keep-both, the
+  ExtendTable write, the verification and the manifest.
+  BACKLOG 164 BITES HARDER HERE THAN FOR A COPY. A table has no
+  identifier to preserve at all, so the new feature class numbers its
+  rows from scratch (1 in a geodatabase, 0 in a shapefile) and `oid`
+  was None a moment earlier. The ids are read back in row order and
+  used, exactly as the copy path does. The test proves it on
+  Dist_200, which VARIES row by row - N_200 reads 200 everywhere
+  under `proportional`, which is why the original 164 misalignment
+  was invisible for four releases.
+  ROWS WITH NO COORDINATE ARE THE ONE BEHAVIOURAL DIFFERENCE, and it
+  is refused rather than absorbed: the conversion DROPS them, where
+  EquiPop's convention is Null results, so the row count is checked
+  and a mismatch stops the run naming the cause. A misaligned write
+  is not worth a convenience.
+  WHERE THE PROJECTION COMES FROM - the one real design question. A
+  table declares none: a CSV of eastings and northings is two columns
+  of numbers. BACKLOG 313's rule is never guess a CRS and never be
+  silent about a missing one, so there is now a box, "Coordinate
+  system of the X/Y columns", and it is honoured in the direction that
+  applies here. The NUMBERS never depend on it - distances are in
+  whatever unit the columns are - only the MAP does, so a blank box
+  writes the feature class with an unknown coordinate system and says
+  so loudly, naming both remedies (fill the box, or run Define
+  Projection) and the two grids John's audience uses. Refusing the run
+  over a metadata field would be 327's mistake again in the other
+  direction.
+  AND THE SPATIAL REFERENCE IS PASSED EXPLICITLY EVEN WHEN UNKNOWN,
+  because arcpy's own default for XYTableToPoint's coordinate_system
+  is GCS_WGS_1984: omitting it would stamp Irish Grid eastings as
+  degrees of longitude and the layer would claim a projection it does
+  not have. An empty SpatialReference() says "unknown", which is
+  true. A GEOGRAPHIC choice in the box is refused outright - EquiPop
+  measures in metres and a degree is not a length.
+  THE BOX WENT ON THE END OF THE PARAMETER LIST, not beside the other
+  coordinate boxes: Pro places a box by its CATEGORY, and a parameter
+  inserted mid-list renumbers every parameter after it, which silently
+  rewires a saved ModelBuilder model.
+  TWO THINGS FOUND WHILE DOING IT:
+  (a) A TABLE RUN'S MANIFEST COULD NAME A CRS IT NEVER HAD.
+      last_crs_text and last_unit are attributes ON _read_input, so
+      they survive from one tool run to the next inside one Pro
+      session, and the tabular branch set NEITHER - it read them with
+      getattr(..., "unknown"), which returns what the last FEATURE
+      CLASS read in that session left behind. Read a projected layer,
+      then a CSV of Irish Grid numbers, and the second manifest
+      records the first run's coordinate system. A manifest exists so
+      a result can be reproduced a year later; one that names the
+      wrong CRS is worse than one that admits it does not know. Now
+      set explicitly on every path, and "unknown - a table declares
+      none" when nothing is declared.
+  (b) BACKLOG 320 MISSED THE CSV A STUDENT ACTUALLY OPENS. It made
+      the name-map and the manifest utf-8-sig and left the RESULTS
+      csv - the only to_csv in the toolbox - with no encoding at all.
+      That is the file with T_andel_fodt_i_Norge_333 in its header.
+      Fixed here.
+  ALSO: both output boxes are now honoured. A table input may take a
+  .csv AND a new feature class, and gets both, with a manifest beside
+  each. Until this release the CSV writer lived inside
+  `if kind == "table":` and the feature-class path had already changed
+  `kind`, so filling both boxes silently threw one away - the same
+  fault as the rest of the item, one line further down.
 
 - ~~316~~ | DONE v1.49.0 | KEEP BOTH: A THIRD
   CHOICE FOR "if result fields already exist".
@@ -3907,8 +7100,8 @@ not here. A list of completed work is not a plan.
   SO THE MATRIX NOW RECORDS A DOOR DELIBERATELY NOT BUILT rather than
   a capability missing, which is the distinction it exists to make.
 
-- 293 | OPEN, FOUND v1.47.6 | RunLog IS DEAD CODE, AND IT IS BACKLOG
-  ITEM 2. equipop/meta.py - "the per-run metadata log (backlog item 2,
+- ~~293~~ | DONE v1.50.0, FOUND v1.47.6 | RunLog IS DEAD CODE, AND IT
+  IS BACKLOG ITEM 2. equipop/meta.py - "the per-run metadata log (backlog item 2,
   design as agreed)" - is complete, documented, exported in __all__,
   and CALLED BY NOTHING AND TESTED BY NOTHING. No door, no engine, no
   runner constructs a RunLog.
@@ -3925,6 +7118,89 @@ not here. A list of completed work is not a plan.
   (280/282). This one is the oldest by a wide margin. The pattern is
   now the project's characteristic failure: a thing is built, tested,
   and never connected to a way of reaching it.
+
+  BUILT v1.50.0, AND THE DIAGNOSIS WAS WRONG IN A USEFUL WAY. "Analysis
+  runs have no provenance record" is not quite what was true. PRO HAD
+  ONE - an _EquiPop_run.csv beside every output since 1.26 - so the
+  real state was TWO IMPLEMENTATIONS OF ONE JOB, which is BACKLOG
+  103's shape with a dead one and a live one. And the live one was
+  HAND-MAINTAINED, so it drifted exactly as a hand-written list does:
+  `overshoot` moved every k-based number from 1.30 and appeared in no
+  record until 1.47 because nobody added it; 148 is the same story
+  told larger - the manifest recorded k, cell size, decay and barriers
+  and NONE of the settings that define the numbers, so two runs could
+  carry identical records and different answers, and Claude tried to
+  use two of John's to settle which of his runs had differed and could
+  not.
+  SO THE FIX IS NOT "WRITE A RECORD". It is that THE RECORD COMES FROM
+  THE ENGINE'S OWN ARGUMENTS. `dispatch(..., provenance=runlog)` fills
+  it from `locals()` at entry - the arguments AS BOUND, defaults
+  included - so a parameter added to the engine appears in the record
+  the same day with no door touched. A setting the caller never
+  mentioned is recorded as the value that actually ran, which is what
+  a record is for: self_potential changes every Dist_k and decay_eps
+  changes how far the search goes, and no door passes either when the
+  default suits it.
+  A TEST WALKS dispatch's OWN SIGNATURE and fails if any parameter is
+  missing from the record. That is the anti-drift guard this item has
+  needed since it was raised as item 2.
+  EACH DOOR, AND ITS OWN SHAPE:
+    python  RunLog directly, as the module docstring always showed.
+    qgis    .meta.json + .meta.txt beside the output - this door wrote
+            NOTHING before. With a temporary or in-memory destination,
+            which is QGIS's own default, there is nowhere to put a
+            sidecar, so the settings are PRINTED instead of silently
+            not existing.
+    pro     the engine's rows appended to the existing CSV under an
+            `engine.` prefix. NO SECOND SIDECAR: that CSV is the file
+            a user already looks for, and two files describing one run
+            is how this item's problem started. The two overlap on
+            purpose - cell_size_m against engine.unit_size - because a
+            disagreement between what the dialog believes it sent and
+            what the engine received is a bug class nobody could see
+            before.
+    stata   a PRINTED note, John's ruling, because a Stata run writes
+            variables into memory and may produce no file at all, and
+            `log using` is where a Stata user's reproducibility
+            already lives. Plus r(overshoot), r(originrule) and
+            r(provenance) - the first two being the settings this item
+            was raised about, returned as the EFFECTIVE value so an
+            unset option reports the default that ran rather than an
+            empty string.
+  THE STATA SIDE IS SPLIT IN TWO BLOCKS ON PURPOSE. The r() values
+  need only overshoot.DEFAULT (1.30) and selfrule.DEFAULT (1.47); the
+  printed note needs equipop.meta.record, which is new here. So the
+  note degrades to one line on an older engine rather than forcing
+  eqp_min_engine up and making `equipop setup` demand a version nobody
+  has yet (332). A note is a convenience; an install that cannot
+  complete is not.
+  WHAT IS NOT IN THE RECORD: the data. A population column is not a
+  setting, and a sidecar is not the place to copy one - megabytes of
+  numbers already in the input file, plus a disclosure question nobody
+  asked for. Arrays are summarised: count, dtype, how many present,
+  the range. A test caps the record at 20 kB on a 500-row run with a
+  treatment column, which is what catches a future change that starts
+  dumping them.
+  AND A None IS KEPT RATHER THAN DROPPED. "overshoot_mode was not
+  passed" and "overshoot_mode was whole" are different runs; a record
+  that omits the first cannot say which happened, which is how a door
+  that named no mode became impossible to measure against an answer
+  key (99). The PRINTED note drops them, and only the printed note,
+  because on screen a None is noise and in a record it is evidence.
+  FOUND WHILE DOING IT: the record named the WRONG ENGINE VERSION.
+  _versions() asked importlib.metadata, which reads dist-info - and
+  dist-info lags the source on every editable install and on any
+  machine where the toolbox was copied in by hand. Measured: it said
+  1.49.1 while __version__ said 1.49.3, so a provenance record would
+  have named a version that did not produce it. __version__ is also
+  the string the doctor and the .ado compare, so anything else here
+  would have made the record disagree with the rest of the package
+  about which engine ran.
+  AND 333's WITNESS CAUGHT THIS WORK AN HOUR AFTER IT WAS BUILT. The
+  three `not_yet` entries for run provenance fired the moment the
+  doors were wired, in the same session. An hour earlier they would
+  have gone on claiming the capability was unreachable - which is
+  precisely what the lattice join did for three releases.
 
 - 194 | OPEN | THE 1.41 PLAN IN HANDOVER 11 CONTAINED TWO ERRORS THAT
   WOULD HAVE BEEN BUILT VERBATIM. Both found by the external review,

@@ -77,7 +77,8 @@ def build_distance_rings(max_radius_units: int):
             for dist, grp in groupby(offsets, key=lambda t: t[0])]
 
 
-def _interp_base(dist_m, unit_size, sp, ring_dist_m):
+def _interp_base(dist_m, unit_size, sp, ring_dist_m, *,
+                 shape: str = "square"):
     """Where a crossing ring's area-linear interpolation STARTS.
 
     BACKLOG 191. dist_m is the distance out to everything already
@@ -94,9 +95,14 @@ def _interp_base(dist_m, unit_size, sp, ring_dist_m):
     estimate. Raising it destroyed that signal and made two engines
     disagree - caught by the parity test, which is what it is for.
     """
+    # BACKLOG 158. run_knn is the GRID engine: it takes a DataFrame
+    # of E_grid/N_grid integer cells, never a CellData, so a hex
+    # grid cannot reach it and `square` is not a default here but a
+    # fact about the input. Same for the two effort engines in
+    # friction.py, which build their own square FrictionGrid.
     if dist_m > 0.0 or sp <= 0.0:
         return dist_m
-    return min(selfpot.radius_for_k(unit_size, 1.0, 1.0, sp),
+    return min(selfpot.radius_for_k(unit_size, 1.0, 1.0, sp, shape=shape),
                float(ring_dist_m))
 
 
@@ -378,7 +384,8 @@ def run_knn(
 from .cells import CellData
 from .wstats import weighted_stats
 from .stats import (BINARY_STATS, VALUE_STATS, PREFIX,
-                    check_gini_input,
+                    check_gini_input, check_mld_input,
+                    check_theil_input, BINARY_REFUSED,
                     value_stat, stat_prefix, is_percentile)
 
 
@@ -434,6 +441,31 @@ def run_knn_stats(
     r_values = sorted(r_values or [])
     if not (k_values or r_values):
         raise ValueError("give k_values and/or r_values")
+    # BACKLOG 382, v1.53.3. A CELL WITH NO POSITION IS NOT A CELL.
+    # Every door masks non-finite coordinates before calling - that is
+    # the "missing coordinates -> Null results" convention, and in
+    # QGIS it is also how keep_outside is implemented - so this could
+    # only be reached from the Python API. Reached, it printed
+    # "[stats] 3 cells, k = [2]", computed a distance vector that was
+    # NaN throughout, sorted it in whatever order numpy happened to
+    # produce, and then died on `int(nan)` with a bare numpy message.
+    # fastcounts is already strict here, by accident: scipy's cKDTree
+    # refuses non-finite input. This says the same thing in EquiPop's
+    # voice, and says what to do about it.
+    # 353's lesson, applied on purpose: a convention honoured at four
+    # doors is still worth guarding in the engine, because the engine
+    # is what a script calls.
+    _bad_xy = ~(np.isfinite(np.asarray(cd.E, dtype=float))
+                & np.isfinite(np.asarray(cd.N, dtype=float)))
+    if _bad_xy.any():
+        raise ValueError(
+            f"[stats] {int(_bad_xy.sum())} of {_bad_xy.size} cells "
+            "have a missing or non-finite position, and a cell with no "
+            "position has no neighbourhood. Every EquiPop door drops "
+            "these rows and returns Null results for them; a script "
+            "calling the engine directly has to do the same - mask "
+            "with np.isfinite(E) & np.isfinite(N) before build_cells, "
+            "or read the points through a door.")
     osm = overshoot.resolve(overshoot_mode)
     _seed_given = seed is not None
     os_seed = int(seed) if _seed_given else overshoot.draw_seed()
@@ -470,6 +502,14 @@ def run_knn_stats(
     # 1's - has nothing left to warn about.
     for v in bin_vars:
         for s in stats[v]:
+            if s in BINARY_REFUSED:
+                # BACKLOG 405: not unknown - DELIBERATELY absent, and
+                # the reason is the useful part of the message.
+                raise ValueError(
+                    f"'{s}' is not offered for the 0/1 variable {v}: "
+                    f"{BINARY_REFUSED[s]}. To measure inequality "
+                    "BETWEEN groups, give a value field (income) and "
+                    f"use {v} as its decomposition group instead.")
             if s not in BINARY_STATS:
                 raise ValueError(f"Unknown binary statistic '{s}' for {v}. "
                                  f"Available: {list(BINARY_STATS)}")
@@ -479,6 +519,30 @@ def run_knn_stats(
                 raise ValueError(f"Unknown value statistic '{s}' for {v}. "
                                  f"Available: {list(VALUE_STATS)} "
                                  "plus percentiles like p10/p97.5")
+
+    # BACKLOG 409, v1.57.0: ADDITIVE SUMS (CellData.sum_matrix), added
+    # up over each neighbourhood exactly as the people are - whole
+    # cells as the walk passes them, a crossing ring at the same share
+    # its people get - and written as `{name}_{k}`. One vector add per
+    # ring, however many sums there are: this is what lets a
+    # between/within split cost four sums per group instead of a
+    # sorted statistic per group.
+    S_mat = None
+    if cd.sum_names:
+        S_mat = np.asarray(cd.sum_matrix, dtype=float)
+        if S_mat.ndim != 2 or S_mat.shape != (len(cd), len(cd.sum_names)):
+            raise ValueError(
+                f"[stats] the additive sums hold {S_mat.shape} for "
+                f"{len(cd)} cells and {len(cd.sum_names)} names - every "
+                "per-cell array has to grow together.")
+    _sum_keys: dict = {}
+
+    def sum_keys(suffix):
+        got = _sum_keys.get(suffix)
+        if got is None:
+            got = _sum_keys[suffix] = [f"{nm}_{suffix}"
+                                       for nm in cd.sum_names]
+        return got
 
     sp = selfpot.check(self_potential)
     # BACKLOG 290: the origin as its own neighbour. This engine walks
@@ -496,11 +560,33 @@ def run_knn_stats(
     # API reach statistics through this function, and because the
     # per-neighbourhood inner loop is no place to raise.
     for _v, _asked in (stats or {}).items():
-        if "gini" in _asked and _v in cd.value_arrays:
-            _flat = [a for a in cd.value_arrays[_v] if a is not None
-                     and len(a)]
-            if _flat:
-                check_gini_input(np.concatenate(_flat), f"'{_v}'")
+        if _v not in cd.value_arrays:
+            continue
+        if not {"gini", "mld", "theil"} & set(_asked):
+            continue
+        _flat = [a for a in cd.value_arrays[_v] if a is not None
+                 and len(a)]
+        if not _flat:
+            continue
+        _all = np.concatenate(_flat)
+        if "gini" in _asked:
+            check_gini_input(_all, f"'{_v}'")
+        # BACKLOG 405, the same rule for the same reason: screened
+        # once per variable, here, where every door arrives.
+        if "mld" in _asked:
+            check_mld_input(_all, f"'{_v}'")
+        if "theil" in _asked:
+            check_theil_input(_all, f"'{_v}'")
+            # Warn, never act: a value field that is really 0/1 gets
+            # Theil = -ln(share), which is the share in disguise.
+            _fin = _all[np.isfinite(_all)]
+            if _fin.size and np.isin(_fin, (0.0, 1.0)).all():
+                print(f"[stats] note: '{_v}' holds only 0 and 1. Theil "
+                      "of a 0/1 variable is exactly -ln(share) - it "
+                      "adds nothing to the share itself. Declared as a "
+                      "binary treatment it gets R_ directly; as a "
+                      "decomposition group it measures inequality "
+                      "between groups.")
     # BACKLOG 118. One pass, per cell: the expanded per-person array
     # becomes (distinct value, how many people hold it). Lossless, and
     # it is what lets a crossing ring contribute a SHARE of a cell -
@@ -602,6 +688,7 @@ def run_knn_stats(
         # value is OBSERVED, not everybody present.
         bin_ok = {v: 0.0 for v in bin_vars}
         val_chunks = {v: [] for v in val_vars}
+        acc = None if S_mat is None else np.zeros(S_mat.shape[1])  # 409
         dist_m = 0.0
         pending = list(k_values)
         pending_r = list(r_values)
@@ -614,6 +701,9 @@ def run_knn_stats(
             n_use = sum_n if partial is None else partial["n"]
             t_use = bin_t if partial is None else partial["t"]
             rec[f"N_{suffix}"] = n_use
+            if acc is not None:                               # 409
+                s_use = acc if partial is None else partial["s"]
+                rec.update(zip(sum_keys(suffix), s_use.tolist()))
             if with_dist:
                 d_k = dist_m if partial is None else partial["d"]
 # BACKLOG 304. `>= k` IS A FLOATING-POINT TRAP HERE.
@@ -635,7 +725,9 @@ def run_knn_stats(
                     # in the cell, not the share reported
                     _pop = (float(sum_n) if partial is None
                             else float(partial["cellpop"]))
-                    d_k = selfpot.radius_for_k(cd.unit_size, k, _pop, sp)
+                    d_k = selfpot.radius_for_k(cd.unit_size, k, _pop,
+                                               sp,
+                                               shape=cd.cell_shape)
                     scratch["selfpot"][k] = \
                         scratch["selfpot"].get(k, 0) + 1
                 if n_use >= 2 * k:                      # BACKLOG 94
@@ -666,7 +758,8 @@ def run_knn_stats(
 
         # walk cells in distance order, atomically per equal-distance ring
         def record_r(rv):
-            record(rv, suffix=f"r{rv:g}", with_dist=False)
+            from .labels import radius_suffix     # BACKLOG 337
+            record(rv, suffix=radius_suffix(rv), with_dist=False)
 
         j = 0
         n_nb = len(nd)
@@ -717,12 +810,18 @@ def run_knn_stats(
                             for v in bin_vars},
                         "d": float(overshoot.radius(
                             _interp_base(dist_m, cd.unit_size, sp,
-                                         float(d)), float(d), f)),
+                                         float(d),
+                                         shape=cd.cell_shape),
+                            float(d), f)),
                         "cellpop": sum_n + ring_n,
                         "ok": {v: bin_ok[v] + float(sum(
                             cd.valid_for(v)[ci] * w
                             for ci, w in zip(ring, wt)))
                             for v in bin_vars},
+                        # BACKLOG 409: and the same share again for
+                        # the additive sums.
+                        "s": (None if acc is None else
+                              acc + np.asarray(wt, float) @ S_mat[ring]),
                         # BACKLOG 118: the same per-cell share the
                         # binary sums get, applied to the value
                         # weights. `whole` gives w = 1 and nothing
@@ -742,6 +841,8 @@ def run_knn_stats(
                     pair = val_pairs[v][ci]
                     if len(pair[0]):
                         val_chunks[v].append(pair)
+            if acc is not None:                               # 409
+                acc += S_mat[ring].sum(axis=0)
             dist_m = float(d)
             while pending and sum_n >= pending[0]:
                 record(pending.pop(0))

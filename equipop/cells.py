@@ -17,6 +17,8 @@ Missing handling (spec section 12):
     statistics (a separate valid-n is reported as Nv_<var>_<k>)
 """
 
+import hashlib
+
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
@@ -54,7 +56,28 @@ class CellData:
     # Europe-against-Africa comparison was biased by construction.
     value_weights: dict = field(default_factory=dict)  # var -> list of arrays
     unit_size: float = 100.0
+    # BACKLOG 158. WHAT SHAPE THE CELLS ARE, because `unit_size` alone
+    # does not say: it is a square's SIDE and a hexagon's WIDTH ACROSS
+    # FLATS, and those enclose different areas. The self-potential
+    # radius is area-based, so hex cells were being charged a square's
+    # 10,000 m2 where they hold 8,660 - a 7.46% overstatement that
+    # nothing could see, because the number arrived through a field
+    # named for a length. Defaults to "square", which is every caller
+    # before 1.52 and an exact identity for them. See selfpot.SHAPES.
+    cell_shape: str = "square"
     labels: list | None = None    # optional per-cell ID/label (e.g. place, year)
+    # BACKLOG 409, v1.57.0. ADDITIVE SUMS: one column per name, one row
+    # per cell, each the (weighted) sum of some per-person quantity
+    # over the cell's people. run_knn_stats adds them up over each
+    # neighbourhood exactly as it adds up the people - a crossing ring
+    # contributes the same share of them - and writes the totals as
+    # columns `{name}_{k}`. Nothing a user asks for directly reads
+    # them: they exist so that a between/within split costs four sums
+    # per group, not a sorted statistic per group (see decompose.py).
+    # None unless build_cells(sum_vars=...) was given something, so
+    # every other run is untouched.
+    sum_matrix: np.ndarray | None = None
+    sum_names: list = field(default_factory=list)
 
     def __len__(self):
         return len(self.n)
@@ -70,6 +93,52 @@ class CellData:
         got = self.binary_valid.get(v)
         return self.n.astype(float) if got is None else got
 
+    def fingerprint(self) -> str:
+        """A short digest of the DATA this table holds.
+
+        BACKLOG 344, external review of 1.51 (finding F3). A resumable
+        run has to answer one question before it skips any finished
+        work: is the data on disk the data being asked about? Counting
+        cells cannot answer it. Reproduced on two 9-cell tables with
+        identical geometry and different populations - 10 people per
+        cell, then 20 - where resuming the second against the first's
+        folder returned the FIRST run's numbers, reported success, and
+        left a manifest whose recorded parameters matched perfectly,
+        because `n_cells` and `unit_size` were all it recorded. A
+        three-day continental run is exactly where nobody will notice.
+
+        Everything the counting engine reads goes in: the coordinates,
+        the population, and each treatment's totals and observed
+        denominators - in a fixed order, as raw little-endian float64
+        bytes, so the digest does not depend on dict ordering or on
+        how the arrays were typed. VALUE ARRAYS ARE NOT INCLUDED: the
+        counts engine never reads them, and hashing a per-person list
+        at continental scale would cost more than the run it guards.
+        Any future engine that reads them owes this method a line.
+        """
+        h = hashlib.md5(usedforsecurity=False)
+        h.update(f"equipop-cells-1|{float(self.unit_size)!r}|"
+                 f"{len(self.n)}".encode())
+        for arr in (self.E, self.N, self.n):
+            h.update(np.ascontiguousarray(arr, dtype="<f8").tobytes())
+        for bag_name, bag in (("binary_sums", self.binary_sums),
+                              ("binary_valid", self.binary_valid)):
+            for v in sorted(bag):
+                h.update(f"|{bag_name}|{v}|".encode())
+                h.update(np.ascontiguousarray(bag[v],
+                                              dtype="<f8").tobytes())
+        if self.labels is not None:
+            h.update(b"|labels|")
+            h.update("\x1f".join("" if x is None else str(x)
+                                 for x in self.labels).encode())
+        return h.hexdigest()
+
+
+def split_sum_name(var: str, code: int) -> str:
+    """The name of `var`'s sum over the people with group code `code`
+    (build_cells(sum_by=...)). The ONE place this is spelled."""
+    return f"{var}#{int(code)}"
+
 
 def build_cells(
     df: pd.DataFrame,
@@ -82,6 +151,9 @@ def build_cells(
     label_col: str | None = None,
     missing_codes=None,
     weights: str | None = None,
+    sum_vars: list[str] | None = None,
+    sum_by: str | None = None,
+    sum_levels: int = 0,
 ) -> CellData:
     """
     Aggregate an individual-level DataFrame into CellData.
@@ -102,20 +174,90 @@ def build_cells(
            (e.g. a place code or a year). If a cell contains SEVERAL
            distinct labels they are joined with '|' and a warning is
            printed - a good ID should be constant within a cell.
+    sum_vars : columns whose per-cell (weighted) SUMS the engine should
+           carry - see CellData.sum_matrix. A blank counts as zero.
+    sum_by, sum_levels : optionally SPLIT each of those sums by a
+           column of integer codes 0 .. sum_levels-1 (-1 = in no
+           group, contributes to none). Each sum var then becomes
+           `sum_levels` sums, named by split_sum_name(var, code). Done
+           inside one bincount, so a run with twenty groups holds no
+           more per-person data than a run with one.
     """
     binary_vars = binary_vars or []
     value_vars = value_vars or []
+    sum_vars = list(sum_vars or [])
     df = df.copy()
 
     # --- coerce to numeric; blanks become NaN ---
-    for c in [e_col, n_col] + binary_vars + value_vars:
+    for c in [e_col, n_col] + binary_vars + value_vars + sum_vars:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
+    # --- the WEIGHT column, BACKLOG 343 ---
+    # A weight is a number of people, so it is coerced like every
+    # other number and judged before anything sums it. Two silent
+    # failures this closes: a weight column arriving as text summed to
+    # nonsense or to zero, and a blank or negative weight reaching
+    # `value_weights`, where np.bincount turns one NaN into a NaN
+    # statistic for every neighbourhood that touches the cell. Blank
+    # means NOBODY (John's rule since 1.22.2 - the row still gets its
+    # own results); negative means a sentinel nobody declared, and
+    # that is refused rather than quietly read as a population.
+    if weights is not None:
+        if weights not in df.columns:
+            raise ValueError(
+                f"[cells] weights='{weights}' is not a column - found "
+                f"{list(df.columns)}")
+        wv = pd.to_numeric(df[weights], errors="coerce")
+        neg = wv < 0
+        if bool(neg.any()):
+            # BACKLOG 351. Same two causes as the bridge's
+            # validate_weight, named in the same order, because this
+            # is the other door onto the same mistake - rasterfolder
+            # hands a raster's own column straight in, and a raster's
+            # NoData is frequently -9999.
+            raise ValueError(
+                f"[cells] '{weights}' goes down to {float(wv.min()):g} "
+                f"at {int(neg.sum())} row(s), and k counts PEOPLE, so "
+                f"a neighbourhood cannot be grown against a negative "
+                f"population.\n"
+                f"  NO DATA: blank it, or declare it as a missing code "
+                f"- those rows then hold nobody and still get their "
+                f"own results.\n"
+                f"  A CHANGE or net migration, legitimately negative: "
+                f"that is a MEASUREMENT, not a population. Pass it as "
+                f"a value_vars column and keep the headcount in "
+                f"weights=.")
+        blank = ~np.isfinite(wv)
+        if bool(blank.any()):
+            print(f"[cells] note: '{weights}' is missing at "
+                  f"{int(blank.sum())} of {len(df)} rows - those rows "
+                  f"hold nobody, are nobody's neighbour, and still get "
+                  f"their own results.")
+        df[weights] = wv.where(~blank, 0.0)
+
     # --- missing coordinates: drop with warning (spec 12) ---
-    bad = df[e_col].isna() | df[n_col].isna()
+    # BACKLOG 381, v1.53.3. This said `.isna()`, which is True only for
+    # NaN and None. An INFINITE or non-numeric coordinate passed it and
+    # reached the .astype(int) twelve lines below, where pandas refuses
+    # with "Cannot convert non-finite values (NA or inf) to integer ...
+    # cast to Int64" - a message about pandas dtypes handed to somebody
+    # who typed a coordinate. The ANSWER was never wrong, but the voice
+    # was not EquiPop's.
+    # The right predicate was already in this function, eight lines
+    # above, on the weight column: `blank = ~np.isfinite(wv)`.
+    # A NON-NUMERIC coordinate is NOT this release's fix: the loop at
+    # the top of this function already runs to_numeric(errors=
+    # "coerce") over both coordinate columns, so text has become NaN
+    # long before here. The first draft of this change re-coerced them
+    # and a test claimed credit for behaviour that predates it - the
+    # break-check is what exposed that, by removing the new coercion
+    # and watching the test pass anyway.
+    bad = pd.Series(~(np.isfinite(df[e_col].to_numpy(float))
+                      & np.isfinite(df[n_col].to_numpy(float))),
+                    index=df.index)
     if bad.any():
         print(f"[cells] WARNING: {bad.sum()} of {len(df)} rows have "
-              f"missing coordinates and are dropped.")
+              f"missing or non-finite coordinates and are dropped.")
         df = df[~bad]
 
     # --- snap to grid midpoints ---
@@ -159,6 +301,9 @@ def build_cells(
                       "results, but contribute nothing of their own.")
             df[v] = col.where(~hit)
 
+    # (v1.55.0's `quiet_missing` is gone with the per-group sub-fields
+    # it silenced - BACKLOG 409. Additive sums have no missing values:
+    # a person outside a group contributes zero to its sums.)
     for v in value_vars:
         miss = df[v].isna().sum()
         if miss:
@@ -203,6 +348,42 @@ def build_cells(
               f"'{label_col}' values (joined with '|'). A good cell ID "
               f"should be constant within a cell.")
 
+    # BACKLOG 409: the additive sums, in ONE vectorised pass - a cell's
+    # number is its group's position in the same sorted order the loop
+    # above walked, so row i of the matrix is cell i.
+    sum_matrix, sum_names = None, list(sum_vars)
+    if sum_vars:
+        m_cells = len(E)
+        gi = groups.ngroup().to_numpy()
+        wcol = (df[weights].to_numpy(float) if weights is not None
+                else np.ones(len(df)))
+        if sum_by is None:
+            n_lev, code = 1, np.zeros(len(df), dtype=np.int64)
+        else:
+            n_lev = int(sum_levels)
+            raw = pd.to_numeric(df[sum_by], errors="coerce").to_numpy(float)
+            if n_lev < 1 or not np.isfinite(raw).all() \
+                    or (raw != np.round(raw)).any() \
+                    or raw.min(initial=0) < -1 or raw.max(initial=0) >= n_lev:
+                raise ValueError(
+                    f"[cells] sum_by='{sum_by}' must hold whole codes from "
+                    f"-1 to {n_lev - 1}.")
+            code = raw.astype(np.int64)
+            sum_names = [split_sum_name(v, i) for v in sum_vars
+                         for i in range(n_lev)]
+        keep = code >= 0
+        slot = gi[keep] * n_lev + code[keep]
+        blocks = []
+        for v in sum_vars:
+            col = df[v].to_numpy(float)
+            # blank -> 0; an infinity is NOT made finite (nan_to_num
+            # would turn it into 1.8e308 and hide it)
+            col = np.where(np.isnan(col), 0.0, col)
+            blocks.append(np.bincount(
+                slot, weights=(col * wcol)[keep],
+                minlength=m_cells * n_lev).reshape(m_cells, n_lev))
+        sum_matrix = np.concatenate(blocks, axis=1)
+
     cd = CellData(
         E=np.array(E, dtype=np.int64),
         N=np.array(N, dtype=np.int64),
@@ -214,6 +395,8 @@ def build_cells(
         value_weights=vwts,
         unit_size=unit_size,
         labels=labels,
+        sum_matrix=sum_matrix,
+        sum_names=sum_names,
     )
     print(f"[cells] {len(df)} individuals -> {len(cd)} cells "
           f"(unit {unit_size} m, global N = {cd.n.sum()})")

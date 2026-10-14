@@ -143,7 +143,9 @@ _COORD_CHOICES = [_COORD_AUTO, _COORD_GEOM, _COORD_ATTR]
 # "percentiles" as a toggle for its own percentile box.
 _AGG_CHOICES = ["additive (costs add up)", "max", "min", "mean"]
 _MEASURES = ["mean", "median", "gini", "sd", "variance", "se", "min",
-             "max", "count", "sum", "range", "percentiles"]
+             "max", "count", "sum", "range",
+             "mld", "theil",                          # BACKLOG 405
+             "percentiles"]
 _MEASURE_KEY = {"variance": "var"}
 
 
@@ -345,8 +347,100 @@ def _numeric(arr, field, context):
     return out
 
 
+def _column_array(values):
+    """A list of raw cursor values as one usable column.
+
+    Numbers come back as float with None -> NaN, which is what the
+    missing-coordinate convention downstream reads. Anything else comes
+    back as text with None -> "", which is what the category code
+    already expects (it filters on str(v).strip()).
+    """
+    numeric = True
+    for v in values:
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            numeric = False
+            break
+    if numeric:
+        return np.array([np.nan if v is None else float(v)
+                         for v in values], dtype=float)
+    return np.array(["" if v is None else str(v) for v in values],
+                    dtype=object)
+
+
+def _read_columns(layer, fields, messages, sr=None, table=False,
+                  context="input"):
+    """Read these fields as {name: array}, tolerating what arcpy will
+    not.
+
+    BACKLOG 380, v1.53.3. John's field finding, 8 October 2026:
+
+        ValueError: cannot create NumPyArray. geometry type found
+
+    from FeatureClassToNumPyArray on a layer holding NULL GEOMETRY.
+    **THE HANDLING FOR THAT ALREADY EXISTED AND COULD NOT BE REACHED.**
+    Forty lines below the failing call, in this same function, is
+
+        n_missing = ... "rows with missing coordinates -> Null results
+                         (EquiPop convention)."
+
+    and `skip_nulls=False, null_value=np.nan` was passed *deliberately*
+    so the rows would survive as NaN and land there. The QGIS door does
+    exactly that - `if g is None or g.isEmpty(): xs.append(np.nan)` -
+    so one door honoured the convention, the engine announced it, and
+    Pro died before reaching it.
+    Fourth release in a row of that shape: 353 a guard unreachable from
+    the path that could trip it, 368 a hint classified and never
+    rendered, 373 a parse fixed downstream of the parse that breaks.
+
+    TWO DELIBERATE CHOICES HERE.
+
+    The fast path is kept, because FeatureClassToNumPyArray is far
+    quicker than a cursor on millions of rows, and the fallback only
+    runs when it refuses.
+
+    AND THE FALLBACK TRIGGERS ON ANY FAILURE, NEVER ON THE MESSAGE
+    TEXT. `if "geometry type" in str(exc)` would break the day Esri
+    rewords it - and 1.51.2 was already bitten by tests that matched a
+    phrase of the messages that release improved. It also means the
+    neighbouring arcpy limitation is covered for free: `null_value`
+    does not apply to TEXT fields, so a null in a category field can
+    kill the same call for an entirely different reason.
+    """
+    fast = (arcpy.da.TableToNumPyArray if table
+            else arcpy.da.FeatureClassToNumPyArray)
+    kw = {"skip_nulls": False, "null_value": np.nan}
+    if sr is not None and not table:
+        kw["spatial_reference"] = sr
+    try:
+        arr = fast(layer, fields, **kw)
+        return {f: arr[f] for f in arr.dtype.names}
+    except BaseException as exc:                 # noqa: BLE001
+        first = str(exc).strip().splitlines()[0] if str(exc).strip() \
+            else exc.__class__.__name__
+        messages.addWarningMessage(
+            f"The fast reader refused this {context} - \"{first}\" - "
+            "so EquiPop is reading it row by row instead. That is "
+            "slower and the ANSWER IS THE SAME: a row whose "
+            "coordinates cannot be read keeps its place and gets Null "
+            "results, which is EquiPop's convention for a row it "
+            "cannot locate. The usual cause is NULL GEOMETRY, or a "
+            "null in a text field.")
+
+    cur_kw = {}
+    if sr is not None and not table:
+        cur_kw["spatial_reference"] = sr
+    cols = {f: [] for f in fields}
+    with arcpy.da.SearchCursor(layer, fields, **cur_kw) as cur:
+        for row in cur:
+            for f, v in zip(fields, row):
+                cols[f].append(v)
+    return {f: _column_array(v) for f, v in cols.items()}
+
+
 def _read_input(layer, coord_source, xf, yf, extra_fields, messages,
-                context="input", auto_project=False):
+                context="input", auto_project=False, table_sr=None):
     """THE SHARED LOADER (v1.16): one behaviour for both machines.
     Returns the door contract object (equipop.doors.loader.
     PointInput), which still unpacks as (kind, data dict incl.
@@ -379,22 +473,17 @@ def _read_input(layer, coord_source, xf, yf, extra_fields, messages,
         proj = (sr_used is not None
                 and str(getattr(desc.spatialReference, "type", ""))
                 == "Geographic")
-        arr = arcpy.da.FeatureClassToNumPyArray(
-            layer, [oid, "SHAPE@X", "SHAPE@Y"] + extra,
-            skip_nulls=False, null_value=np.nan,
-            spatial_reference=sr_used) if proj else \
-            arcpy.da.FeatureClassToNumPyArray(
-                layer, [oid, "SHAPE@X", "SHAPE@Y"] + extra,
-                skip_nulls=False, null_value=np.nan)
+        data = _read_columns(layer, [oid, "SHAPE@X", "SHAPE@Y"] + extra,
+                             messages, sr=sr_used if proj else None,
+                             context=context)
         if proj:
             messages.addWarningMessage(
                 f"Input was in degrees - AUTO-PROJECTED to "
                 f"{_utm_advice(desc)} for this analysis. The input "
                 "data itself is untouched; distances are metres in "
                 "that projection.")
-        data = {f: arr[f] for f in arr.dtype.names}
-        data["x"] = np.asarray(arr["SHAPE@X"], float)
-        data["y"] = np.asarray(arr["SHAPE@Y"], float)
+        data["x"] = np.asarray(data["SHAPE@X"], float)
+        data["y"] = np.asarray(data["SHAPE@Y"], float)
         sr_name = getattr(sr_used, "name", None) or getattr(
             getattr(desc, "spatialReference", None), "name", "unknown")
         sr_code = getattr(sr_used, "factoryCode", None) or getattr(
@@ -422,20 +511,57 @@ def _read_input(layer, coord_source, xf, yf, extra_fields, messages,
     oid = desc.OIDFieldName if kind != "table" else None
     read = [xf, yf] + extra + ([oid] if oid and oid not in
                                ([xf, yf] + extra) else [])
-    arr = arcpy.da.TableToNumPyArray(layer, read,
-                                     skip_nulls=False,
-                                     null_value=np.nan)
-    data = {f: arr[f] for f in arr.dtype.names}
-    data["x"] = _numeric(arr[xf], xf, f"The {context}")
-    data["y"] = _numeric(arr[yf], yf, f"The {context}")
+    data = _read_columns(layer, read, messages, table=True,
+                         context=context)
+    data["x"] = _numeric(data[xf], xf, f"The {context}")
+    data["y"] = _numeric(data[yf], yf, f"The {context}")
     messages.addMessage(
         f"Coordinates from attribute fields: X = '{xf}', Y = '{yf}'"
         f" ({how}). X is the easting, Y the northing.")
+    # BACKLOG 329. A TABLE'S CRS IS SET HERE OR IT IS UNKNOWN - never
+    # inherited. last_crs_text and last_unit are attributes ON THIS
+    # FUNCTION, so they survive from one tool run to the next inside
+    # one Pro session, and the tabular branch used to set NEITHER: it
+    # read them with getattr(..., "unknown"), which returns the value
+    # left behind by the last FEATURE CLASS read in that session. A
+    # table run's manifest could therefore record "SWEREF99 TM
+    # (EPSG:3006)" for a CSV of Irish Grid coordinates, and the
+    # messages could promise distances in a unit nothing had declared.
+    # A manifest exists to make a run reproducible a year later; one
+    # that names the wrong CRS is worse than one that says it does not
+    # know.
+    _declared = table_sr if table_sr is not None else (
+        # a FEATURE CLASS read through its attribute columns still
+        # carries a projection of its own; only a real table carries
+        # none at all
+        getattr(desc, "spatialReference", None) if kind != "table"
+        else None)
+    if _declared is not None:
+        _nm = getattr(_declared, "name", None) or str(_declared)
+        _cd = getattr(_declared, "factoryCode", 0) or 0
+        _read_input.last_crs_text = (
+            f"{_nm}" + (f" (EPSG:{_cd})" if _cd else ""))
+        _read_input.last_unit = _crs_unit_name(
+            getattr(_declared, "linearUnitName", None))
+        messages.addMessage(
+            "Coordinate system for these columns: "
+            f"{_read_input.last_crs_text} - distances are "
+            f"{_read_input.last_unit}."
+            + (" (you declared it)" if table_sr is not None
+               else " (the layer's own)"))
+    else:
+        _read_input.last_crs_text = "unknown - a table declares none"
+        _read_input.last_unit = "map units"
     return PointInput("table" if kind == "table" else "point",
                       data, oid,
                       crs_text=getattr(_read_input, "last_crs_text",
                                        "unknown"),
-                      note=f"attribute fields ({how})")
+                      note=f"attribute fields ({how})",
+                      # BACKLOG 329: the RESOLVED names, because the
+                      # boxes may have been left blank and guessed
+                      # from - and XYTableToPoint has to be told which
+                      # columns to build the geometry from.
+                      extras={"x_field": xf, "y_field": yf})
 
 
 def _target_exists(path):
@@ -580,7 +706,7 @@ def _ref(value):
 #: The manifest has always recorded the PACKAGE version and never the
 #: TOOLBOX version, and this whole episode is the gap between those
 #: two. Now every run says both, and says so loudly when they differ.
-TOOLBOX_VERSION = "1.49.1"
+TOOLBOX_VERSION = "1.57.1"
 
 
 def _announce_version(messages):
@@ -788,9 +914,11 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
                 "Barrier table: pick the friction value field.")
         bxf, byf, how = _resolve_xy_fields(value, bxf, byf,
                                            "The barrier table")
-        arr = arcpy.da.TableToNumPyArray(
-            value, [bxf, byf, friction_field], skip_nulls=False,
-            null_value=np.nan)
+        # BACKLOG 380, second call site. Through the shared reader, so
+        # a barrier table with a null in it reaches the mask below
+        # instead of dying in arcpy.
+        arr = _read_columns(value, [bxf, byf, friction_field], messages,
+                            table=True, context="barrier table")
         fr = points_to_friction(
             _numeric(arr[bxf], bxf, "The barrier table"),
             _numeric(arr[byf], byf, "The barrier table"),
@@ -810,9 +938,15 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
             "(crossing cost in rounds).")
 
     if kind in ("point", "multipoint"):
-        arr = arcpy.da.FeatureClassToNumPyArray(
-            value, ["SHAPE@X", "SHAPE@Y", friction_field],
-            skip_nulls=False, null_value=np.nan)
+        # BACKLOG 380, THIRD CALL SITE AND THE ONE THAT PROVES THE
+        # POINT. The mask four lines below is already correct - it uses
+        # isfinite, counts the bad rows and reports them - and this
+        # call died before reaching it, with the very message John sent
+        # in. The first fix of this release went into _read_input only,
+        # which is how a sibling path goes unfixed in this codebase; a
+        # subagent audit of the property found this one, not me.
+        arr = _read_columns(value, ["SHAPE@X", "SHAPE@Y", friction_field],
+                            messages, context="barrier layer")
         xs = np.asarray(arr["SHAPE@X"], float)
         ys = np.asarray(arr["SHAPE@Y"], float)
         vs = _numeric(arr[friction_field], friction_field,
@@ -952,7 +1086,7 @@ def _barrier_frame(value, friction_field, agg, unit, main_sr,
 
 def _predict_result_fields(engine, k_text, r_text, tau_text,
                            treat_names, value_fields, stats_wanted,
-                           decaying, efforting):
+                           decaying, efforting, decomposing=False):
     """The columns a run WILL produce (validated against dispatch in
     the simulator suite) - so shapefile targets can be refused
     BEFORE the computation, not after (field-test finding A4).
@@ -964,9 +1098,23 @@ def _predict_result_fields(engine, k_text, r_text, tau_text,
     if _doors(strict=False) is None:
         return []
     from equipop.doors.fields import predict_result_fields
-    return predict_result_fields(engine, k_text, r_text, tau_text,
-                                 treat_names, value_fields,
-                                 stats_wanted, decaying, efforting)
+    try:
+        return predict_result_fields(engine, k_text, r_text, tau_text,
+                                     treat_names, value_fields,
+                                     stats_wanted, decaying, efforting,
+                                     decomposing=decomposing)
+    except Exception:                                # pragma: no cover
+        # BACKLOG 373, v1.53.2. THIS RUNS INSIDE updateMessages, so an
+        # exception here breaks the DIALOG, not the run - and it did:
+        # a radius typed '500,5' raised `could not convert string to
+        # float` out of field-name prediction while the user was still
+        # typing, in both Pro doors. The prediction now parses
+        # properly, so a bad number raises BadNumber and the k/r check
+        # reports it against the right box. Nothing should reach here
+        # any more; it is caught because a half-working dialog is more
+        # use than one that will not open, which is the same argument
+        # the docstring above already makes about a missing package.
+        return []
 
 
 def _save_name_map(cat, rows, messages):
@@ -1453,6 +1601,61 @@ def _undo_partial(target, before, messages):
             "the target is as it was.")
     return left
 
+def _set_aliases(where, names, kw, messages):
+    """Give each result field its description as a FIELD ALIAS.
+
+    v1.56.0, BACKLOG 410. John's first live run of the between/within
+    split showed MLDb_ / MLDw_ / MLDsh_ in the table header and
+    nothing to say what they were. Pro shows a field's alias in the
+    header, so the description goes where he looked.
+
+    Only a GEODATABASE keeps an alias; a shapefile cannot, and a
+    GeoPackage is not dependable, so other targets are told once where
+    the descriptions are instead. Keyed on the ENGINE's name, so a
+    field renamed or shortened on the way in keeps its meaning (the
+    same rule as the run record, BACKLOG 348). And it may never fail a
+    run: the results are written and verified before this starts.
+    """
+    low = str(where or "").lower()
+    if ".gdb" not in low and ".sde" not in low:
+        messages.addMessage(
+            "Field aliases - a description on each new field - need a "
+            "geodatabase target; this one cannot keep them. What each "
+            "column holds is in the [columns] lines above and in the "
+            "run manifest.")
+        return
+    try:
+        from equipop.describe import describe_all
+        said = describe_all(list(names), kw)
+    except Exception as exc:                         # pragma: no cover
+        messages.addWarningMessage(
+            f"Field descriptions could not be prepared ({exc}); the "
+            "results are complete.")
+        return
+    done = 0
+    for key, field in names.items():
+        text = said.get(key)
+        if not text:
+            continue
+        if len(text) > 255:                      # a geodatabase's limit
+            text = text[:252] + "..."
+        try:
+            arcpy.management.AlterField(where, field,
+                                        new_field_alias=text)
+            done += 1
+        except Exception as exc:
+            messages.addWarningMessage(
+                f"Field aliases could not be set ({exc}) - the results "
+                "are complete and verified; only the descriptions in "
+                "the table header are missing. They are in the "
+                "[columns] lines above and in the run manifest.")
+            return
+    if done:
+        messages.addMessage(
+            f"{done} field(s) carry a description as their alias - "
+            "Pro shows it in the table header.")
+
+
 def _add_columns(layer, oid, sub, fresh, messages):
     """Add result columns to a layer, whichever way the target allows.
 
@@ -1542,7 +1745,8 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
               rest_group=None, rest_in_population=True,
               groups_count="persons", half_life_field=None,
               half_life_from_dist=None, decay_bins: int = 10,
-              seed=None, overshoot=None, originrule=None):
+              seed=None, overshoot=None, originrule=None,
+              table_crs=None, decompose_field=None, min_group=None):
     """The single glue path both machines share (stub-validated)."""
     _announce_version(messages)        # BACKLOG 314, first line of
                                        # every run: which code is this?
@@ -1553,7 +1757,8 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         + ([weight_field] if weight_field else []) \
         + ([cat_field] if cat_field else []) \
         + ([treat_cat_field] if treat_cat_field else []) \
-        + ([half_life_field] if half_life_field else [])
+        + ([half_life_field] if half_life_field else []) \
+        + ([decompose_field] if decompose_field else [])    # 405
     # the same column can now be named by more than one box (the two
     # type fields are usually the same), and arcpy refuses a field
     # list with a repeat
@@ -1561,16 +1766,102 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
     t_all = time.time()
     stages = []
     with _stage(messages, "reading input", stages), _speaking(messages):
-        kind, data, oid = _read_input(layer, coord_source, x_field,
-                                      y_field, extra, messages,
-                                      auto_project=auto_project)
+        got = _read_input(layer, coord_source, x_field,
+                          y_field, extra, messages,
+                          auto_project=auto_project,
+                          table_sr=table_crs)
+        kind, data, oid = got
 
+    # BACKLOG 329. THE CAPABILITY DID NOT EXIST, only the refusal.
+    # 1.49.1 fixed the DIALOG check for 327 - the .csv is demanded only
+    # when the mode is Append to input - and John's next run met the
+    # SAME SENTENCE from line 1570, inside this function. The message
+    # was not duplicated: it was the only thing here. These four lines
+    # read
+    #     if kind == "table":  ...  elif out_mode.startswith("New"):
+    # so a TABLE input could never reach the New-feature-class branch
+    # at all. The dialog had stopped refusing and the execution path
+    # had nothing to run. Fixing a validator does not build a feature.
+    #
+    # A table input now has three honest destinations - a .csv, a new
+    # feature class, or both - and the refusal survives only for the
+    # one case that has nowhere to go.
+    new_points = kind == "table" and out_mode.startswith("New")
     if kind == "table":
-        if not out_table:
+        if not out_table and not new_points:
             raise arcpy.ExecuteError(
-                "Table input has no feature class to append to - "
-                "set the output table (.csv). The results arrive "
-                "there with your coordinates.")
+                "A table input cannot be appended to - a .csv on disk "
+                "is not a feature class. Either set the output table "
+                "(.csv), where the results arrive with your "
+                "coordinates, or choose Output = New feature class "
+                "and give it a path.")
+        if new_points and not out_fc:
+            raise arcpy.ExecuteError("New feature class chosen - "
+                                     "please set the output name/path.")
+        if new_points:
+            # XYTableToPoint carries EVERY column of the table across,
+            # not just the ones EquiPop read, so the points arrive
+            # usable: the census counts are on the layer beside the
+            # results that came from them. After this the input IS a
+            # feature class with an identifier of its own, so `kind`
+            # changes and the whole ordinary write path below runs
+            # unaltered - the shapefile name check, keep-both,
+            # ExtendTable, the verification and the manifest.
+            #
+            # THE SPATIAL REFERENCE IS PASSED EXPLICITLY EVEN WHEN
+            # UNKNOWN. arcpy's own default for coordinate_system is
+            # GCS_WGS_1984, so omitting it would stamp Irish Grid
+            # eastings as degrees of longitude and the layer would
+            # claim a projection it does not have. An EMPTY
+            # SpatialReference() says "unknown", which is true, and
+            # BACKLOG 313's rule - never guess a CRS, never be silent
+            # about a missing one - is kept in the direction that
+            # applies here: the numbers are metres either way, it is
+            # only the map that cannot place them.
+            sr = table_crs if table_crs is not None \
+                else arcpy.SpatialReference()
+            _ex = getattr(got, "extras", None) or {}
+            _xf = _ex.get("x_field") or x_field
+            _yf = _ex.get("y_field") or y_field
+            arcpy.management.XYTableToPoint(layer, out_fc, _xf,
+                                            _yf, None, sr)
+            messages.addMessage(
+                f"Table turned into points at {out_fc} ("
+                f"{len(data['x'])} rows, every column carried across);"
+                " results go there, the input table untouched.")
+            if table_crs is None:
+                messages.addWarningMessage(
+                    "NO COORDINATE SYSTEM WAS DECLARED for the X/Y "
+                    "columns, so the new feature class is written with "
+                    "an UNKNOWN one. EquiPop refuses to guess: your "
+                    "numbers are unaffected - the distances are in "
+                    "whatever unit the columns are - but Pro cannot "
+                    "place the layer on a basemap or reproject it "
+                    f"until it knows. Fix it either way: fill "
+                    "'Coordinate system of the X/Y columns' and run "
+                    "again, or run Define Projection on "
+                    f"{out_fc}. For a UK/Ireland grid that is usually "
+                    "Irish Grid (EPSG:29902) or British National Grid "
+                    "(EPSG:27700).")
+            layer, kind = out_fc, "point"
+            # BACKLOG 164 all over again, and it bites HARDER here
+            # than for a copy: a table has no identifier to preserve,
+            # so the new feature class numbers its rows from scratch -
+            # 1 in a geodatabase, 0 in a shapefile - and `oid` was
+            # None a moment ago. The results are matched by POSITION,
+            # so the row count must agree or nothing is written.
+            oid = arcpy.Describe(layer).OIDFieldName
+            fresh = arcpy.da.TableToNumPyArray(layer, [oid])[oid]
+            if len(fresh) != len(data["x"]):
+                raise arcpy.ExecuteError(
+                    f"The points at {out_fc} number {len(fresh):,} "
+                    f"where the table had {len(data['x']):,} rows. "
+                    "Results are matched to rows by position, so "
+                    "EquiPop will not guess which row is which. "
+                    "Nothing was written. A row whose X or Y is empty "
+                    "is dropped by the conversion - remove or fill "
+                    "those rows and run again.")
+            data[oid] = np.asarray(fresh, np.int64)
     elif out_mode.startswith("New"):
         if not out_fc:
             raise arcpy.ExecuteError("New feature class chosen - "
@@ -1791,7 +2082,8 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             list(value_fields),
             wanted_pred or ["mean", "median", "gini"],
             decaying=bool(half_life), efforting=bool(
-                barrier is not None or extra_dem)))
+                barrier is not None or extra_dem),
+            decomposing=bool(decompose_field and engine == "stats")))
         if txt:
             raise arcpy.ExecuteError(txt)
 
@@ -1818,7 +2110,17 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         # for the same reason: a door that names no rule cannot be
         # measured against an answer key pinned to one.
         kw["self_rule"] = str(originrule)
-    kw["k_values"] = [int(round(v)) for v in _numlist(k_text)] or None
+    # BACKLOG 377, v1.53.2. `int(round(v))` on a float list was the
+    # project's FOURTH k parser, and it is precisely the behaviour
+    # equipop.doors.numbers.to_int was written to refuse - its own
+    # docstring has said "a silently rounded k is a wrong answer that
+    # looks right" since 1.47, and no Pro door ever called it. So
+    # '1.000' in the k box ran with a neighbourhood of ONE PERSON and
+    # wrote Mean_<field>_1, which reads as plausible unless you are
+    # looking for it. John found it in machine 2 on 7 October 2026.
+    # Radii keep going through the measurement reader: 500,5 metres is
+    # a real distance and must stay valid - John's ruling, same day.
+    kw["k_values"] = _intlist(k_text) or None
     kw["r_values"] = _numlist(r_text) or None
     if tau_text:
         kw["tau_values"] = _numlist(tau_text)
@@ -1954,6 +2256,12 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         kw["stats"] = {f: wanted for f in vals}
         messages.addMessage("Measures: " + " ".join(wanted) +
                             " (only these are calculated).")
+        # BACKLOG 405. The group arrives as read - text or numbers -
+        # and the engine checks the measures, the groups and the
+        # minimum, so the wording is the same in every door.
+        if decompose_field:
+            kw["decompose_by"] = {decompose_field: data[decompose_field]}
+            kw["min_group"] = min_group
         # BACKLOG 118, v1.31: the note that stood here - the two
         # machines using different modes - retired when machine 2
         # gained the ability to take a fraction of a cell. They
@@ -1963,19 +2271,29 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         f"Calculating ({engine} engine, {len(x)} rows, cell size "
         f"{float(unit):g} m). Progress and engine notes follow; "
         "bigger cells mean fewer origins and faster runs.")
+    # BACKLOG 293. Pro has written a manifest since 1.26 and it was
+    # HAND-MAINTAINED - which is why `overshoot` moved every k-based
+    # number from 1.30 and appeared in no record until 1.47, and why
+    # BACKLOG 148's complaint was possible at all. The engine now
+    # describes its own arguments, and those rows are appended to the
+    # same CSV under an `engine.` prefix, so a setting added to the
+    # engine appears in the record with nothing here touched. No
+    # second sidecar: Pro's CSV is the record a user already looks
+    # for, and two files describing one run is how the project ended
+    # up with two provenance systems in the first place.
+    _runlog = None
+    try:
+        from equipop.meta import record
+        _runlog = record(engine, len(x), {},
+                         source=_catalog_of(layer) or str(layer))
+    except Exception:                                # pragma: no cover
+        _runlog = None
     with _stage(messages, "calculating", stages), _speaking(messages):
-        res = dispatch(engine, x, y, **kw)
+        res = dispatch(engine, x, y, provenance=_runlog, **kw)
 
     if kind == "table":
         with _stage(messages, "writing output table", stages):
-            out_df = pd.DataFrame({k: v for k, v in data.items()
-                                   if k in ("x", "y")})
-            for c, v in res.items():
-                out_df[_field(c)] = v
-            out_df.to_csv(out_table, index=False)
-        messages.addMessage(
-            f"EquiPop: {len(res)} result columns written with x/y to "
-            f"{out_table} ({len(out_df)} rows, row order preserved).")
+            _results_csv(data, res, out_table, messages)
         _write_manifest(out_table, _manifest_rows(
             engine, layer, unit, k_text, r_text, tau_text, stats_list,
             pct_text, half_life, decay_model, decay_eps, barrier,
@@ -1988,9 +2306,11 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
                 treat_fields, value_fields),
             source=_catalog_of(layer) or str(layer),
             overshoot=overshoot, originrule=originrule,
-            seed=seed), messages)
+            seed=seed,
+            engine_record=_finished(_runlog, res)), messages)
         messages.addMessage("[time] TOTAL: " + _hms(time.time()
                                                     - t_all))
+        _unit_advice(messages, x, y, kw, float(unit))
         return
 
     names = {c: _field(c) for c in res}
@@ -2134,7 +2454,14 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
         messages.addMessage(
             f"EquiPop: {len(res)} fields written and VERIFIED present "
             f"in {where} ({', '.join(names.values())}).")
-    _write_manifest(_catalog_of(layer) or out_fc, _manifest_rows(
+        # BACKLOG 410: a description on every field, where Pro's table
+        # shows it - the header - when the target can keep one.
+        _set_aliases(where, names, kw, messages)
+    if new_points and out_table:
+        # BACKLOG 329. Both boxes filled, so both are honoured.
+        with _stage(messages, "writing output table", stages):
+            _results_csv(data, res, out_table, messages)
+    _man = _manifest_rows(
         engine, layer, unit, k_text, r_text, tau_text, stats_list,
         pct_text, half_life, decay_model, decay_eps, barrier,
         barrier_field, barrier_agg, auto_project, len(x),
@@ -2146,7 +2473,14 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             treat_fields, value_fields),
         source=_catalog_of(layer) or str(layer),
         overshoot=overshoot, originrule=originrule,
-        seed=seed), messages)
+        seed=seed,
+        engine_record=_finished(_runlog, res))
+    _write_manifest(_catalog_of(layer) or out_fc, _man, messages)
+    if new_points and out_table:
+        # one beside EACH output, because a manifest exists so that an
+        # output can be traced and the .csv is often the one that
+        # travels to somebody else
+        _write_manifest(out_table, _man, messages)
     if stages:
         slow = max(stages, key=lambda p: p[1])
         messages.addMessage(
@@ -2158,6 +2492,44 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
                             "the radius each point needed to gather "
                             "its k people (k fixes population, the "
                             "radius floats). Not an error - a finding.")
+    _unit_advice(messages, x, y, kw, float(unit))
+
+
+def _unit_advice(messages, x, y, kw, unit, default=100.0):
+    """BACKLOG 385. What cell size did this data want? Last, and
+    usually nothing.
+
+    John, 9 October 2026: "knowing the unit size is a battle between
+    computing time and detail." The run has just measured both sides,
+    so the only cost here is saying so.
+
+    CALLED FROM BOTH EXITS of the machine-1 tool. Pro returns early
+    for a table output and again at the end for a feature class, and a
+    note added at one of them only is this project's most repeated bug
+    - a thing that exists which the path cannot reach, five releases
+    running (BACKLOG 353, 368, 373, 380). One helper, two call sites,
+    so there is one place to look.
+
+    `unit_was_set` is "did they move it off the default", the same
+    question the Stata door asks about a missing unit().
+
+    SILENT ON FAILURE: the output is already written by the time this
+    runs, and an advisory must never turn a finished run into an
+    error.
+    """
+    try:
+        from equipop import unitsize
+
+        adv = unitsize.advise_unit(
+            x, y, kw.get("weight"),
+            k_values=kw.get("k_values") or [100], current=unit,
+            self_rule=kw.get("self_rule") or "include")
+        for line in unitsize.advise_on_run(
+                adv, unit=unit,
+                unit_was_set=abs(unit - float(default)) > 1e-9):
+            messages.addMessage(line)
+    except Exception:
+        pass
 
 
 def _manifest_rows(engine, layer, unit, k_text, r_text, tau_text,
@@ -2166,7 +2538,7 @@ def _manifest_rows(engine, layer, unit, k_text, r_text, tau_text,
                    auto_project, n_rows, out_fields, stages, total,
                    population=None, source=None, overshoot=None,
                    originrule=None,
-                   seed=None):
+                   seed=None, engine_record=None):
     """BACKLOG 148: `population` carries the settings that DEFINE the
     numbers - the reference and treatment rungs, the count field, the
     types, the keepoutside rung and self-potential. Until 1.29.6 the
@@ -2225,6 +2597,19 @@ def _manifest_rows(engine, layer, unit, k_text, r_text, tau_text,
     ]
     rows += [(f"time_{lbl.replace(' ', '_')}_seconds", round(dt, 1))
              for lbl, dt in stages]
+    # BACKLOG 293. WHAT THE ENGINE WAS ACTUALLY GIVEN, under its own
+    # prefix and beside the door's rows rather than instead of them.
+    # The two overlap on purpose - cell_size_m against
+    # engine.unit_size - because a disagreement between what the
+    # dialog believes it sent and what the engine received is exactly
+    # the bug class nobody could see before.
+    if engine_record is not None:
+        try:
+            from equipop.meta import flat_rows
+            rows += [("engine." + k, v)
+                     for k, v in flat_rows(engine_record)]
+        except Exception:                            # pragma: no cover
+            pass
     return rows
 
 
@@ -2336,6 +2721,53 @@ def _sidecar_path(target, suffix):
     stem = base[:spans[holder]].rstrip("\\/")
     folder = os.path.join(stem, "EquiPop_runs")
     return os.path.join(folder, parts[-1] + suffix), True
+
+
+def _finished(runlog, res):
+    """Close a RunLog without writing a file, and hand back its doc.
+
+    BACKLOG 293. Pro keeps ONE provenance file - the _EquiPop_run.csv
+    a user already looks for - so the record is completed in memory
+    and its rows are appended to that CSV. RunLog.finalize() writes a
+    .meta.json, which is right for QGIS, where there was no record at
+    all, and would be a second file saying the same thing here.
+    Returns None on any failure: a provenance step must never lose a
+    finished analysis.
+    """
+    if runlog is None:
+        return None
+    try:
+        import time as _t
+        runlog.doc["run"]["status"] = "completed"
+        runlog.doc["run"]["duration_s"] = round(
+            _t.time() - runlog._t0, 2)
+        runlog.doc["data"].setdefault("output_columns", len(res))
+        return runlog.doc
+    except Exception:                                # pragma: no cover
+        return None
+
+
+def _results_csv(data, res, out_table, messages):
+    """The results beside the coordinates, as a plain CSV.
+
+    BACKLOG 329: lifted out of _run_tool so that a table input asked
+    for BOTH a .csv and a new feature class gets both. Until 1.49.2
+    only one of the two boxes could be honoured, because the CSV was
+    written inside `if kind == "table":` and the feature-class path
+    had already changed `kind` - so filling both boxes silently threw
+    one away. A box that does nothing is the fault this whole release
+    is about.
+    """
+    import pandas as pd
+    out_df = pd.DataFrame({k: v for k, v in data.items()
+                           if k in ("x", "y")})
+    for c, v in res.items():
+        out_df[_field(c)] = v
+    out_df.to_csv(out_table, index=False, encoding="utf-8-sig")
+    messages.addMessage(
+        f"EquiPop: {len(res)} result columns written with x/y to "
+        f"{out_table} ({len(out_df)} rows, row order preserved).")
+    return out_df
 
 
 def _write_manifest(target, rows, messages):
@@ -2840,13 +3272,58 @@ def _to_float_local(text, default=None):
 
 def _numlist(text):
     """A space/semicolon separated list of numbers, locale-proof:
-    '344,5 500' and '344.5;500' both give [344.5, 500.0]."""
+    '344,5 500' and '344.5;500' both give [344.5, 500.0].
+
+    FOR MEASUREMENTS - radii, tau. k has its own reader below, and
+    the difference is deliberate (BACKLOG 375)."""
     out = []
     for tok in str(text or "").replace(";", " ").split():
         v = _to_float(tok)
         if v is not None:
             out.append(v)
     return out
+
+
+def _intlist(text):
+    """k values, through the shared COUNT reader.
+
+    BACKLOG 377. Thin on purpose, exactly like _to_float: the rule
+    lives in equipop.doors.numbers so the four doors cannot drift,
+    and this wrapper exists only to turn BadNumber into the
+    arcpy.ExecuteError that Pro will actually show a user. The
+    fallback keeps the toolbox usable against an older package.
+    """
+    try:
+        from equipop.doors.numbers import intlist, BadNumber
+    except Exception:                                # pragma: no cover
+        return [int(round(v)) for v in _numlist(text)]
+    try:
+        return intlist(text)
+    except BadNumber as bad:
+        raise arcpy.ExecuteError(str(bad))
+
+
+
+def _k_or_r_message(pm, need_one=True, k_required=False):
+    """Attach the shared k/r verdict to the box it belongs to.
+
+    BACKLOG 378, v1.53.2. ONE CALL, EVERY DOOR. The hand-written
+    version of this lived in CountsShares only, and tested
+    `if not _txt(pm, "k")` - which a single SPACE walks past, because
+    _txt does not strip and Pro's own `Required` is satisfied by any
+    value at all. machine 2 had no version of it whatsoever, which is
+    how a k box holding a space reached the engine as None and came
+    back as a traceback naming `k_values`.
+    """
+    try:
+        from equipop.doors.numbers import check_k_and_r
+    except Exception:                                # pragma: no cover
+        return
+    bad = check_k_and_r(_txt(pm, "k"), _txt(pm, "r"),
+                        need_one=need_one and pm.get("r") is not None,
+                        k_required=k_required)
+    if bad and pm.get(bad[0]) is not None:
+        pm[bad[0]].setErrorMessage(bad[1])
 
 
 def _p(name, display, dtype, **kw):
@@ -2868,6 +3345,28 @@ def _p(name, display, dtype, **kw):
     for k, v in kw.items():
         setattr(p, k, v)
     return p
+
+
+def _TABLECRS():
+    """The coordinate system of the X/Y COLUMNS (BACKLOG 329).
+
+    A table carries no projection: a CSV of eastings and northings is
+    two columns of numbers and nothing more. EquiPop does not need one
+    to compute - every distance is in whatever unit the columns are -
+    but it needs one to WRITE A FEATURE CLASS, and to record an
+    honest CRS in the run manifest instead of the words "unknown".
+
+    Blank is allowed and stays allowed: the run proceeds, the feature
+    class is written with an unknown coordinate system, and the
+    message says so loudly and names both ways to fix it. That is
+    BACKLOG 313's rule kept in the direction that applies here -
+    never guess a CRS, never be silent about a missing one - without
+    refusing a run whose NUMBERS are unaffected.
+    """
+    return _p("tablecrs", "Coordinate system of the X/Y columns "
+              "(a table carries none - needed to write a new feature "
+              "class, and recorded in the run manifest)",
+              "GPCoordinateSystem", required=False)
 
 
 def _coord_trio(ps, dep="layer"):
@@ -2916,6 +3415,12 @@ def _trio_update(parameters, i_layer, i_src, i_x, i_y):
     on = is_attr or is_table
     parameters[i_x].enabled = on
     parameters[i_y].enabled = on
+    # BACKLOG 329: the projection box belongs to the COLUMN route -
+    # geometry already carries one - so it lives and dies with the
+    # X/Y boxes.
+    _crs = _byname(parameters).get("tablecrs")
+    if _crs is not None:
+        _crs.enabled = on
     if on and val is not None and not parameters[i_x].valueAsText \
             and not parameters[i_y].valueAsText:
         try:
@@ -3052,6 +3557,28 @@ def _shared_messages(parameters, i_layer, i_src, i_x, i_y,
             "not a feature class. Either set the output table (.csv), "
             "where the results arrive with your coordinates, or "
             "choose Output = New feature class and give it a path.")
+    # BACKLOG 329. A table declares no projection, so turning one into
+    # points needs to be TOLD which. The warning sits on the OUTPUT
+    # box as well as on the projection box, for the reason the
+    # auto-projection warning does: Pro does not show a message while
+    # its section is collapsed, and Coordinates is collapsed by
+    # default - so a warning living only there is invisible exactly
+    # when it matters.
+    _byn = _byname(parameters)
+    if kind == "table" and _om.startswith("New") \
+            and _byn.get("tablecrs") is not None \
+            and not _byn["tablecrs"].valueAsText:
+        _msg = ("The X/Y columns carry no coordinate system, so the "
+                "new feature class will be written with an UNKNOWN "
+                "one: the numbers are unaffected, but Pro cannot "
+                "place it on a basemap or reproject it. Set "
+                "'Coordinate system of the X/Y columns' in "
+                "Coordinates - for a UK/Ireland grid usually Irish "
+                "Grid (EPSG:29902) or British National Grid "
+                "(EPSG:27700).")
+        _byn["tablecrs"].setWarningMessage(_msg)
+        if _byn.get("outfc") is not None:
+            _byn["outfc"].setWarningMessage(_msg)
     if kind == "table" or src == _COORD_ATTR:
         xf = parameters[i_x].valueAsText
         yf = parameters[i_y].valueAsText
@@ -3087,6 +3614,48 @@ def _epsg_of(param):
     except Exception:
         return None
     return code or None
+
+
+def _sr_of(param):
+    """The SpatialReference OBJECT behind a GPCoordinateSystem box.
+
+    BACKLOG 329. _epsg_of reduces the box to a number, which is
+    enough for the continental machine - it hands the code to a
+    projection library. Here the object itself is wanted, because a
+    projection chosen from Pro's picker may have NO EPSG CODE AT ALL
+    (a custom or a deprecated one: factoryCode 0), and reducing it to
+    a code would throw the user's choice away and then write the
+    layer as "unknown". An UNPROJECTED box - a geographic coordinate
+    system - is refused here rather than at the write, because
+    EquiPop measures in metres and degrees are not a length.
+    """
+    if param is None:
+        return None
+    val = getattr(param, "value", None)
+    if not val:
+        return None
+    if isinstance(val, str):                         # a saved model
+        try:                                         # may hold a name
+            val = arcpy.SpatialReference(val)
+        except Exception:
+            try:
+                val = arcpy.SpatialReference(int(val))
+            except Exception:
+                raise arcpy.ExecuteError(
+                    f"'{val}' is not a coordinate system EquiPop can "
+                    "read. Pick one from the box, or give an EPSG "
+                    "code (Irish Grid is 29902, British National "
+                    "Grid 27700).")
+    if str(getattr(val, "type", "")) == "Geographic":
+        raise arcpy.ExecuteError(
+            f"'{getattr(val, 'name', val)}' is a GEOGRAPHIC coordinate "
+            "system - degrees of latitude and longitude. EquiPop "
+            "measures neighbourhoods in metres, and a degree is not a "
+            "length (it is about 111 km north-south and anything from "
+            "111 km to nothing east-west). Declare the PROJECTED "
+            "system your X/Y columns are actually in, or project the "
+            "coordinates first.")
+    return val
 
 
 def _write_points(table, man, target, messages):
@@ -3542,20 +4111,29 @@ class ContinentalRasters:
         pmj["joincombine"].value = JOIN_COMBINE[0]
         return ps
 
+    def updateMessages(self, parameters):
+        """BACKLOG 378, v1.53.2. This door had no updateMessages at
+        all, so a k box holding one space - which Pro's `Required`
+        accepts, because a space is a value - reached the tiled engine with a silently truncated k. A BLANK k is a real choice here - it means the point table - so only the
+        parse is checked.
+        """
+        _k_or_r_message(_byname(parameters), need_one=False,
+                        k_required=False)
+        return
+
     def execute(self, parameters, messages):
         from equipop.doors.continental import (ContinentalError,
                                                run_folder)
         pm = _byname(parameters)
         ch = _channel(messages)
 
-        ks = []
-        for piece in _txt(pm, "k").replace(",", " ").split():
-            try:
-                ks.append(int(float(piece)))
-            except ValueError:
-                raise arcpy.ExecuteError(
-                    f"'{piece}' is not a number. Give one or more "
-                    "whole numbers of people, separated by spaces.")
+        # BACKLOG 377, v1.53.2. A SIXTH and SEVENTH open-coded k
+        # parser lived here, one per door, and the property test
+        # written for the other five is what found them - a per-door
+        # test could not have. `int(float(piece))` truncated silently,
+        # so '1.000' here asked for a neighbourhood of one person
+        # across a whole continent.
+        ks = _intlist(_txt(pm, "k"))
 
         epsg = _epsg_of(pm.get("crs"))
         try:
@@ -3649,6 +4227,16 @@ class SpatialDemography:
         ps[3].value = 1000.0
         return ps
 
+    def updateMessages(self, parameters):
+        """BACKLOG 378, v1.53.2. This door had no updateMessages at
+        all, so a k box holding one space - which Pro's `Required`
+        accepts, because a space is a value - reached the engine as nothing at all. k is compulsory here and has no radius to fall back on, so a
+        whitespace-only box is refused by name.
+        """
+        _k_or_r_message(_byname(parameters), need_one=False,
+                        k_required=True)
+        return
+
     def execute(self, parameters, messages):
         from equipop.doors.continental import ContinentalError
         from equipop.doors.demography import (INDICES, DemographyError,
@@ -3670,14 +4258,13 @@ class SpatialDemography:
         if not picked:
             raise arcpy.ExecuteError("Tick at least one index.")
 
-        ks = []
-        for piece in _txt(pm, "k").replace(",", " ").split():
-            try:
-                ks.append(int(float(piece)))
-            except ValueError:
-                raise arcpy.ExecuteError(
-                    f"'{piece}' is not a number. Give one or more "
-                    "whole numbers of people, separated by spaces.")
+        # BACKLOG 377, v1.53.2. A SIXTH and SEVENTH open-coded k
+        # parser lived here, one per door, and the property test
+        # written for the other five is what found them - a per-door
+        # test could not have. `int(float(piece))` truncated silently,
+        # so '1.000' here asked for a neighbourhood of one person
+        # across a whole continent.
+        ks = _intlist(_txt(pm, "k"))
 
         over = {}
         rows = pm["settings"].value or []
@@ -3863,7 +4450,15 @@ class CountsShares:
                   "GPBoolean", required=False),
                _p("seed", "Seed - used by 'sampled' and by "
                   "permutations; empty draws one and prints it",
-                  "GPLong", required=False)]
+                  "GPLong", required=False),
+               # BACKLOG 329. LAST IN THE LIST, FIRST IN THE
+               # COORDINATES SECTION: Pro places a box by its
+               # category and not by its position, and a new
+               # parameter inserted mid-list renumbers every
+               # parameter after it - which silently rewires a saved
+               # ModelBuilder model and any script that calls the
+               # tool positionally. New boxes go on the end.
+               _TABLECRS()]
         pm = _byname(ps)
         # BACKLOG 143. This list used to be written out by hand -
         # ("pop", "treat", "catfield") - and treatcatfield was simply
@@ -3916,6 +4511,7 @@ class CountsShares:
         SECTION = {
             "coordsrc": "Coordinates", "xfield": "Coordinates",
             "yfield": "Coordinates", "autoproj": "Coordinates",
+            "tablecrs": "Coordinates",               # BACKLOG 329
             "k": "Neighbourhood", "r": "Neighbourhood",
             "unit": "Neighbourhood", "selfpot": "Neighbourhood",
             "model": "Neighbourhood",
@@ -4055,24 +4651,13 @@ class CountsShares:
         idx = {p.name: i for i, p in enumerate(parameters)}
         _shared_messages(parameters, 0, 1, 2, 3, idx["outtable"],
                          idx["autoproj"])
-        # BACKLOG 305. NEITHER k NOR r, WHICH PRO LETS YOU RUN.
-        # Both are declared optional and they are - EITHER will do,
-        # and a radius-only run is a perfectly good question. What is
-        # not optional is having one of them, and nothing said so
-        # until the engine refused forty lines into a traceback with
-        # "give k_values and/or r_values" - words that name ENGINE
-        # ARGUMENTS rather than boxes, so the message does not even
-        # point at the dialog.
-        # John hit this teaching: his k values vanished while he
-        # worked down the dialog, Pro was content, and the failure
-        # arrived after Run.
-        if not _txt(pm, "k") and not _txt(pm, "r"):
-            pm["k"].setErrorMessage(
-                "Give a neighbourhood size here, or a radius in the "
-                "box below - EquiPop needs one of the two to know "
-                "what a neighbourhood is. Either alone is fine; both "
-                "together is also fine and gives you both sets of "
-                "columns.")
+        # BACKLOG 305, rewritten for 378 in v1.53.2. Both boxes are
+        # declared optional and they are - EITHER will do, and a
+        # radius-only run is a perfectly good question. What is not
+        # optional is having one of them. The rule, the wording and
+        # the whitespace handling now come from one place, because
+        # this door had them and the other three did not.
+        _k_or_r_message(pm)
         target = (_txt(pm, "outfc")
                   if _txt(pm, "outmode").startswith("New")
                   and _txt(pm, "outfc")
@@ -4152,6 +4737,7 @@ class CountsShares:
                   originrule=ORIGIN_VALUES[
                       _mode(pm, "originrule", ORIGIN_MODES)],
                   auto_project=_flag(pm, "autoproj"),
+                  table_crs=_sr_of(pm.get("tablecrs")),   # 329
                   short_names=_flag(pm, "shortnames"))
 
 
@@ -4165,11 +4751,16 @@ class ValueStatistics:
             "Tick the measures you want - only those are calculated. "
             "COUNT FIELD: if each point stands for several (people, "
             "jobs, dwellings), k counts those and every statistic "
-            "weights by them (rows are expanded exactly). Output "
+            "weights by them, fractions included. Output "
             "columns like Mean_<f>_k, Med_<f>_k, P90_<f>_k, plus "
             "Nv_<f>_k = how many neighbours had a usable value (the "
-            "honesty column). Input: point layer (geometry) or plain "
-            "table (X/Y guessed, overridable).")
+            "honesty column). MLD and Theil can be split BETWEEN and "
+            "WITHIN the groups of a field: MLDb_ / MLDw_ / MLDsh_ "
+            "(the between-group share), with Ng_, NgMin_ and NgN_ "
+            "saying how many groups were present, the smallest, and "
+            "how many people the split covers. Input: "
+            "point layer (geometry) or plain table (X/Y guessed, "
+            "overridable).")
 
     def getParameterInfo(self):
         ps = [_p("layer", "Input points (layer) or table",
@@ -4200,6 +4791,12 @@ class ValueStatistics:
                   multiValue=True, required=False),
                _p("pcts", "Percentiles (plain numbers, e.g. 10 25 75 "
                   "90)", "GPString", required=False),
+               # v1.55.0, BACKLOG 405
+               _p("decompose", "Split MLD / Theil BETWEEN and WITHIN "
+                  "the groups of this field (born abroad, parental "
+                  "education) - optional", "Field", required=False),
+               _p("mingroup", "Smallest group, in people, for the "
+                  "split to be reported", "GPDouble", required=False),
                _p("k", "k values", "GPString"),
                _p("r", "Radii in metres", "GPString", required=False),
                _p("existing", "If result fields already exist",
@@ -4230,7 +4827,8 @@ class ValueStatistics:
                   "GPBoolean", required=False),
                _p("seed", "Seed - used by 'sampled' and by "
                   "permutations; empty draws one and prints it",
-                  "GPLong", required=False)]
+                  "GPLong", required=False),
+               _TABLECRS()]                          # BACKLOG 329
         # v1.29.2: BY NAME. This block still counted boxes off by
         # position after 1.29.0 converted the rest of machine 2, and
         # the ladder above inserts four of them - which would have
@@ -4251,6 +4849,7 @@ class ValueStatistics:
         pm2["measures"].filter.list = _MEASURES
         pm2["measures"].value = "mean;median;gini"
         pm2["pcts"].value = "10 25 75 90"
+        pm2["mingroup"].value = 30.0             # John's ruling, 405
         for nm, modes in (("refmode", REF_MODES),
                           ("keepoutside", OUTSIDE_MODES)):
             pm2[nm].filter.type = "ValueList"
@@ -4261,6 +4860,7 @@ class ValueStatistics:
                         "xfield": "Coordinates",
                         "yfield": "Coordinates",
                         "autoproj": "Coordinates",
+                        "tablecrs": "Coordinates",   # BACKLOG 329
                         "k": "Neighbourhood", "r": "Neighbourhood",
                         "unit": "Neighbourhood",
                         "selfpot": "Neighbourhood",
@@ -4272,6 +4872,8 @@ class ValueStatistics:
                         "values": "Treatment values - what you measure",
                         "measures": "Treatment values - what you measure",
                         "pcts": "Treatment values - what you measure",
+                        "decompose": "Treatment values - what you measure",
+                        "mingroup": "Treatment values - what you measure",
                         "existing": "Output", "outmode": "Output",
                         "outfc": "Output", "outtable": "Output",
                         "shortnames": "Output",
@@ -4302,13 +4904,11 @@ class ValueStatistics:
         pm2["selfpot"].filter.type = "ValueList"
         pm2["selfpot"].filter.list = SELFPOT_MODES
         pm2["selfpot"].value = SELFPOT_MODES[2]
-        # BACKLOG 99. Machine 2 defaults to WHOLE where machine
-        # 1 defaults to proportional, because a fraction of a
-        # cell has no median, percentile or Gini and the core
-        # refuses it here until BACKLOG 118. All three are
-        # still offered: the refusal names the reason, an
-        # absent option would explain nothing, and the choice
-        # starts working by itself when 118 lands.
+        # BACKLOG 99 / 118. Proportional, as in machine 1: since
+        # 1.31 value statistics are weighted, so a fraction of a
+        # cell counts as that fraction of its people. (Until 1.31
+        # this box defaulted to `whole` and the core refused
+        # proportional here.)
         pm2["overshoot"].filter.type = "ValueList"
         pm2["overshoot"].filter.list = OVERSHOOT_MODES
         pm2["overshoot"].value = OVERSHOOT_MODES[1]
@@ -4327,9 +4927,11 @@ class ValueStatistics:
         _clear_stale_fields(parameters, 0, [i for i, p in
                                             enumerate(parameters)
                                             if p.name in
-                                            ("pop", "values")])
+                                            ("pop", "values",
+                                             "decompose")])
         chosen = _txt(pm, "measures").lower()
         pm["pcts"].enabled = "percentiles" in chosen
+        pm["mingroup"].enabled = bool(_txt(pm, "decompose"))   # 405
         pm["outfc"].enabled = (_txt(pm, "outmode")
                                == "New feature class")
         return
@@ -4339,6 +4941,13 @@ class ValueStatistics:
         idx = {p.name: i for i, p in enumerate(parameters)}
         _shared_messages(parameters, 0, 1, 2, 3, idx["outtable"],
                          idx["autoproj"])
+        # BACKLOG 378, v1.53.2. THE LINE THIS DOOR NEVER HAD. k is
+        # declared Required here, which Pro satisfies with any value
+        # including a single space, so a blank-looking box reached the
+        # engine and answered with "give k_values and/or r_values" -
+        # words naming engine arguments, from a dialog that had said
+        # nothing was wrong. John, 7 October 2026.
+        _k_or_r_message(pm)
         target = (_txt(pm, "outfc")
                   if _txt(pm, "outmode").startswith("New")
                   and _txt(pm, "outfc")
@@ -4356,7 +4965,8 @@ class ValueStatistics:
             txt = _refuse_shp_overflow(target, _predict_result_fields(
                 "stats", _txt(pm, "k"), _txt(pm, "r"), "", [],
                 [f for f in _txt(pm, "values").split(";") if f],
-                wanted or ["mean", "median", "gini"], False, False))
+                wanted or ["mean", "median", "gini"], False, False,
+                decomposing=bool(_txt(pm, "decompose"))))
             if txt:
                 pm["outmode"].setErrorMessage(txt + " Or tick "
                                               "'Allow shortened "
@@ -4382,6 +4992,10 @@ class ValueStatistics:
                               _txt(pm, "measures").split(";")
                               if m.strip("' ")],
                   pct_text=_txt(pm, "pcts"),
+                  # BACKLOG 405. An empty minimum is the default, not
+                  # zero: zero means "no minimum", a real choice.
+                  decompose_field=_txt(pm, "decompose") or None,
+                  min_group=_num(pm, "mingroup", None),
                   k_text=_txt(pm, "k"), r_text=_txt(pm, "r"),
                   existing=_txt(pm, "existing") or "Overwrite",
                   out_mode=_txt(pm, "outmode") or "Append to input",
@@ -4402,4 +5016,5 @@ class ValueStatistics:
                       _mode(pm, "originrule", ORIGIN_MODES)],
                   seed=_num(pm, "seed"),
                   auto_project=_flag(pm, "autoproj"),
+                  table_crs=_sr_of(pm.get("tablecrs")),   # 329
                   short_names=_flag(pm, "shortnames"))

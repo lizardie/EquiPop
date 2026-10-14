@@ -50,7 +50,7 @@ and fails if any of the optional libraries arrive uninvited.
 
 from importlib import import_module as _import_module
 
-__version__ = "1.49.1"
+__version__ = "1.57.1"
 
 # name -> the module it lives in. This is the whole public surface;
 # adding a name here is how a new export is published.
@@ -95,16 +95,23 @@ _LAZY = {
     "local_g": "autocorr",
     "getis_g": "autocorr",
     "autocorr_profile": "autocorr",
+    # BACKLOG 385. The Python door to the unit-size advisory. LAZY
+    # like everything else here, and that matters more than usual:
+    # unitsize imports numpy at module level, so publishing it eagerly
+    # would put `import equipop` back to needing a working numpy -
+    # which is the one thing the doctor exists to diagnose.
+    "advise_unit": "unitsize",
+    "format_advice": "unitsize",
 }
 
 # Submodules reachable as attributes after a plain `import equipop`,
 # which is what they were when every one of them was imported here.
 _SUBMODULES = frozenset({
     "access", "analysis", "area", "autocorr", "bigrun", "categorical",
-    "cells", "datasets", "decay", "doctor", "doors", "fastcounts",
+    "cells", "datasets", "decay", "decompose", "describe", "doctor", "doors", "fastcounts",
     "fca", "fetch", "friction", "gridby", "hex", "io", "meta",
     "overshoot", "projection", "raster", "segregation", "selfpot",
-    "latticejoin", "rasterfolder", "slope", "stata_bridge", "stats", "transform", "viz", "wstats",
+    "latticejoin", "rasterfolder", "slope", "stata_bridge", "stats", "transform", "unitsize", "viz", "wstats",
 })
 
 # Modules that cannot even be IMPORTED without an optional library,

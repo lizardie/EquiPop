@@ -1,4 +1,4 @@
-*! EquiPop 1.49.1 - a test pass over stata_test_data.dta
+*! EquiPop 1.57.1 - a test pass over equipop_test_data.dta
 *!
 *! WHAT CHANGED IN 1.40.5, and why it matters:
 *!   Until now this file STATED its invariants and did not ENFORCE
@@ -42,36 +42,55 @@ set more off
 * ==================================================================
 * CONFIGURATION - the only part of this file you edit
 * ==================================================================
-* Put the full path to stata_test_data.dta between the quotes below.
-* Leave it EMPTY and the pass looks for the file in the current
-* working directory instead - type  pwd  to see where that is.
+* Put the full path to equipop_test_data.dta between the quotes
+* below. Leave it EMPTY and the pass finds the file itself: the
+* current working directory first, then anywhere on Stata's
+* ado-path, which is where an SSC install puts it.
 * This works the same way on Windows and on a Mac.
 
 global EQP_DATA ""
 
-* The release this pass was written for. The pass checks the engine
-* against it, because the .ado files and the Python engine are
-* updated by two different mechanisms, and a half-update is the most
-* common support problem this project has.
+* The release this pass was written for. The pass checks that the
+* engine is AT LEAST this, because the .ado files and the Python
+* engine are updated by two different mechanisms, and an engine
+* OLDER than the commands is the most common support problem this
+* project has. A NEWER engine is not a problem at all - it is what
+* `equipop setup` asks pip for (equipop>=<ado version>) and what
+* anyone installing from SSC will normally end up with, because
+* PyPI moves faster than the archive. BACKLOG 330.
 
-global EQP_EXPECT "1.49.1"
+global EQP_EXPECT "1.57.1"
 
 * ------------------------------------------------------------------
 * Nothing below here needs editing.
 * ------------------------------------------------------------------
 
-if "$EQP_DATA" == "" global EQP_DATA "stata_test_data.dta"
+if "$EQP_DATA" == "" global EQP_DATA "equipop_test_data.dta"
+
+capture confirm file "$EQP_DATA"
+if _rc {
+    * Not in the working directory - ask Stata where it put it. An
+    * SSC install files ancillary data under PLUS, not under pwd, so
+    * this is the ordinary case for anyone who arrived by
+    * `ssc install equipop, all` rather than by cloning.
+    capture findfile equipop_test_data.dta
+    if !_rc global EQP_DATA "`r(fn)'"
+}
 
 capture confirm file "$EQP_DATA"
 if _rc {
     display as error "=================================================="
     display as error "STOP: the test data was not found."
     display as error "Looked for: $EQP_DATA"
+    display as error "...and on the ado-path, with findfile."
     display as error ""
-    display as error "Set EQP_DATA at the top of this file to the full"
-    display as error "path of stata_test_data.dta, or change directory"
-    display as error "to the folder holding it. Type  pwd  to see where"
-    display as error "Stata is looking now."
+    display as error "If you installed from SSC, ask for the data too:"
+    display as error "    ssc install equipop, all replace"
+    display as error ""
+    display as error "Otherwise set EQP_DATA at the top of this file to"
+    display as error "the full path of equipop_test_data.dta, or change"
+    display as error "directory to the folder holding it. Type  pwd  to"
+    display as error "see where Stata is looking now."
     display as error "=================================================="
     exit 601
 }
@@ -120,8 +139,30 @@ if "$EQP_ENGINE" == "" {
 }
 else {
     display as text "   engine reports version $EQP_ENGINE"
-    local ok = ("$EQP_ENGINE" == "$EQP_EXPECT")
-    eqpcheck `ok' "block 0: engine version matches $EQP_EXPECT"
+    * AT LEAST, not EXACTLY. BACKLOG 330, Kit Baum on the SSC
+    * release: an engine newer than the commands is what the
+    * documented install produces, so demanding equality fails a
+    * correct installation - and this file's own instructions in
+    * SSC_SUBMISSION.md say every check must pass.
+    global EQP_GE ""
+    capture python: from sfi import Macro; _a=tuple(int(p) for p in Macro.getGlobal("EQP_ENGINE").split(".")[:3]); _b=tuple(int(p) for p in Macro.getGlobal("EQP_EXPECT").split(".")[:3]); Macro.setGlobal("EQP_GE", "1" if _a >= _b else "0")
+    if "$EQP_GE" == "" {
+        * unreadable version strings - compare as text and say so
+        display as text "   (could not read those as numbers; " ///
+                        "comparing as text)"
+        global EQP_GE = ("$EQP_ENGINE" == "$EQP_EXPECT")
+    }
+    local ok = ($EQP_GE == 1)
+    eqpcheck `ok' "block 0: engine is at least $EQP_EXPECT"
+    if `ok' & "$EQP_ENGINE" != "$EQP_EXPECT" {
+        display as text "   engine $EQP_ENGINE is NEWER than the " ///
+                        "$EQP_EXPECT these checks were written for."
+        display as text "   That is the normal result of equipop " ///
+                        "setup and nothing to fix. The pinned"
+        display as text "   numbers below are unchanged by patch " ///
+                        "releases; if one of them disagrees,"
+        display as text "   that is worth reporting."
+    }
 }
 
 
@@ -868,12 +909,77 @@ if `rc' eqpcheck 0 "block 22 stopped with Stata error r(`rc')"
 
 
 * ==================================================================
+* 23. `equipop unit` - the unit-size advisory, new in 1.54.0
+*     (BACKLOG 385). THIS BLOCK IS THE ONLY PLACE THE SUBCOMMAND IS
+*     EXERCISED BY STATA ITSELF: the Python suite can read the .ado
+*     and bind the keywords, and it cannot parse a syntax line or
+*     prove that -return add- hands r() up. That is this block's job.
+* ==================================================================
+capture noisily {
+    use "$EQP_DATA", clear
+
+    equipop unit X_local Y_local [fweight=ValCount], k(100 1000)
+
+    local runit  = r(unit)
+    local rcells = r(cells)
+    local rest   = r(estimated)
+    local rk     "`r(k)'"
+    local rfp    "`r(fingerprint)'"
+    matrix EQP_ADV = r(advice)
+
+    * A recommendation is either a positive cell size or MISSING -
+    * never zero. Missing means no candidate size serves that k, which
+    * is a fact about k and not a failure, so both are a pass here.
+    local ok = (`runit' > 0 | `runit' == .)
+    eqpcheck `ok' "block 23: r(unit) is a cell size or missing, not zero"
+
+    local ok = ("`rk'" == "100 1000")
+    eqpcheck `ok' "block 23: r(k) reports both k values, in order"
+
+    local ok = (`rest' >= 0 & `rest' <= 1) | (`rest' == .)
+    eqpcheck `ok' "block 23: r(estimated) is a share between 0 and 1"
+
+    local ok = (length("`rfp'") == 32)
+    eqpcheck `ok' "block 23: r(fingerprint) is a 32-character digest"
+
+    * One row per candidate size, and 3 + 3 per k columns.
+    local ok = (rowsof(EQP_ADV) >= 8 & colsof(EQP_ADV) == 9)
+    eqpcheck `ok' "block 23: r(advice) is a table of candidates by k"
+
+    * AND IT MUST NOT HAVE TOUCHED THE DATA. A read-only report that
+    * added a variable or dropped a row would be the one thing this
+    * feature promises it never does.
+    local nvars = c(k)
+    local nobs  = c(N)
+    equipop unit X_local Y_local [fweight=ValCount], k(100)
+    local ok = (c(k) == `nvars' & c(N) == `nobs')
+    eqpcheck `ok' "block 23: the advisory changed no variable and no row"
+
+    * The SECOND call should come from the cached characteristic, so
+    * the digest has to match the first. A cache keyed on content
+    * cannot survive the data changing - that is BACKLOG 344 - and it
+    * must survive the data NOT changing, or it is doing nothing.
+    local ok = ("`r(fingerprint)'" == "`rfp'")
+    eqpcheck `ok' "block 23: the same data gives the same digest twice"
+
+    * An ordinary run sets no unit(), so it should ADVISE. Nothing to
+    * assert about the words; what matters is that it still returns
+    * its results with the advisory attached.
+    equipop [fweight=ValCount], x(X_local) y(Y_local) k(200) prefix(adv_)
+    local ok = ("`r(varlist)'" != "")
+    eqpcheck `ok' "block 23: a run with no unit() still returns r(varlist)"
+}
+local rc = _rc
+if `rc' eqpcheck 0 "block 23 stopped with Stata error r(`rc')"
+
+
+* ==================================================================
 * THE VERDICT
 * ==================================================================
 * The number of checks is PINNED. If fewer run than expected, a block
 * died before reaching its checks and the reason is above in this log.
 
-global EQP_EXPECT_CHECKS = 57
+global EQP_EXPECT_CHECKS = 65
 
 display as text ""
 display as text "=================================================="

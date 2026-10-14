@@ -57,6 +57,53 @@ _ARCH_HINT = (
     "--only-binary=:all: {lib}"
 )
 
+# BACKLOG 368, v1.53.1. This hint did not exist. `_describe_failure`
+# classified the case, `tests/test_doctor.py` asserted the
+# classification, and NOTHING EVER PRINTED ANYTHING - the tag was
+# computed and dropped. On Windows "DLL load failed" is the single most
+# likely way rasterio, geopandas or pyproj fail, so the case that most
+# needed advice was the one with none. The test passed throughout
+# because it checked that the tag was produced, not that a user ever
+# saw it; see 370 for the rewrite that would have caught this.
+_DLL_HINT = (
+    "This is a MISSING SYSTEM LIBRARY, not a missing Python package. "
+    "The package is installed; a DLL it loads is absent, or a "
+    "different copy of one is being found first.\n"
+    "       Reinstall from a wheel, into THIS Python, and do it with "
+    "every\n"
+    "       Python, QGIS and ArcGIS Pro window CLOSED - a file still "
+    "open is\n"
+    "       how half-installed packages happen:\n"
+    "       python -m pip install --force-reinstall --no-cache-dir "
+    "--only-binary=:all: {lib}\n"
+    "       If it persists, a conda or OSGeo4W installation on PATH is "
+    "usually\n"
+    "       supplying the wrong copy. `where gdal*.dll` names the one "
+    "being found."
+)
+
+# BACKLOG 367, v1.53.1. See the module docstring's rule: no third-party
+# import at module level. `importlib.metadata` is standard library from
+# 3.8, and it reads INSTALLED METADATA rather than importing anything,
+# so asking "is this dependency present" cannot itself trigger the
+# failure being diagnosed.
+_MISSING_DEP_HINT = (
+    "{n} of this library's own declared dependencies {verb} not "
+    "installed:\n"
+    "       {names}\n"
+    "       The import fails before EquiPop is reached, so this is not "
+    "an\n"
+    "       EquiPop fault and reinstalling EquiPop will not touch it. "
+    "Install\n"
+    "       them into THIS Python, all at once:\n"
+    "       {exe} -m pip install {specs}\n"
+    "       A dependency set missing SEVERAL packages is usually an "
+    "interrupted\n"
+    "       pip run rather than several separate accidents - see "
+    "LEFTOVERS above\n"
+    "       if that section is present."
+)
+
 
 def _describe_failure(exc: BaseException) -> tuple[str, str]:
     """Turn an import failure into (one-line reason, advice).
@@ -72,7 +119,61 @@ def _describe_failure(exc: BaseException) -> tuple[str, str]:
         return first, "ARCH"
     if "dll load failed" in lowered:
         return first, "DLL"
+    if isinstance(exc, ModuleNotFoundError):
+        return first, "MISSING_DEP"
     return first, ""
+
+
+def _requirement_name(spec: str) -> str:
+    """'cligj>=0.5' -> 'cligj'. The distribution name only."""
+    head = spec.split(";")[0].strip()
+    for sep in ("[", "!", ">", "<", "=", "~", "(", " "):
+        head = head.split(sep)[0]
+    return head.strip()
+
+
+def _missing_requirements(lib: str) -> list[str]:
+    """Declared dependencies of `lib` that are not installed.
+
+    BACKLOG 367. Reporting only the FIRST missing module is the wrong
+    unit of truth. John's machine said `No module named 'click'`;
+    installing click revealed attrs, cligj and pyparsing were gone too,
+    so the one-line answer cost three round trips to find out that a
+    whole dependency set had been wiped. The number of missing packages
+    is itself the diagnosis: one is an accident, four is an interrupted
+    pip run.
+
+    Keyed on the DISTRIBUTION name through importlib.metadata, not on
+    an import, for two reasons. Importing is what is already failing,
+    and the import name often differs from the distribution name
+    (`click-plugins` imports as `click_plugins`), which would make this
+    a guessing game. metadata normalises that for us.
+
+    A requirement carrying an environment marker is SKIPPED rather than
+    guessed at: evaluating markers needs `packaging`, which this file
+    may not import, and the cost of being wrong is accusing the user of
+    a missing package that their platform does not want. Same rule as
+    `_as_numbers` - go quiet rather than guess. Nothing in the six
+    OPTIONAL libraries' own requirements carries a marker.
+    """
+    try:
+        import importlib.metadata as md
+        reqs = md.requires(lib) or []
+    except Exception:                        # noqa: BLE001
+        return []
+
+    missing = []
+    for spec in reqs:
+        if ";" in spec:                      # a marker - see docstring
+            continue
+        name = _requirement_name(spec)
+        if not name:
+            continue
+        try:
+            md.distribution(name)
+        except Exception:                    # noqa: BLE001 - absent
+            missing.append(spec)
+    return missing
 
 
 def _probe(name: str) -> tuple[str, str, str]:
@@ -115,7 +216,198 @@ def _lines_environment() -> list[str]:
     return out
 
 
-def _lines_equipop(ado_version: str = "") -> list[str]:
+def _package_dirs() -> list[str]:
+    """Every site-packages directory this Python will read."""
+    dirs = []
+    try:
+        import site
+        for d in list(site.getsitepackages()) + [site.getusersitepackages()]:
+            if d and d not in dirs:
+                dirs.append(d)
+    except Exception:                        # noqa: BLE001
+        pass
+    return dirs
+
+
+def _leftovers() -> list[tuple[str, str]]:
+    """Half-deleted packages: (directory, entry name).
+
+    BACKLOG 369. When pip cannot delete a directory on Windows it
+    RENAMES it with a `~` prefix and carries on, so `~yproj` is the
+    corpse of an interrupted `pyproj` uninstall. pip then prints
+    "Ignoring invalid distribution ~yproj" on every later operation,
+    which reads as noise and is actually the most useful line in the
+    output.
+
+    THIS IS THE ROOT CAUSE, NOT A TIDINESS ITEM. John's rasterio was
+    missing four dependencies at once and the doctor reported the first
+    of them. The thing that explained WHY - an interrupted pip run,
+    announced by exactly one `~yproj` directory sitting in his
+    site-packages - was visible from inside Python the whole time and
+    nobody was looking. A file left open by a running Python, QGIS, Pro
+    or an antivirus scanner is the usual cause, which is why the advice
+    is to close them before reinstalling.
+
+    Read-only, like everything here: this names them and never removes
+    them.
+    """
+    found = []
+    for d in _package_dirs():
+        try:
+            names = sorted(os.listdir(d))
+        except Exception:                    # noqa: BLE001
+            continue
+        for name in names:
+            if name.startswith("~"):
+                found.append((d, name))
+    return found
+
+
+def _lines_leftovers() -> list[str]:
+    """BACKLOG 369. Silent when the installation is clean."""
+    found = _leftovers()
+    if not found:
+        return []
+    out = ["", "LEFTOVERS - an interrupted pip run left these behind"]
+    for d, name in found[:12]:
+        out.append(f"  {name}")
+        out.append(f"       in {d}")
+    if len(found) > 12:
+        out.append(f"  ... and {len(found) - 12} more")
+    out += [
+        "",
+        "  A `~` prefix is pip's mark for a directory it could not "
+        "delete, so",
+        "  each one is a half-removed package. They are inert, but the "
+        "run that",
+        "  left them there DID NOT FINISH - which is the usual reason "
+        "several",
+        "  dependencies go missing together. If a library above says "
+        "BROKEN,",
+        "  this is probably why.",
+        "  Close every Python, QGIS and ArcGIS Pro window, delete the "
+        "entries",
+        "  named above, then reinstall whatever is reported broken.",
+    ]
+    return out
+
+
+def _as_numbers(version: str):
+    """'1.49.1' -> (1, 49, 1), for COMPARING rather than matching.
+
+    BACKLOG 330. The doctor used `!=`, which cannot tell the two
+    mismatches apart - and they are not the same fault at all. Returns
+    None for anything it cannot read as numbers, so an unexpected
+    version string makes the doctor go quiet rather than guess.
+    """
+    parts = str(version or "").strip().split(".")
+    try:
+        return tuple(int(p) for p in parts[:3]) if parts[0] else None
+    except (ValueError, IndexError):
+        return None
+
+
+def _lines_floor(min_engine: str, version: str) -> list[str]:
+    """What to say when the ado has told us the engine it NEEDS.
+
+    BACKLOG 332. This replaces comparing the engine against the ado's
+    RELEASE NUMBER, which is not a dependency: `equipop setup` asks
+    pip for the floor, the floor is a fact about which engine
+    functions the commands call, and those two numbers move for
+    different reasons. Judging against the floor means the ordinary
+    case - an engine newer than the commands, which is what setup
+    produces - has nothing to report at all, rather than a paragraph
+    explaining itself.
+    """
+    need, have = _as_numbers(min_engine), _as_numbers(version)
+    if need is None or have is None:
+        return []
+    if have >= need:
+        return [f"  needs engine : {min_engine} or newer - satisfied"]
+    return [
+        f"  needs engine : {min_engine} or newer",
+        "",
+        "  THE ENGINE IS TOO OLD FOR THESE COMMANDS. They call on "
+        "engine functions",
+        f"  that {version} does not have, which arrives as "
+        "`ImportError: cannot import",
+        "  name ...` and looks like a fault in EquiPop. Update the "
+        "engine, then",
+        "  restart Stata:",
+        "     equipop setup",
+        "  or, from a terminal, into THIS Python:",
+        f"     {sys.executable} -m pip install --upgrade equipop",
+    ]
+
+
+def _lines_version_gap(ado_version: str, version: str) -> list[str]:
+    """What to say when the commands and the engine differ, and the
+    ado has NOT told us which engine it needs.
+
+    Reached only for a pre-1.49.3 ado, which sends no floor. Kept
+    because those .ado files are installed on real machines and will
+    call a newer engine for as long as they sit there; BACKLOG 332's
+    floor is the right answer and this is the best guess without one.
+
+    BACKLOG 330, KIT BAUM ON THE SSC RELEASE: "I am a bit confused as
+    to why the doctor routine identifies a version mismatch." He had
+    followed the manuscript exactly, including the full restart, and
+    landed on commands 1.48.2 with engine 1.49.1.
+
+    HE WAS RIGHT TO BE CONFUSED, AND THE DOCTOR WAS WRONG. That state
+    is not a mismatch to repair: it is what `equipop setup` PRODUCES.
+    Setup asks pip for `equipop>=<ado version>`, deliberately, because
+    new commands need a new engine - so pip installs the newest there
+    is, which is ahead of SSC whenever PyPI has moved since the last
+    SSC release. And PyPI and SSC are on separate tracks by design
+    (1.48.2). So the package shipped an installer that creates a state
+    and a diagnostic that calls that state a fault. TWO VOICES IN ONE
+    PACKAGE CONTRADICTING EACH OTHER, which is BACKLOG 328's lesson
+    arriving from the other direction.
+
+    THE DIRECTION IS THE WHOLE DIAGNOSIS:
+
+      engine NEWER than commands   expected, harmless, nothing to do.
+                                   The commands only ever call engine
+                                   functions that existed when they
+                                   were written.
+      engine OLDER than commands   the real fault, and the only one
+                                   that produces `ImportError: cannot
+                                   import name ...` - commands written
+                                   against an engine that is not there
+                                   yet.
+
+    The loud message belongs to the second and now goes only there.
+    """
+    new, old = _as_numbers(version), _as_numbers(ado_version)
+    if new is None or old is None or new == old:
+        return []
+    if new > old:
+        return [
+            f"  (the engine is newer than the commands, which is what "
+            f"`equipop setup` asks for -",
+            f"   it installs equipop>={ado_version} - and is nothing "
+            f"to fix. Commands only call",
+            "   engine functions that existed when they were written.)",
+        ]
+    return [
+        "",
+        "  THE ENGINE IS OLDER THAN THE COMMANDS, and that combination "
+        "does break:",
+        f"  these commands ({ado_version}) may call on an engine "
+        f"function that {version}",
+        "  does not have yet, which arrives as `ImportError: cannot "
+        "import name ...`",
+        "  and looks like a fault in EquiPop. Update the engine, then "
+        "restart Stata:",
+        "     equipop setup",
+        "  or, from a terminal, into THIS Python:",
+        f"     {sys.executable} -m pip install --upgrade equipop",
+    ]
+
+
+def _lines_equipop(ado_version: str = "",
+                   min_engine: str = "") -> list[str]:
     """Where EquiPop itself is, without importing anything heavy."""
     out = ["", "EQUIPOP"]
     spec = importlib.util.find_spec("equipop")
@@ -135,56 +427,113 @@ def _lines_equipop(ado_version: str = "") -> list[str]:
     out.append(f"  engine       : {version}   (the Python package)")
     if ado_version:
         out.append(f"  commands     : {ado_version}   (the .ado files)")
-        if ado_version != version and version != "unknown":
-            out += [
-                "",
-                "  VERSION MISMATCH. These two are updated separately "
-                "and must match:",
-                "     the commands come from the repository, by "
-                "net install",
-                "     the engine comes from pip, into THIS Python",
-                "  A mismatch usually shows up as ImportError: cannot "
-                "import name ...,",
-                "  which looks like a fault in EquiPop and is not. "
-                "Update the older",
-                "  half, then restart Stata.",
-            ]
+        if version != "unknown":
+            # BACKLOG 332: the FLOOR decides, when the ado sent one.
+            # The two release numbers above are shown and not judged.
+            out += (_lines_floor(min_engine, version) if min_engine
+                    else _lines_version_gap(ado_version, version))
     out.append(f"  installed in : {folder}")
     return out
 
 
-def report(ado_version: str = "") -> list[str]:
+def _hint_lines(lib: str, tag: str) -> list[str]:
+    """The advice for one failed import, or nothing.
+
+    BACKLOG 368. ONE PLACE. The ARCH hint was rendered by two
+    open-coded copies of the same `if`, in REQUIRED and again in
+    OPTIONAL, and the DLL hint was rendered by neither - which is how a
+    classified, tested case printed nothing for its whole life. This is
+    354's lesson arriving one release later in a different file: a rule
+    written twice is a rule that will be extended once. Adding a tag
+    now means adding it here, where both sections read it.
+    """
+    if tag == "ARCH":
+        return ["       " + _ARCH_HINT.format(lib=lib)]
+    if tag == "DLL":
+        return ["       " + _DLL_HINT.format(lib=lib)]
+    if tag == "MISSING_DEP":
+        missing = _missing_requirements(lib)
+        if not missing:
+            # ModuleNotFoundError naming something the library does not
+            # declare. Say nothing rather than invent a cause: the
+            # reason line already names the module, and a wrong
+            # explanation is worse than none.
+            return []
+        names = ", ".join(_requirement_name(s) for s in missing)
+        specs = " ".join(
+            s if s == _requirement_name(s) else f'"{s}"' for s in missing)
+        return ["       " + _MISSING_DEP_HINT.format(
+            n=len(missing),
+            verb="is" if len(missing) == 1 else "are",
+            names=names,
+            specs=specs,
+            exe=sys.executable)]
+    return []
+
+
+def report(ado_version: str = "",
+           min_engine: str = "") -> list[str]:
     """The whole report as a list of lines, safest first.
 
     ado_version is what the .ado files believe they are. They and the
-    Python package are installed by different means - net install and
-    pip - and updating one without the other is the single most
-    frequent field failure this project has (see the handover). The
-    doctor is the natural place to notice.
+    Python package are installed by different means - net install or
+    ssc install, and pip - so the two numbers drift, and for most of
+    this project's life the doctor treated any difference as a fault.
+
+    min_engine is what the .ado files say they NEED, and it is the
+    thing worth judging (BACKLOG 332). A pre-1.49.3 ado sends none,
+    and then the direction of the difference is the best available
+    signal - see _lines_version_gap.
     """
-    out = _lines_environment() + _lines_equipop(ado_version)
+    out = (_lines_environment() + _lines_leftovers()
+           + _lines_equipop(ado_version, min_engine))
 
     out += ["", "REQUIRED - machine 1 cannot run without these"]
     verdict_ok = True
     for lib in REQUIRED:
         state, detail, tag = _probe(lib)
         out.append(f"  {lib:<12} : {state:<7} {detail}")
-        if tag == "ARCH":
-            out.append("       " + _ARCH_HINT.format(lib=lib))
+        out += _hint_lines(lib, tag)
         if state != "ok":
             verdict_ok = False
 
     out += ["", "OPTIONAL - absent only means the feature is unavailable"]
+    broken_optional = []
     for lib, why in OPTIONAL:
         state, detail, tag = _probe(lib)
         out.append(f"  {lib:<12} : {state:<7} {detail}")
         out.append(f"       needed for {why}")
-        if tag == "ARCH":
-            out.append("       " + _ARCH_HINT.format(lib=lib))
+        out += _hint_lines(lib, tag)
+        if state == "BROKEN":
+            broken_optional.append((lib, why))
 
     out += ["", "VERDICT"]
     if verdict_ok:
         out.append("  machine 1 can run in this Python.")
+        # BACKLOG 371, v1.53.1. The verdict is about machine 1 and
+        # always was, which is correct and too easy to misread as "all
+        # fine". John's report said "machine 1 can run in this Python"
+        # directly under a BROKEN rasterio, and rasters are most of
+        # what he does. An ABSENT library is deliberately not mentioned
+        # here - that is a choice, not a fault, and the OPTIONAL
+        # heading already says so. A BROKEN one is a fault.
+        for lib, why in broken_optional:
+            out.append(f"  {lib} is INSTALLED BUT BROKEN, so {why} "
+                       "will fail")
+        if broken_optional:
+            out.append("  until it is fixed - see the lines above it.")
+        # JOHN'S FIELD REPORT, 10 OCTOBER 2026. He sent the verdict
+        # and `equipop help` -> `unknown subcommand: help` in the same
+        # message, and the pair is the point: a user who has just been
+        # told the install works has nowhere obvious to go next.
+        # `machine 1` is also this project's word, not a Stata user's.
+        # Two lines, printed only when there is nothing to fix, so
+        # they never compete with a real diagnosis.
+        out.append("  (machine 1 is counts and shares - N_k, Dist_k "
+                   "and group totals over the")
+        out.append("   k nearest PEOPLE.  Next: `help equipop` for "
+                   "the options, or `equipop unit`")
+        out.append("   to ask what cell size your data wants.)")
     else:
         out.append("  machine 1 CANNOT run here - see REQUIRED above.")
         out.append("  Install into THIS Python, the one whose path is "
@@ -196,16 +545,28 @@ def report(ado_version: str = "") -> list[str]:
     return out
 
 
-def run(stream=None, ado_version: str = "") -> None:
+def run(stream=None, ado_version: str = "",
+        min_engine: str = "") -> None:
     """Print the report, flushing every line.
 
     The flush is not tidiness. If a compiled library takes the whole
     process down mid-report - which is what Stata plus Anaconda does on
     Windows - the lines already written are the only evidence there
     will be, and an unflushed buffer dies with the process.
+
+    `min_engine` WAS MISSING HERE FOR SIX RELEASES, and that made
+    BACKLOG 332 dead from the Stata door. 332 made the FLOOR decide
+    whether an engine/commands difference matters - `report()` takes
+    it and uses it - but the .ado calls `run()`, which did not, so
+    every doctor run raised TypeError, hit the ado's fallback, and
+    reported with no floor at all. John's 10 October output is the
+    proof: engine 1.54.2 against commands 1.54.3, the floor 1.48.0
+    satisfied, and a loud "THE ENGINE IS OLDER THAN THE COMMANDS, and
+    that combination does break" where the correct line is "needs
+    engine : 1.48.0 or newer - satisfied".
     """
     stream = stream or sys.stdout
-    for line in report(ado_version):
+    for line in report(ado_version, min_engine):
         stream.write(line + "\n")
         try:
             stream.flush()

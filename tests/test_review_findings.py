@@ -25,6 +25,48 @@ def _text():
         return fh.read()
 
 
+def _py_function(name):
+    r"""One function's own source out of the .ado's python: block.
+
+    BACKLOG 385. Four tests below used to slice the file from `def
+    _equipop_setup_py` to `def _equipop_doctor_py` - which was the
+    setup function only while nothing else sat between those two
+    names. A third function was added between them and every one of
+    those tests silently changed what it was about: the stdlib check
+    began reading `from equipop import unitsize` out of a function
+    that has nothing to do with installing.
+
+    It failed loudly, which was luck. The slice could as easily have
+    grown to include a function that happened to satisfy every
+    assertion, and the guard would have gone quiet instead - the
+    shape this project has shipped five times.
+
+    So the function is found the way Python finds it. A name that is
+    not there is an error rather than an empty string.
+    """
+    import ast
+
+    block = _python_block()
+    tree = ast.parse(block)
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.get_source_segment(block, node) or ""
+    raise AssertionError(
+        f"the python: block has no function {name} - it was renamed "
+        f"or removed, and these tests are no longer about anything")
+
+
+def _python_block():
+    """The text between `python:` and its closing `end`."""
+    lines = _text().splitlines()
+    start = [i for i, ln in enumerate(lines) if ln.rstrip() == "python:"]
+    assert len(start) == 1, "equipop.ado no longer has one python: block"
+    for j in range(start[0] + 1, len(lines)):
+        if lines[j].rstrip() == "end":
+            return "\n".join(lines[start[0] + 1:j])
+    raise AssertionError("the python: block is never closed by `end`")
+
+
 def _program_body():
     """Just the equipop program, not the python block below it."""
     t = _text()
@@ -212,9 +254,7 @@ def test_setup_installs_into_the_interpreter_it_is_running_in():
     """The whole reason it exists. A user typing pip in a terminal has
     no way of knowing which Python Stata uses; asking Python where it
     lives cannot be got wrong."""
-    t = _text()
-    block = t[t.index("def _equipop_setup_py"):]
-    block = block[:block.index("def _equipop_doctor_py")]
+    block = _py_function("_equipop_setup_py")
     assert "sys.executable" in block
     assert '"-m", "pip", "install"' in block
 
@@ -222,17 +262,13 @@ def test_setup_installs_into_the_interpreter_it_is_running_in():
 def test_setup_uses_only_the_standard_library():
     """It runs BEFORE the package exists. Importing equipop here would
     make the installer need the thing it installs."""
-    t = _text()
-    block = t[t.index("def _equipop_setup_py"):]
-    block = block[:block.index("def _equipop_doctor_py")]
+    block = _py_function("_equipop_setup_py")
     assert "import equipop" not in block
     assert "from equipop" not in block
 
 
 def test_repair_forces_the_processor_specific_reinstall():
-    t = _text()
-    block = t[t.index("def _equipop_setup_py"):]
-    block = block[:block.index("def _equipop_doctor_py")]
+    block = _py_function("_equipop_setup_py")
     assert "--force-reinstall" in block
     assert "--no-cache-dir" in block, (
         "without it pip reuses the wrong-processor wheel it already "
@@ -245,9 +281,7 @@ def test_setup_does_not_run_the_doctor_in_the_same_session():
     """Python starts once per Stata session. After an upgrade the
     doctor would report the version still in memory - the old one -
     and say everything matches when it does not."""
-    t = _text()
-    block = t[t.index("def _equipop_setup_py"):]
-    block = block[:block.index("def _equipop_doctor_py")]
+    block = _py_function("_equipop_setup_py")
     assert "_equipop_doctor_py(" not in block
     assert "QUIT STATA COMPLETELY" in block
 
@@ -293,14 +327,42 @@ def test_the_subcommand_test_cannot_swallow_a_real_run():
 
     A guard that ate a legitimate command line would be far worse than
     the message it replaces.
+
+    SCOPED TO THE `if` CONDITION, not to a window of characters before
+    the message. This read `body[index - 700 : index]`, and adding the
+    `equipop help` branch in 1.54.3 pushed the exclusion out of that
+    window - so the test failed with "-if- and -in- are not excluded"
+    about an .ado in which they are. **The same proximity-slice
+    fragility as the `_equipop_setup_py` slice fixed one release
+    earlier** (BACKLOG 385's note), where a function inserted between
+    two markers silently changed what the test was about. There it
+    failed loudly; here too; neither time by design.
+
+    The property is that the CONDITION guarding the
+    unknown-subcommand branch excludes them - so the condition is what
+    gets read, located by structure rather than by distance.
     """
     body = _program_body()
-    hit = body[body.index("unknown subcommand") - 700:
-               body.index("unknown subcommand")]
-    assert 'inlist(`"`eqp_sub\'"\', "if", "in")' in hit, (
+    # ANCHORED ON THE CODE, not on the message text. `index("unknown
+    # subcommand")` found the COMMENT that explains the 1.54.3 `help`
+    # branch, because that comment quotes the message - the third
+    # time this session a test anchor has matched prose written about
+    # the thing it was looking for (1.53.3's scan matching its own
+    # docstring, and the `Unit(real 100)` comment in 1.54.0). A
+    # comment quoting a string is a fact about the past; only the
+    # statement Stata executes is evidence about the present.
+    msg = body.index('display as error `"unknown subcommand:')
+    # the `if ... {` that opens the block holding that message
+    start = body.rindex("\n    if ", 0, msg)
+    cond = body[start:body.index("{", start)]
+    assert "regexm" in cond, (
+        f"the unknown-subcommand branch is no longer opened by a "
+        f"regexm condition - found {cond.strip()[:80]!r}, and this "
+        f"test needs to be pointed at whatever replaced it")
+    assert 'inlist(`"`eqp_sub\'"\', "if", "in")' in cond, (
         "-if- and -in- are not excluded, so `equipop if x==1, ...` "
         "would be refused as an unknown subcommand")
-    assert "^[a-zA-Z][a-zA-Z0-9_]*$" in hit, (
+    assert "^[a-zA-Z][a-zA-Z0-9_]*$" in cond, (
         "the test is not anchored to a bare word, so a comma or an "
         "[fweight=...] could match")
 
