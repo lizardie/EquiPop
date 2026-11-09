@@ -61,9 +61,14 @@ def test_the_provider_offers_both_tools():
     # provider happens to register them in is not the contract.
     # v1.47.11 added folderinventory (BACKLOG 269) - a capability that
     # had shipped in 1.45.0 with no door of any kind.
+    # v1.58.0 added 5a, 5b and 5c (BACKLOG 414): look, select, fetch.
+    # v1.62.0 added tool 0, showtools (BACKLOG 438). Every tool is
+    # REGISTERED whatever tool 0 chose - hiding is a flag, not absence.
     assert sorted(a.name() for a in prov.algorithms()) == [
-        "continentalrasters", "countsandshares", "folderinventory",
-        "spatialdatafetch", "spatialdemography", "valuestatistics"]
+        "continentalrasters", "countsandshares", "fetchselected",
+        "folderinventory", "osmcatalogue", "showtools",
+        "spatialdatafetch", "spatialdemography", "valuestatistics",
+        "worldpopcatalogue"]
     assert prov.id() == "equipop"
 
 
@@ -781,10 +786,13 @@ def test_a_version_mismatch_is_mentioned_once():
     real = equipop_qgis.__version__
     try:
         equipop_qgis.__version__ = "9.9.9"
-        check_versions(CountsAndShares.channel(fb))
+        # v1.60.3: a package BEHIND its plugin is refused, not warned
+        # about - the plugin asks it for things it does not have
+        with pytest.raises(QgsProcessingException) as e:
+            check_versions(CountsAndShares.channel(fb))
     finally:
         equipop_qgis.__version__ = real
-    said = " ".join(fb.warnings)
+    said = str(e.value)
     # 9.9.9 makes the PLUGIN the newer half, so the advice is to
     # install the matching WHEEL. It used to say "pip install
     # --upgrade equipop" whichever half was ahead, which is useless
@@ -849,9 +857,15 @@ prov = EquipopProvider()
 prov.loadAlgorithms()
 names = sorted(a.name() for a in prov._algs)
 assert sorted(names) == ["continentalrasters", "countsandshares",
-                         "folderinventory", "spatialdatafetch",
+                         "fetchselected", "folderinventory",
+                         "osmcatalogue", "showtools", "spatialdatafetch",
                          "spatialdemography",
-                         "valuestatistics"], names
+                         "valuestatistics", "worldpopcatalogue"], names
+# v1.62.0: with no package, NOTHING is hidden - a tool hidden by an
+# error could not be found at all
+from qgis.core import Qgis
+hide = Qgis.ProcessingAlgorithmFlag.HideFromToolbox
+assert not any(a.flags() & hide for a in prov._algs)
 for alg in prov._algs:
     alg.initAlgorithm()
     assert alg.parameterDefinitions(), "no boxes built"
@@ -912,12 +926,13 @@ sys.meta_path.insert(0, _Old())
 from equipop_qgis.provider import EquipopProvider
 prov = EquipopProvider()
 prov.loadAlgorithms()
-assert len(prov._algs) == 6, prov._algs
+assert len(prov._algs) == 10, prov._algs    # tool 0 in 1.62.0
 for alg in prov._algs:
     alg.initAlgorithm()
     assert alg.parameterDefinitions(), "no boxes built"
 # the rest of the package still works, so the words are still there
-assert "neighbourhood" in prov._algs[0].shortHelpString().lower()
+counts = [a for a in prov._algs if a.name() == "countsandshares"][0]
+assert "neighbourhood" in counts.shortHelpString().lower()
 print("OK")
 '''
 
@@ -1277,13 +1292,21 @@ def test_the_mismatch_message_offers_BOTH_routes():
     try:
         equipop.__version__, equipop_qgis.__version__ = "1.43.4", "1.44.0"
         ch = Ch()
-        check_versions(ch)
-        said = " ".join(ch.said)
+        # v1.60.3: the package behind the plugin is refused, with both
+        # routes in the refusal
+        with pytest.raises(QgsProcessingException) as e:
+            check_versions(ch)
+        said = str(e.value)
         assert "--upgrade" in said, "the published route"
         assert ".whl" in said, "the local-build route"
-        assert "plain `pip install` does nothing" in said, (
+        assert "plain `pip install`" in said and "does nothing" in said, (
             "name the thing that actually happened")
-        assert "plugin is ahead" in said
+        assert "OLDER than this plugin" in said
+        # and the package AHEAD of the plugin is still one warning
+        equipop.__version__, equipop_qgis.__version__ = "1.44.0", "1.43.4"
+        ch = Ch()
+        check_versions(ch)
+        assert "package is ahead" in " ".join(ch.said)
     finally:
         equipop.__version__, equipop_qgis.__version__ = was
 

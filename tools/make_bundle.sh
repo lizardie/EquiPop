@@ -1,6 +1,7 @@
 #!/bin/bash
 # =====================================================================
-# make_bundle.sh - build the complete 19-slot release bundle.
+# make_bundle.sh - build the complete release bundle (19 slots until
+# 1.58; 1.59.0 added three Pro help sidecars for tools 5a-5c).
 #
 # BACKLOG 404, v1.54.6. THIS PROCEDURE LIVED OUTSIDE THE REPOSITORY
 # FOR EVERY RELEASE UP TO 1.54.5, in a scratch script rewritten from
@@ -122,26 +123,44 @@ find "$STAGE/qgis" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || 
 find "$STAGE/qgis" -name "*.pyc" -delete 2>/dev/null || true
 ( cd "$STAGE/qgis" && zip -qr "$WORK/equipop_qgis-$V.zip" equipop_qgis )
 
-# ---- 4. the Pro toolbox, the five sidecars, the generator -----------
+# ---- 4. the Pro toolbox, EVERY sidecar, the generator ---------------
+# v1.62.0: every sidecar step 1 made, not a list of names. The list
+# here named eight tools; tool 0 made nine - and the first 1.62.0
+# bundle shipped without tool 0's help, every check green. make_help_xml
+# writes one sidecar per tool in the toolbox's all_tools, so what it
+# wrote IS the list, and the count is checked against the toolbox.
 cp arcgis/EquiPop.pyt arcgis/make_help_xml.py "$WORK/"
-for t in CountsShares ValueStatistics ContinentalRasters \
-         SpatialDemography FolderInventory; do
-    cp "arcgis/EquiPop.$t.pyt.xml" "$WORK/"
-done
+cp arcgis/EquiPop.*.pyt.xml "$WORK/"
+WANT=$(python - <<'PYEOF'
+import re
+src = open("arcgis/EquiPop.pyt", encoding="utf-8").read()
+names = re.search(r"self\.all_tools = \[([^\]]+)\]", src).group(1)
+print(len([t for t in names.split(",") if t.strip()]))
+PYEOF
+)
+GOT=$(ls "$WORK"/EquiPop.*.pyt.xml | wc -l)
+test "$GOT" -eq "$WANT" || {
+    echo "FATAL: $GOT Pro help sidecars for $WANT tools" >&2; exit 1; }
 
 # ---- 5. Stata: net install (keeps the stata/ folder) ----------------
+# v1.62.1: the files are the `f` lines of stata/equipop.pkg - the list
+# `net install` itself reads - not a list written here. Two written
+# lists (this one and the SSC one below) would have left the two new
+# help files out of both archives, as the Pro sidecar list left out
+# tool 0's help in 1.62.0.
+PKGFILES=$(sed -n 's/^f \(.*\)$/\1/p' stata/equipop.pkg)
+test -n "$PKGFILES" || { echo "FATAL: no f lines in equipop.pkg" >&2; exit 1; }
 mkdir -p "$STAGE/net/stata"
-cp stata/README_STATA.md stata/equipop.ado stata/equipop.pkg \
-   stata/equipop.sthlp stata/equipop_example.do stata/equipop_knn.ado \
-   stata/equipop_run.ado stata/equipop_showcase.do \
-   stata/equipop_test_data.dta stata/stata.toc "$STAGE/net/stata/"
+for f in $PKGFILES README_STATA.md equipop.pkg stata.toc; do
+    cp "stata/$f" "$STAGE/net/stata/" || { echo "FATAL: stata/$f" >&2; exit 1; }
+done
 ( cd "$STAGE/net" && zip -qr "$WORK/equipop_stata_netinstall-$V.zip" stata )
 
 # ---- 6. Stata: the SSC batch (FLAT, no .pkg, no stata.toc) ----------
 mkdir -p "$STAGE/ssc"
-cp stata/equipop.ado stata/equipop.sthlp stata/equipop_example.do \
-   stata/equipop_knn.ado stata/equipop_run.ado \
-   stata/equipop_showcase.do stata/equipop_test_data.dta "$STAGE/ssc/"
+for f in $PKGFILES; do
+    cp "stata/$f" "$STAGE/ssc/" || { echo "FATAL: stata/$f" >&2; exit 1; }
+done
 ( cd "$STAGE/ssc" && zip -qr "$WORK/equipop_ssc_submission-$V.zip" . )
 
 # ---- 7. the whole working tree, under EquiPop-<version>/ ------------
@@ -157,7 +176,13 @@ python tools/make_release_zip.py "$V" "$WORK" \
 HAND=$(ls -1 HANDOVER_*.md | sed 's/HANDOVER_\([0-9]*\)\.md/\1 &/' \
        | sort -n | tail -1 | cut -d' ' -f2)
 cp BACKLOG.md MANUAL.md INSTALL.md "$HAND" "$WORK/"
+# v1.61.0: the formulas of machine 4's rates, where a reader looks
+cp METHODS_RATES.md "$WORK/"
 cp arcgis/ARCGIS_GUIDE.md "$WORK/"
+# v1.60.0: the Windows check at the TOP of the archive, beside the
+# working tree it unpacks and tests - John looked for it inside the
+# working-tree zip inside the release zip, and could not find it.
+cp tools/windows_check.py "$WORK/"
 
 # ---- 9. verify, leave the tree as it was found, install -------------
 # Every archive a user unzips is re-opened, CRC-checked, name-checked

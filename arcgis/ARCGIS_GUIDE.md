@@ -32,17 +32,24 @@ default one is locked. The supported route is a clone:
 
 5. Check: `python -c "import equipop, pyproj; print(equipop.__version__)"`
 
-### Files to copy (v1.47.11)
+### Files to copy (v1.62.0)
 
-**SIX files must sit together in one folder** (e.g. `C:\Data\EQP`),
-and all six must come from THE SAME RELEASE:
+**TEN files must sit together in one folder** (e.g. `C:\Data\EQP`),
+and all ten must come from THE SAME RELEASE:
 
     EquiPop.pyt                          the toolbox
+    EquiPop.ShowTools.pyt.xml            help for tool 0 (new in 1.62.0)
     EquiPop.CountsShares.pyt.xml         help for machine 1
     EquiPop.ValueStatistics.pyt.xml      help for machine 2
     EquiPop.ContinentalRasters.pyt.xml   help for machine 3
     EquiPop.SpatialDemography.pyt.xml    help for machine 4
+    EquiPop.WorldPopCatalogue.pyt.xml    help for tool 5a
+    EquiPop.OsmCatalogue.pyt.xml         help for tool 5b
+    EquiPop.FetchSelected.pyt.xml        help for tool 5c
     EquiPop.FolderInventory.pyt.xml      help for machine 6
+
+The three for tools 5a-5c are new in v1.59.0, when fetching reached
+Pro.
 
 The last THREE are new in v1.47.11. Machines 3 and 4 had no help file
 at all before it, which is why their '?' page said "There is no
@@ -111,10 +118,56 @@ is the place to run it.)
 
 Copy the `arcgis/EquiPop.pyt` file anywhere convenient (it can live
 in the project folder). In Pro's **Catalog** pane: right-click
-**Toolboxes -> Add Toolbox** -> pick the .pyt. FIVE tools appear
-under "EquiPop": *Counts and Shares*, *Value Statistics*, *Raster
-Data Curation*, *Spatial Demographic Analysis* and *What is in this
-folder?*. All five have in-dialog help and a '?' page.
+**Toolboxes -> Add Toolbox** -> pick the .pyt. THREE tools appear
+under "EquiPop": *0. Show or hide tools 3-6*, *1. Counts and Shares*
+and *2. Value Statistics* - EquiPop's standard set.
+
+**Showing tools 3 to 6 (since 1.62.0).** The other six - *Raster Data
+Curation*, *Spatial Demographic Analysis*, the three fetching tools
+*5a WorldPop*, *5b OpenStreetMap* and *5c Fetch the rows you
+selected*, and *What is in this folder?* - are hidden until you show
+them. Run *0. Show or hide tools 3-6*, choose *All tools, 1 to 6*,
+then right-click the EquiPop toolbox in the Catalog pane and choose
+**Refresh** (or restart Pro). NINE tools then appear. Run tool 0 again
+with *Only tools 1 and 2* to hide them. Hiding changes only the list:
+nothing is uninstalled and no result changes. The choice is saved for
+your Windows user and is shared with the QGIS plugin; the environment
+variable `EQUIPOP_SHOW_ALL_TOOLS=1` (or `0`) overrides it, for a
+classroom image. All nine tools have in-dialog help and a '?' page.
+
+**Fetching data (5a-5c, v1.59.0).** 5a or 5b lists what a provider has
+as a table in memory - one row per file or layer, with its size, date
+and licence - and downloads nothing. Open the table, select the rows
+you want (Select By Attributes, or by hand), and run 5c on it: Pro
+passes only the selected rows to a tool, and every row when none is
+selected, which the size limit in 5c's box 2 is there to catch. Since
+1.59.2 the limit also counts the bytes as they arrive, so it holds for
+files whose size the catalogue does not know, and Cancel stops a
+download part-way (the file it stops in is not kept).
+Then *Raster Data Curation* on the fetched folder: with the population
+box (under Advanced) left blank, a folder holding every age band of
+women and men for one year is taken as EVERYBODY, and the messages say
+so; any other folder asks you to choose.
+
+**Rates and life expectancy (machine 4, v1.60.0).** *Spatial
+Demographic Analysis* has a box for life expectancy at 60, TFR, CBR
+and CDR. They are MODEL-BASED: each neighbourhood's age pyramid is
+read against its nation's, with the nation's age patterns from UN WPP
+2024, which ships with EquiPop. Life expectancy at 50, 30 and birth is
+offered too, marked UNRELIABLE - use it as a predictor only. Use a k
+of 5,000 or more for life expectancy, and folders holding whole
+countries. Since 1.60.1 the tool also takes the point layer *Raster
+Data Curation* made (k left blank) instead of the folder - the same
+numbers either way. *Read the rates against* (since 1.61.0; in the
+main dialog since 1.62.0) - each person's own country (the default; a
+neighbourhood across a border pools both sides) or the country of the
+cell. Under Advanced, a *Folder for a TILED, resumable run* for merged
+regions larger than memory, as in *Raster Data Curation*. Every formula is in
+`METHODS_RATES.md`, beside the toolbox in the release.
+OpenStreetMap rows for PAST YEARS come as `.pbf` and need pyogrio in
+the Pro environment (`pip install pyogrio` in its Python Command
+Prompt); without it 5c refuses those rows before downloading anything.
+WorldPop and today's OpenStreetMap layers need nothing more.
 
 ## 3. First run (Counts and Shares)
 

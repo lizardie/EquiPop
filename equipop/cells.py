@@ -134,6 +134,60 @@ class CellData:
         return h.hexdigest()
 
 
+def exact_coords(a) -> np.ndarray:
+    """Coordinates as EXACT numbers: int64 when every value is whole,
+    float64 otherwise. Never truncated.
+
+    v1.62.1, external review of 1.62.0. Snapped midpoints were cast
+    with .astype(int), which truncates toward ZERO. With an odd cell
+    size every midpoint ends in .5, so the cells either side of 0 moved
+    in opposite directions: at 1 m, points at -0.25 and +0.25 became
+    ONE cell at 0 holding both; at 3 m the two centres were recorded
+    2 m apart. Even sizes (100 m, 1 km) have whole midpoints and come
+    back as integers exactly as before, so no such run changes.
+    """
+    a = np.asarray(a, dtype=float)
+    r = np.round(a)
+    if a.size == 0 or np.array_equal(r, a):
+        return r.astype(np.int64)
+    return a
+
+
+def check_unit_size(unit_size) -> float:
+    """The cell size as a float: finite and greater than zero, or a
+    ValueError in words.
+
+    v1.63.1, BACKLOG 451 (review of 1.63.0). Every door checks the size
+    it is given, but the package itself did not: -1 through the bridge
+    ran and returned N_1 = 1, Dist_1 = 0 for every row - a plausible
+    table on a grid that does not exist - and 0, NaN and infinity
+    escaped as a KeyError from deep inside. Checked here, where every
+    square grid is built (grid_midpoints), and at the bridge's front
+    door, so a Python caller and any future door inherit it."""
+    try:
+        u = float(unit_size)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"[cells] the cell size must be a number; got {unit_size!r}"
+        ) from None
+    if not (np.isfinite(u) and u > 0):
+        raise ValueError(
+            f"[cells] the cell size must be a finite number greater "
+            f"than 0; got {unit_size!r}. It is the width of the grid "
+            "the neighbourhoods are built on.")
+    return u
+
+
+def grid_midpoints(v, unit_size) -> np.ndarray:
+    """Each value's cell MIDPOINT on a square grid of `unit_size`
+    (cells [k*u, (k+1)*u), midpoint k*u + u/2), exact - see
+    exact_coords. The one rule every square-grid path uses: build_cells,
+    snap_to_grid, the Stata bridge and theta_profile."""
+    u = check_unit_size(unit_size)
+    v = np.asarray(v, dtype=float)
+    return exact_coords(np.floor(v / u) * u + u / 2.0)
+
+
 def split_sum_name(var: str, code: int) -> str:
     """The name of `var`'s sum over the people with group code `code`
     (build_cells(sum_by=...)). The ONE place this is spelled."""
@@ -261,13 +315,15 @@ def build_cells(
         df = df[~bad]
 
     # --- snap to grid midpoints ---
+    # v1.62.1: EXACT midpoints (grid_midpoints) - an odd cell size
+    # used to merge the two cells either side of 0. Unsnapped
+    # coordinates are kept as given, not truncated.
     if snap:
-        half = unit_size / 2.0
-        df["_E"] = (np.floor(df[e_col] / unit_size) * unit_size + half).astype(int)
-        df["_N"] = (np.floor(df[n_col] / unit_size) * unit_size + half).astype(int)
+        df["_E"] = grid_midpoints(df[e_col], unit_size)
+        df["_N"] = grid_midpoints(df[n_col], unit_size)
     else:
-        df["_E"] = df[e_col].astype(int)
-        df["_N"] = df[n_col].astype(int)
+        df["_E"] = exact_coords(df[e_col])
+        df["_N"] = exact_coords(df[n_col])
 
     # --- report missing values in analysis variables ---
     # BACKLOG 168, John's ruling: a declared code IS missing.
@@ -311,37 +367,73 @@ def build_cells(
                   f"individuals count towards k but not towards {v} statistics.")
 
     # --- aggregate ---
+    # ONE VECTORISED PASS (v1.60.3). This walked the cells in Python
+    # and, in each, ran four pandas operations per group - about
+    # 0.3 ms per cell and group. Harmless for a town; John's Turkey at
+    # 1 km with machine 4's rates is ~450,000 cells x 32 groups, which
+    # sat silent for well over an hour after the projection line
+    # (19 October). Every number here is a per-cell SUM: the rows are
+    # sorted by cell once (stably, so each cell keeps its own row
+    # order) and each sum is one np.add.reduceat over the cells'
+    # segments. NOT bincount, which adds strictly left to right: 1000
+    # pixels of 0.1 then make 99.9999999999986, and a cell holding
+    # exactly k people reads as short of it (test_unitsize caught
+    # that). The value arrays are the same sorted rows, split at the
+    # boundaries. tests/test_review_1_60_1 checks all of it against
+    # the old loop.
     groups = df.groupby(["_E", "_N"], sort=True)
-    E, N, n = [], [], []
-    bsums = {v: [] for v in binary_vars}
-    bvalid = {v: [] for v in binary_vars}
-    varrs = {v: [] for v in value_vars}
-    vwts = {v: [] for v in value_vars} if weights is not None else {}
-    labels = [] if label_col else None
-    mixed = 0
+    gi = groups.ngroup().to_numpy()
+    keys = groups.size().index
+    m_cells = len(keys)
+    E = exact_coords(keys.get_level_values(0).to_numpy(float))
+    N = exact_coords(keys.get_level_values(1).to_numpy(float))
+    order = np.argsort(gi, kind="stable")          # row order kept
+    g_sorted = gi[order]
+    starts = (np.flatnonzero(np.r_[True, g_sorted[1:] != g_sorted[:-1]])
+              if len(gi) else np.zeros(0, dtype=np.int64))
 
-    for (e, nn), g in groups:
-        E.append(e)
-        N.append(nn)
-        n.append(float(g[weights].sum()) if weights is not None else len(g))
-        for v in binary_vars:
-            if weights is None:
-                bsums[v].append(g[v].sum())
-                bvalid[v].append(int(g[v].notna().sum()))
-            else:
-                w = g[weights]
-                bsums[v].append(float((g[v].fillna(0) * w).sum()))
-                bvalid[v].append(float(w[g[v].notna()].sum()))
+    def per_cell(x):
+        if not m_cells:
+            return np.zeros(0)
+        return np.add.reduceat(np.asarray(x, float)[order], starts)
+
+    wcol = (df[weights].to_numpy(float) if weights is not None else None)
+    n = (per_cell(wcol) if weights is not None
+         else np.bincount(gi, minlength=m_cells).astype(np.int64))
+    bsums, bvalid = {}, {}
+    for v in binary_vars:
+        col = df[v].to_numpy(float)
+        ok = ~np.isnan(col)
+        # a blank contributes nothing; an infinity is NOT made finite
+        val = np.where(ok, col, 0.0)
+        if weights is None:
+            bsums[v] = per_cell(val)
+            bvalid[v] = np.bincount(gi[ok], minlength=m_cells)
+        else:
+            bsums[v] = per_cell(val * wcol)
+            bvalid[v] = per_cell(np.where(ok, wcol, 0.0))
+    varrs = {}
+    vwts = {}
+    if value_vars:
         for v in value_vars:
-            keep = g[v].notna()
-            varrs[v].append(g.loc[keep, v].to_numpy(dtype=float))
+            col = df[v].to_numpy(float)[order]
+            ok = ~np.isnan(col)
+            cuts = np.searchsorted(g_sorted[ok], np.arange(1, m_cells))
+            varrs[v] = (np.split(col[ok], cuts) if m_cells else [])
             if weights is not None:
-                vwts[v].append(g.loc[keep, weights].to_numpy(dtype=float))
-        if label_col:
-            uniq = g[label_col].astype(str).unique()
-            if len(uniq) > 1:
-                mixed += 1
-            labels.append("|".join(sorted(uniq)))
+                vwts[v] = (np.split(wcol[order][ok], cuts) if m_cells
+                           else [])
+    labels = None
+    mixed = 0
+    if label_col:
+        u = (pd.DataFrame({"g": gi,
+                           "l": df[label_col].astype(str).to_numpy()})
+             .drop_duplicates().sort_values(["g", "l"], kind="stable"))
+        per = np.bincount(u["g"].to_numpy(), minlength=m_cells)
+        mixed = int((per > 1).sum())
+        joined = u.groupby("g", sort=True)["l"].agg("|".join) if mixed \
+            else u.set_index("g")["l"]
+        labels = joined.reindex(range(m_cells)).tolist()
 
     if label_col and mixed:
         print(f"[cells] WARNING: {mixed} cells contain several distinct "
@@ -353,10 +445,8 @@ def build_cells(
     # above walked, so row i of the matrix is cell i.
     sum_matrix, sum_names = None, list(sum_vars)
     if sum_vars:
-        m_cells = len(E)
-        gi = groups.ngroup().to_numpy()
-        wcol = (df[weights].to_numpy(float) if weights is not None
-                else np.ones(len(df)))
+        if wcol is None:
+            wcol = np.ones(len(df))
         if sum_by is None:
             n_lev, code = 1, np.zeros(len(df), dtype=np.int64)
         else:
@@ -385,8 +475,9 @@ def build_cells(
         sum_matrix = np.concatenate(blocks, axis=1)
 
     cd = CellData(
-        E=np.array(E, dtype=np.int64),
-        N=np.array(N, dtype=np.int64),
+        # v1.62.1: exact - integers for every even cell size, as before
+        E=exact_coords(E),
+        N=exact_coords(N),
         n=np.array(n, dtype=float if weights is not None else np.int64),
         binary_sums={v: np.array(a, dtype=float) for v, a in bsums.items()},
         binary_valid={v: np.array(a, dtype=float)

@@ -43,7 +43,12 @@ import json
 import os
 from datetime import datetime, timezone
 
+from ..atomic import swap_in
+
 MANIFEST = "equipop_fetch.json"
+#: The rows a catalogue fetch took (fetchrows.py) - written beside
+#: the manifest, and like it, not a data file.
+RECIPE = "equipop_recipe.csv"
 
 
 class FetchError(Exception):
@@ -55,24 +60,31 @@ class FetchError(Exception):
 # part that cannot be exercised in development - the sandbox blocks
 # every WorldPop host - so it is kept to two tiny functions and
 # everything else is testable.
-def _get_json(url, timeout=60):                     # pragma: no cover
-    import urllib.request
+def _open(url, timeout):
+    """THE OLDER PATH'S ONE WAY ONTO THE NETWORK (v1.60.2, review of
+    1.60.1, P2): the scheme checked (review H1), and every redirect
+    checked as 5c's are - https only once https, and on a provider's
+    own site or the host the request started at."""
+    import importlib
+    from .catalogue import ALLOWED_DOMAINS
+    # the MODULE: `from .. import fetch` is the function of that name,
+    # which the package exports
+    F = importlib.import_module("..fetch", __package__)
+    F._check_scheme(url)
+    return F.checked_opener(ALLOWED_DOMAINS, *F._TEST_HANDLERS,
+                            origin=url).open(url, timeout=timeout)
 
-    from ..fetch import _check_scheme          # review H1, one reader
-    _check_scheme(url)
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+
+def _get_json(url, timeout=60):
+    with _open(url, timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
-def _get_text(url, timeout=60):                     # pragma: no cover
+def _get_text(url, timeout=60):
     """Fetch a small text sidecar - Geofabrik's .md5, and nothing
     larger. Capped so a mis-typed URL cannot stream a raster into
     memory (BACKLOG 291)."""
-    import urllib.request
-
-    from ..fetch import _check_scheme          # review H1, one reader
-    _check_scheme(url)
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    with _open(url, timeout) as r:
         return r.read(64 * 1024).decode("utf-8", "replace")
 
 
@@ -179,7 +191,7 @@ def parse_md5_sidecar(text, name=None):
     return first
 
 
-def _get_file(url, dest, timeout=900):              # pragma: no cover
+def _get_file(url, dest, timeout=900):
     """Stream to disk. Returns (bytes, sha256, md5).
 
     CHECKS THE DECLARED LENGTH. The loop stopped at whatever arrived,
@@ -188,15 +200,12 @@ def _get_file(url, dest, timeout=900):              # pragma: no cover
     CLEANS UP ON FAILURE, because the QGIS message claimed nothing
     partial was kept and .part files were being left behind.
     """
-    import urllib.request
-
     from ..fetch import _check_scheme          # review H1, one reader
     _check_scheme(url)
     sha, md5, n = hashlib.sha256(), hashlib.md5(usedforsecurity=False), 0
     tmp = dest + ".part"
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as r, \
-                open(tmp, "wb") as f:
+        with _open(url, timeout) as r, open(tmp, "wb") as f:
             declared = r.headers.get("Content-Length")
             declared = int(declared) if declared and declared.isdigit() \
                 else None
@@ -217,7 +226,12 @@ def _get_file(url, dest, timeout=900):              # pragma: no cover
         if os.path.exists(tmp):
             os.remove(tmp)
         raise
-    os.replace(tmp, dest)
+    try:
+        swap_in(tmp, dest)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
     return n, sha.hexdigest(), md5.hexdigest()
 
 
@@ -643,6 +657,12 @@ def run_fetch(plan, folder, *, get_file=None, get_text=None,
     # dressed as a FetchError, because the two call for different
     # things from the user.
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # v1.59.2: WHAT THE MANIFEST ON DISK ACTUALLY SAYS, as opposed to
+    # what this run believes. The two differ only when a write fails,
+    # and that is exactly when the message at the end must not claim
+    # more than the file holds (external review of 1.59.1).
+    written = set()
+    unverified = None              # on disk, not yet checked or recorded
 
     def commit(failure=None, complete=False):
         """Write the manifest for whatever is verified so far.
@@ -706,7 +726,9 @@ def run_fetch(plan, folder, *, get_file=None, get_text=None,
             json.dump(man, f, indent=2, ensure_ascii=False)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, os.path.join(folder, MANIFEST))
+        swap_in(tmp, os.path.join(folder, MANIFEST))
+        written.clear()
+        written.update(f["name"] for f in files)
         return man
 
     failure = None
@@ -761,12 +783,26 @@ def run_fetch(plan, folder, *, get_file=None, get_text=None,
                     f"{e['name']} already exists in {folder}. Refusing to "
                     "overwrite - move it aside, or fetch into a new folder.")
             got = get_file(e["url"], dest)
+            # From here until it is recorded, the file is on disk but
+            # neither checked nor in the manifest. Every refusal below
+            # removes it; so must anything else that stops the run in
+            # this window - a Cancel during the .md5 request, say -
+            # or a retry would meet a file of unknown origin and refuse
+            # it (v1.59.2).
+            unverified = dest
             # Transports may return (bytes, sha256) or (bytes, sha256,
             # md5). The publisher's checksum is MD5 for both HDX and
             # Geofabrik, so it is computed while streaming rather than by
             # re-reading the file.
             n, h = got[0], got[1]
             local_md5 = got[2] if len(got) > 2 else None
+            # BACKLOG 414, v1.58.0: a transport may say what IT checked.
+            # A shapefile layer taken out of a Geofabrik zip has no
+            # .md5 of its own, but the zip records a CRC-32 for it and
+            # the transport compares them - which is a publisher's
+            # checksum, and the manifest should say so rather than
+            # "absent".
+            transport_check = got[3] if len(got) > 3 else None
 
             # VERIFY WHAT THE PUBLISHER SAID, not merely what arrived.
             # publisher_md5 and md5_url were RECORDED and never CHECKED,
@@ -841,11 +877,14 @@ def run_fetch(plan, folder, *, get_file=None, get_text=None,
                 checked = "verified against publisher md5"
             elif want:
                 checked = "publisher md5 known, transport gave no md5"
+            elif transport_check:
+                checked = transport_check
             files.append({**{k: v for k, v in e.items() if k != "url"},
                           "url": e["url"], "bytes": n, "sha256": h,
                           "publisher_md5": want or None,
                           "publisher_check": checked,
                           "reused": False})
+            unverified = None
             # THE ENTRY IS COMMITTED HERE, one line after the checks
             # that earned it and before the next download starts. Every
             # refusal above removes the file and raises, so nothing
@@ -858,24 +897,62 @@ def run_fetch(plan, folder, *, get_file=None, get_text=None,
         # above: the point is that no failure - network, disk, or the
         # user's own Ctrl-C - can leave verified files on disk with no
         # record of where they came from. Catching broadly is safe
-        # only because this handler does exactly two things, writes
-        # and re-raises, and claims nothing about what went wrong.
+        # only because this handler does exactly that, writes and
+        # re-raises, and claims nothing about what went wrong.
         failure = exc
+
+        def tell(line):
+            # A door's `say` may itself raise (QGIS and Pro raise from
+            # it on Cancel). Here that must not cut the account short:
+            # the ORIGINAL failure is re-raised below either way.
+            try:
+                say(line)
+            except BaseException:
+                pass
+
+        if unverified and os.path.exists(unverified):
+            try:
+                os.remove(unverified)
+                tell(f"[fetch] {os.path.basename(unverified)} was removed: "
+                     "it had arrived but was not yet checked when the run "
+                     "stopped. Running again fetches it afresh.")
+            except OSError:                       # pragma: no cover
+                pass
         try:
             commit(failure)
-        except BaseException as writing:        # pragma: no cover
-            # If the manifest itself cannot be written - the full disk
-            # that caused the original failure, most likely - say so
-            # and still raise the ORIGINAL. A secondary error must not
-            # replace the one the user needs to read.
-            say(f"[fetch] could not write {MANIFEST} "
-                f"({writing.__class__.__name__}: {writing}) - the "
-                f"files listed above are on disk WITHOUT provenance.")
-        say(f"[fetch] STOPPED after {fetched} downloaded and {kept} "
-            f"already present, of {len(plan['entries'])} planned. "
-            f"What arrived IS recorded in {MANIFEST}, so a retry "
-            "will recognise it instead of refusing it.")
-        raise
+            unwritten = None
+        except BaseException as writing:
+            # The manifest itself could not be written - the full disk
+            # that caused the original failure, or a file Windows kept
+            # locked. Say WHICH files that leaves without a record and
+            # what a retry will do with them; then raise the ORIGINAL,
+            # because a secondary error must not replace the one the
+            # user needs to read. Until v1.59.2 this said "the files
+            # listed above" (the unrecorded one had never been listed)
+            # and then, a line later, that everything WAS recorded.
+            unwritten = writing
+        if unwritten is None:
+            tell(f"[fetch] STOPPED after {fetched} downloaded and {kept} "
+                 f"already present, of {len(plan['entries'])} planned. "
+                 f"What arrived IS recorded in {MANIFEST}, so a retry "
+                 "will recognise it instead of refusing it.")
+        else:
+            loose = [f["name"] for f in files if f["name"] not in written]
+            it = "it" if len(loose) == 1 else "them"
+            tell(f"[fetch] could not write {MANIFEST} "
+                 f"({unwritten.__class__.__name__}: {unwritten})")
+            if loose:
+                tell("[fetch] NOT RECORDED, though on disk: "
+                     + ", ".join(loose) + f". A new run will refuse {it} "
+                     f"as of unknown origin - delete {it} or move {it} "
+                     "aside before running again.")
+            tell(f"[fetch] STOPPED after {fetched} downloaded and {kept} "
+                 f"already present, of {len(plan['entries'])} planned. "
+                 + ("Everything else that arrived is recorded in "
+                    f"{MANIFEST}." if loose else
+                    f"Everything that arrived was recorded in {MANIFEST} "
+                    "as it came, so a retry will recognise it."))
+        raise exc
 
     man = commit(complete=True)
 
@@ -905,9 +982,15 @@ def verify_folder(folder, say=print):
         raise FetchError(
             f"No {MANIFEST} in {folder} - these files were not fetched "
             "by EquiPop, so there is nothing to check them against.")
-    ok, changed, gone = 0, [], []
+    ok, changed, gone, removed = 0, [], [], []
     for f in man["files"]:
         p = os.path.join(folder, f["name"])
+        # BACKLOG 414: a .pbf deleted ON REQUEST after its layers were
+        # written is recorded as removed, not lost - its layers are
+        # checked below like any file, against their own checksums.
+        if f.get("removed") and not os.path.exists(p):
+            removed.append(f["name"])
+            continue
         if not os.path.exists(p):
             gone.append(f["name"])
         elif sha256_of(p) != f["sha256"]:
@@ -932,7 +1015,8 @@ def verify_folder(folder, say=print):
     extra = []
     for root, _d, names in os.walk(folder):
         for n in names:
-            if n in (MANIFEST, MANIFEST + ".part") or n.endswith(".part"):
+            if n in (MANIFEST, MANIFEST + ".part", RECIPE) \
+                    or n.endswith(".part"):
                 continue
             rel = os.path.relpath(os.path.join(root, n), folder)
             key = rel.replace("\\", "/")
@@ -953,8 +1037,12 @@ def verify_folder(folder, say=print):
     for n in sorted(extra):
         say(f"           {n}  (not fetched by EquiPop - machine 3 "
             "will still read it)")
+    if removed:
+        say(f"[verify] {len(removed)} source file(s) removed on request "
+            "after their layers were written: " + ", ".join(removed))
     return {"ok": ok, "changed": changed, "missing": gone,
-            "untracked": sorted(extra), "manifest": man}
+            "untracked": sorted(extra), "removed": removed,
+            "manifest": man}
 
 
 # ---------------------------------------------------- the HDX door

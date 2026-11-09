@@ -15,7 +15,8 @@
 # from - once per interpreter given, and prints a block for the
 # release note: the totals, the versions that produced them, the
 # optional packages that were absent (each one turns tests into
-# skips), and the SHA-256 of every file in the bundle.
+# skips), and the SHA-256 of every other file in the bundle (the
+# release note that carries this block is added to it afterwards).
 #
 # Usage:  python tools/release_record.py <bundle_dir> [python ...]
 #         (no interpreter given: this one)
@@ -31,7 +32,7 @@ import zipfile
 
 #: Optional packages the suite can use; absent, their tests skip.
 OPTIONAL = ("geopandas", "rasterio", "esda", "libpysal", "cffconvert",
-            "openpyxl", "pyreadstat", "matplotlib")
+            "yaml", "openpyxl", "pyreadstat", "matplotlib")
 CORE = ("numpy", "pandas", "scipy", "pytest")
 
 _PROBE = """
@@ -55,10 +56,17 @@ def _sha(path):
     return h.hexdigest()
 
 
+#: The child writes its output as UTF-8 and we read it as UTF-8
+#: (BACKLOG 426) - otherwise each side uses its own system encoding,
+#: and a path or test name with "ö" in it could be misread.
+_CHILD_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
+
+
 def environment(python):
     import json
     r = subprocess.run([python, "-c", _PROBE % (CORE, OPTIONAL)],
-                       capture_output=True, text=True, check=True)
+                       capture_output=True, check=True, env=_CHILD_ENV,
+                       text=True, encoding="utf-8", errors="replace")
     return json.loads(r.stdout)
 
 
@@ -66,7 +74,8 @@ def run_suite(python, tree):
     """The suite's final summary line, run from `tree`."""
     r = subprocess.run([python, "-m", "pytest", "-q", "-p",
                         "no:cacheprovider"], cwd=tree,
-                       capture_output=True, text=True)
+                       capture_output=True, env=_CHILD_ENV,
+                       text=True, encoding="utf-8", errors="replace")
     last = [ln for ln in r.stdout.splitlines() if " in " in ln
             and re.search(r"\d+ (passed|failed)", ln)]
     if not last:
@@ -109,7 +118,12 @@ def main(argv):
                       f"{env['python']}, {core}.",
                       f"  Optional present: {', '.join(present) or 'none'}"
                       f"; absent: {', '.join(absent) or 'none'}."]
-    lines += ["", "SHA-256 of every file in the bundle:", "", "```"]
+    # "every OTHER file" (v1.61.4, review of 1.61.3): this record
+    # becomes part of RELEASE_x.md, which is placed in the bundle after
+    # it is written - so the note cannot list its own checksum.
+    lines += ["", "SHA-256 of every other file in the bundle (the release "
+              "note, which carries this list, is added after it):", "",
+              "```"]
     for name in sorted(os.listdir(bundle)):
         p = os.path.join(bundle, name)
         if os.path.isfile(p) and not name.startswith("."):

@@ -6,7 +6,7 @@ MANUAL.md (the development manual), which serves as this document's
 scientific appendix.*
 
 ## 1. Installation
-Requires Python ≥ 3.10. With Anaconda: create an environment once
+Requires Python ≥ 3.11. With Anaconda: create an environment once
 (`conda create -n equipop python=3.12 -y`, `conda activate equipop`),
 then `pip install equipop` — or, working from source, unzip the package
 folder and work inside it. Optional extras: `pip install
@@ -28,6 +28,22 @@ checks and mass-conservation totals. Remote sources: `fetch(url,
 workdir, unzip=True)` downloads with caching. Missing coordinates are
 dropped with a warning; missing values in a variable keep counting
 towards k but not towards that variable's statistics (`Nv_` columns).
+
+**Getting data: look, select, fetch (1.58.0).** In QGIS, tool 5a lists
+what WorldPop has for some countries and years, and 5b what Geofabrik
+has for some regions, as a table - one row per file or layer, with its
+size, date and licence. Nothing is downloaded. Open the table, select
+the rows you want (Select by Expression: `"sex" = 'f' AND "age_from" >=
+15`, or `"layer" = 'roads'`), and run 5c with *Selected features only*
+ticked: it downloads exactly those rows, records each in
+`equipop_fetch.json` with its checksum, and keeps the rows as
+`equipop_recipe.csv` to fetch again. From Python the same is
+`browse_worldpop(...)`, `browse_geofabrik(...)` and `fetch_rows(rows,
+folder)` in `equipop.doors.catalogue` and `equipop.doors.fetchrows`.
+Two rules worth knowing: rows for several years come from ONE series
+whenever one covers them all, and the row says so when none does; and
+OpenStreetMap for past years comes from raw `.pbf` extracts, so with
+years every row - today's too - is taken the same way.
 
 ## 3. Projections
 All analysis happens in METRIC coordinates - degrees are unequal-sized.
@@ -224,7 +240,9 @@ small-group places WITH the upward bias it exists to keep out.
 between-group share measures opportunity depends on whether the
 grouping is a circumstance beyond a person's control - a judgement
 for the analysis, not the tool. What EquiPop computes is the ex-ante
-kind: groups compared by their means.
+kind: groups compared by their means. The question across the whole
+population - how much of inequality lines up with the KIND of
+neighbourhood people come from, and at what scale - is section 17.
 
 **Cost.** Small: measured on 50,000 points at k=400, one field split
 into twenty groups took 28 s against 20 s unsplit.
@@ -236,6 +254,31 @@ Isolation, Interaction, Correlation V, and SI (the 2015 paper's
 population-weighted k-share isolation). Units at scale k are the
 bespoke neighbourhoods. Concentration/delta indices await a bespoke
 area-term decision.
+
+**Whose neighbourhoods** (`weighting=`, since 1.63.0). `"people"`, the
+default: every person's neighbourhood counts once - each origin cell's
+neighbourhood weighs as many people as live in that cell - so the
+indices describe the average person, and Isolation at k equals SI.
+`"cells"`: every place counts once - every populated origin cell's
+neighbourhood weighs the same, and isolation weighs each place by its
+group share. (In 1.63.0 the weight was the neighbourhood's size, N_k:
+the same thing under the default proportional overshoot, where every
+N_k is exactly k, and not under whole or sampled overshoot, where N_k
+varies. Fixed in 1.63.1.) Every index is measured against its units'
+own weighted mean share, reported as `P_ref`. Until 1.62.1 the weights
+were the cells' while the reference was the people's share; where a
+group lives at a different density from everybody else the two
+differ, and the entropy and Atkinson indices went below zero (on the
+Stata test data H was -0.020 to -0.029). SI was never affected.
+
+**Every row says what it describes** (since 1.63.1), in columns that
+survive a CSV: `weighting`, `global_share_P`, `valid_origins`,
+`valid_people`, `excluded_people` and `note`. An origin with no
+neighbourhood at a scale (N_k missing or zero) is left out of every
+index there, SI included, and counted in `excluded_people`. Input that
+cannot describe segregation - nobody or everybody in the group, nobody
+at all, a group count above its total, negative or missing counts - is
+refused with a `SegregationError` that says which.
 
 ## 12. Area-based output
 `aggregate_output(df, by=..., how="wmean")` summarises overlapping
@@ -266,3 +309,168 @@ Nordic CSVs: separator is sniffed, but check the row count. Coordinates
 that "look wrong": compare ranges against the claimed CRS. Slow runs:
 switch to `run_knn_counts`; very large areas: tile with A/B zones.
 Everything the engines print is also captured by RunLog.
+
+## 16. Rates and life expectancy from an age pyramid (machine 4)
+*v1.60.0.* An age-and-sex raster folder holds people, not births or
+deaths, so no rate can be *measured* from it. Machine 4 *estimates*
+them, and every output says so:
+
+    run_indices(folder, [], vital=["life_expectancy_60",
+                "total_fertility_rate", "crude_birth_rate",
+                "crude_death_rate"], k_values=[5000])
+
+Machine 4 can start from a folder of rasters, or - since 1.60.1 -
+from the point layer machine 3 made from one (`points=`, with
+`points_crs=` its coordinate system). The two give the same numbers.
+In a point layer a blank cohort value is read as nobody - counted per
+field in the log and kept in the record as `blanks_as_zero` - while
+text, a negative number or an infinity is refused by field. Plain
+x/y coordinates need their coordinate system; lon/lat and machine 3's
+EastWest/NorthSouth are read as degrees when they fit.
+
+**Every formula** - sections 2 to 5 below in full, with the
+assumptions and references - is in `METHODS_RATES.md` (in the release,
+and inside the installed package as `equipop/METHODS_RATES.md`).
+
+**Whose nation (since 1.61.0).** By default each person is read
+against their OWN country (`vital_reference="own"`): a neighbourhood
+across a border pools both sides, each against its own nation, and
+lands between the two nations rather than jumping where the reference
+flips. Within one country this is exactly the older rule,
+`vital_reference="cell"` - the whole neighbourhood against its cell's
+country. Machine 4 can also run TILED (`out_dir=`, box 2e), as
+machine 3 can, for merged regions larger than memory.
+
+**How.** Each neighbourhood's age pyramid is read **against its
+nation's**. The nation's own age patterns come from UN World Population
+Prospects 2024, which ships with EquiPop for 236 countries, 2000-2030.
+The nation's pyramid is the folder's own total for that country, so
+give whole countries. Since 1.60.2 the log warns when a country holds
+under 90% of WPP's population for it (WorldPop's totals are matched
+to the UN's, so a whole country comes close to 100%), and the run's
+record keeps each share as `vital.national_coverage`.
+- **Life expectancy:** if every cohort had started equally large and
+  nobody moved, the pyramid *would* be the life table. It is not -
+  births grew - so the local share of each age is divided by the
+  national share, and the nation's birth history cancels out.
+- **TFR:** the children under five per woman, with the women weighted
+  by the nation's fertility at their age, relative to the same ratio
+  nationally (the approach of Hauer & Schmertmann, *Demography* 2020).
+- **CBR:** births a year per 1,000 people, from the same reading.
+- **CDR:** the nation's death rates below 60, and from 60 the level the
+  neighbourhood's e60 implies.
+
+**How far to trust it.** Tested on simulated populations with known
+answers:
+- Life expectancy at 60 (`e60_k`) holds up. It stays within about two
+  years when local growth differs from the nation's, and is untouched
+  by young migrants.
+- From 50, 30 and birth it does not. A neighbourhood growing faster
+  than the nation, or drawing young adults, reads as one with different
+  mortality. Those columns end in **u** (`e50u_k`, `e30u_k`, `e0u_k`),
+  are labelled UNRELIABLE in the log, and are meant as predictors in a
+  model, not as life expectancies.
+- Use a **k of 5,000 or more** for life expectancy; fewer people leave
+  the oldest bands nearly empty.
+
+**Before publishing,** check the estimates against places where the
+real figure is known (for Sweden, SCB publishes life expectancy by
+municipality). Cite UN WPP 2024 for the national schedules, under its
+licence: CC BY 3.0 IGO.
+
+## 17. Inequality of opportunity across scales: θ(k)
+*New in 1.62.0, in Python only for its test round; corrected in 1.62.1
+after an external review.* Section 10 splits
+inequality INSIDE each neighbourhood. This asks the reverse question,
+over everybody: how much of the inequality of an outcome lines up with
+the KIND of neighbourhood people come from - and at what neighbourhood
+size that is strongest.
+
+**The steps.**
+1. An **outcome** and the **people** it is measured on: adult income,
+   say, for everyone aged 30-40, each placed where they grew up.
+2. One neighbourhood **character**: the share of the k nearest people
+   with low education (a 0/1 field gives a share; any other number
+   gives a mean). EquiPop measures it around each person, for every k
+   asked for.
+3. **Types.** Everyone is lined up by that character and the line is
+   cut into equal-sized groups - 10 unless `groups=` says otherwise. A
+   type is one group: "the tenth from the most disadvantaged
+   neighbourhoods at this k".
+4. The outcome's inequality (MLD; Theil if it has zeros) is split
+   exactly into the part BETWEEN the types and the part WITHIN them.
+   **θ(k) = between ÷ total.**
+5. Repeated for each k, the profile shows the scale at which the
+   neighbourhood lines up most with the outcome.
+
+```python
+import equipop
+prof = equipop.theta_profile(
+    people,                        # one row per person, metric x / y
+    outcome="income", character="low_edu",
+    family="parents_edu",          # optional: what is ON TOP of family
+    k_values=[100, 200, 400, 800, 1600, 3200, 6400],
+    context=adults,                # optional: whom the neighbourhood is made of
+    groups=10)
+```
+
+**What comes back**, one row per k (shares, so 0.06 is 6%):
+
+| column | what it is |
+|---|---|
+| `theta` | between the types ÷ total |
+| `theta_nogroups` | the same with no groups: the inequality of the outcome predicted from the character (a quadratic fitted to the outcome itself) ÷ total - what θ approaches as the groups get finer. If `theta` is far below it, the groups are too coarse. Empty, with a `note`, if the fit predicts an outcome of zero or below |
+| `noise`, `noise_p95` | θ with the outcome shuffled among the same people (99 times by default): its mean and 95th percentile - what chance alone gives. About (groups − 1) ÷ people |
+| `p_value` | the share of shuffles that reach θ, counting θ itself: (1 + shuffles ≥ θ) ÷ (1 + shuffles). 0.01 is the smallest with 99 shuffles. The run names a peak only where it is 0.05 or less |
+| `groups`, `smallest_group` | groups formed (people sharing a cell share a group, so ties can merge two), and the smallest |
+| `theta_family` | with `family=`: family background alone |
+| `theta_on_top` | what the neighbourhood adds on top of family: θ(groups × family) − θ(family) |
+| `noise_on_top`, `noise_on_top_p95`, `p_value_on_top` | the same, with the outcome shuffled only WITHIN each family category |
+| `note` | why a row, or a column of it, is empty |
+
+**Why equal-sized groups, and why 10** - measured on a synthetic town
+with the effect planted at 800 people. The profile peaked at 800
+however the types were formed, so the choice moves the LEVEL, not the
+scale. Too few groups understate: 3 groups gave 76% of the no-groups
+value at the peak, 5 gave 90%, 10 gave 97%, 20 gave 99.5% (1.62.1).
+Fixed
+cut-offs (under 10%, 10-20% ...) are not offered: bigger neighbourhoods
+are more alike, so the outer groups empty as k grows - five types at
+k = 25, three from k = 3,200 - and the k's stop being comparable. Too
+MANY groups add noise: with 2,000 people and no relationship at all,
+100 groups gave θ = 5.7% from chance. The chance columns measure that
+on your own data, and the run says where θ is not clearly above it.
+
+**On top of family.** "Neighbourhood alone" mixes the place with who
+lives there. In a town where only family background mattered and
+families with low-educated parents clustered, the neighbourhood alone
+gave 1% - and 0.00% on top of family. So give `family=` whenever the
+people carry it (registers that link generations often do so only for
+the younger cohorts - under about 40 - which is where to start).
+
+**Choices that matter.**
+- The person's OWN 100 m cell is left out of their neighbourhood
+  (`self_rule="exclude"`): otherwise a small neighbourhood is largely
+  their own household, and θ at small k measures family twice.
+- `context=` builds the neighbourhood from another population - all
+  adults around people aged 30-40. Without it, the people themselves.
+- As in section 10, a type under `min_group` people (30) leaves that
+  k's θ EMPTY, never zero.
+- **Weights** (`weight=`) are numbers of people per row, and also
+  weight the neighbourhood when no `context=` is given. The shuffles
+  move people, not rows, so they need whole numbers; with fractional
+  weights the chance columns are left empty and the run says so.
+- **Settings are refused, never rounded**: k = 10.9, groups = 2.9 or a
+  negative minimum stop the run with a sentence.
+- **Memory** does not grow with `shuffles` (1.62.1): a few arrays of
+  one number per person. On a national register, try a subsample
+  first to see the time per k; the run prints it when a k takes over
+  five seconds.
+
+**What it is, and is not.** The ex-ante reading, groups compared by
+their means. It describes how inequality lines up with neighbourhood
+type, not what the neighbourhood causes. On gridded census or WorldPop
+counts it describes places; it becomes inequality of opportunity only
+with individuals' own outcomes and backgrounds - registers.
+`examples/cookbook_13_theta_profile.py` builds the synthetic town and
+runs all three of its worlds.

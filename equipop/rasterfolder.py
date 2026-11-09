@@ -195,6 +195,107 @@ def totals_overlap_parts(labels) -> list:
     return sorted(clash)
 
 
+# --- EVERYBODY, WHEN THE FOLDER SETTLES WHO THAT IS -------------------
+# v1.59.2. John, after his first Pro run: should a blank population box
+# simply mean everybody? Not always - k counts SOME population, and he
+# ruled long ago that the tool must not guess which. But for a folder
+# holding every age band of an age-and-sex set there is nothing to
+# guess: everybody is the only population the folder describes in
+# full. So a blank box takes it THEN, and only then, and says so; any
+# folder that leaves room for doubt is refused as before. (Rule from
+# the external review of 1.59.1, with one change: when both the f_/m_
+# and the t_ sets are complete, they are the same people counted two
+# ways, not two competing populations, so f_ plus m_ is taken.)
+
+#: WorldPop's open-ended top band: 90 and over in R2025A, 80 and over
+#: in the 2000-2020 series.
+TOP_BANDS = (80, 90)
+
+
+def _cohort(label):
+    """('f', 15, '2020') for the label f_15_2020; None for anything else."""
+    parts = str(label).split("_")
+    if (len(parts) == 3 and parts[0] in ("f", "m", "t")
+            and parts[1].isdigit() and parts[2].isdigit()
+            and len(parts[2]) == 4):
+        return parts[0], int(parts[1]), parts[2]
+    return None
+
+
+def _bands_to(top):
+    return [0, 1] + list(range(5, top + 1, 5))
+
+
+def _missing_bands(ages, top):
+    return [a for a in _bands_to(top) if a not in ages]
+
+
+def infer_everybody(value_cols, year=None, stems=()):
+    """Is there ONE unambiguous 'everybody' in these columns?
+
+    Returns ('sexes' | 'total', why) or (None, why not). 'sexes' when
+    the year has every age band for women and for men, the same bands
+    for both; else 'total' when it has every band of the t_ files.
+    Refused: a column that is not an age-and-sex layer, more than one
+    year with none chosen, a gap in the bands, or women and men with
+    different bands. "Every band" means from under-one to the open top
+    band - 90+ for an R2025A folder, which its file names say.
+    """
+    parsed = {c: _cohort(c) for c in value_cols}
+    other = [c for c, v in parsed.items() if v is None]
+    if other:
+        return None, (f"'{other[0]}' is not an age-and-sex layer, so "
+                      "'everybody' could mean more than one thing here")
+    years = sorted({v[2] for v in parsed.values()})
+    if year is None and len(years) > 1:
+        return None, (f"the folder holds {len(years)} years "
+                      f"({', '.join(years)}), and everybody summed over "
+                      "them would count each person once per year")
+    y = year if year is not None else years[0]
+    ages = {s: {v[1] for v in parsed.values() if v[0] == s and v[2] == y}
+            for s in ("f", "m", "t")}
+    r2025a = any("r2025a" in str(st).lower() for st in stems)
+    tops = (90,) if r2025a else TOP_BANDS
+
+    def full(a):
+        return bool(a) and max(a) in tops and \
+            sorted(a) == _bands_to(max(a))
+
+    if full(ages["f"]) and ages["f"] == ages["m"]:
+        top = max(ages["f"])
+        return "sexes", (
+            f"the folder holds every age band for women and for men in "
+            f"{y} (0 to {top}+), so everybody is the f_ and m_ files "
+            "summed" + (" - the t_ files hold the same people counted "
+                        "the other way, and are not added as well"
+                        if ages["t"] else ""))
+    if full(ages["t"]):
+        return "total", (
+            f"the folder holds every age band of the t_ files (women and "
+            f"men together) in {y} (0 to {max(ages['t'])}+), so everybody "
+            "is those summed")
+    # why not, in the folder's own terms
+    top = max(tops) if r2025a else (
+        90 if any(max(a or {0}) > 80 for a in ages.values()) else 80)
+    bits = []
+    for s, word in (("f", "women (f_)"), ("m", "men (m_)"),
+                    ("t", "both sexes (t_)")):
+        if ages[s]:
+            gone = _missing_bands(ages[s], top)
+            if gone:
+                bits.append(f"{word} lack the band"
+                            f"{'s' if len(gone) > 1 else ''} "
+                            f"{', '.join(map(str, gone[:6]))}"
+                            f"{' ...' if len(gone) > 6 else ''}")
+    if ages["f"] and ages["m"] and ages["f"] != ages["m"] and not bits:
+        bits.append("women and men do not have the same bands")
+    if not ages["f"] or not ages["m"]:
+        if not ages["t"]:
+            bits.append("there are not both women's and men's files")
+    return None, ("not every age band is here for " + y + ": "
+                  + "; ".join(bits or ["the bands are incomplete"]))
+
+
 def parse_name(stem: str, convention: str | None = None,
                pattern: str | None = None) -> dict:
     """Filename stem -> fields. Never raises; degrades to the stem.
@@ -255,6 +356,50 @@ def _tif_paths(folders) -> list[str]:
         else:
             out += _glob.glob(f)
     return sorted(set(out))
+
+
+def apply_compose(pts, compose, tag="folder"):
+    """COMPOSE: named columns built from existing ones, once, as loaded.
+
+    A list of columns is their plain SUM - "everyone under five" =
+    f_00 + f_01 + m_00 + m_01. Machine 4 needs these and so will anyone
+    building an index by hand.
+
+    A dict {"cols": [...], "by": "iso3", "coef": {code: [c1, c2, ...]}}
+    is a sum WEIGHTED PER ROW by the row's own code (v1.61.0): each
+    point carries its own country's coefficients, which is how machine
+    4 reads every person against their own nation. A code with no
+    coefficients contributes nothing.
+    """
+    for name, spec in (compose or {}).items():
+        cols = list(spec["cols"] if isinstance(spec, dict) else spec)
+        missing = [c for c in cols if c not in pts.columns]
+        if missing:
+            raise ValueError(
+                f"Cannot build {name!r}: no such column(s) "
+                f"{', '.join(missing)}.")
+        if not isinstance(spec, dict):
+            pts[name] = pts[cols].sum(axis=1)
+            print(f"[{tag}] {name} = {len(cols)} columns, "
+                  f"{pts[name].sum():,.1f} people")
+            continue
+        by = spec.get("by", "iso3")
+        if by not in pts.columns:
+            raise ValueError(
+                f"Cannot build {name!r}: it is weighted by {by!r}, which "
+                "these points do not carry.")
+        codes = pd.Categorical(pts[by].astype(str))
+        coef = np.zeros((len(codes.categories), len(cols)))
+        for i, code in enumerate(codes.categories):
+            got = spec["coef"].get(code)
+            if got is not None:
+                coef[i] = np.asarray(got, float)
+        idx = np.asarray(codes.codes)
+        acc = np.zeros(len(pts))
+        for j, c in enumerate(cols):
+            acc += pts[c].to_numpy(float) * coef[idx, j]
+        pts[name] = acc
+    return pts
 
 
 def load_folder(folders, compose: dict | None = None,
@@ -511,15 +656,7 @@ def load_folder(folders, compose: dict | None = None,
     # five" = f_00 + f_01 + m_00 + m_01. Machine 4 needs these and so
     # will anyone building an index by hand. Done here so the sum is
     # made once, from the columns as loaded.
-    for name, parts in (compose or {}).items():
-        missing = [c for c in parts if c not in pts.columns]
-        if missing:
-            raise ValueError(
-                f"Cannot build {name!r}: no such column(s) "
-                f"{', '.join(missing)}.")
-        pts[name] = pts[list(parts)].sum(axis=1)
-        print(f"[folder] {name} = {len(parts)} columns, "
-              f"{pts[name].sum():,.1f} people")
+    apply_compose(pts, compose, "folder")
 
     measure_cols = measurement_columns(pts)
 
@@ -593,6 +730,207 @@ def load_folder(folders, compose: dict | None = None,
     return pts, man
 
 
+# ------------------------------------------- or the points, already made
+#: A cohort column as machine 3 writes it: sex_age_year.
+_COHORT = re.compile(r"^[fmt]_\d+_\d{4}$")
+_XY = (("lon", "lat"), ("EastWest", "NorthSouth"), ("x", "y"), ("X", "Y"))
+
+
+def load_points(table, crs=None, compose: dict | None = None,
+                **_folder_only) -> tuple[pd.DataFrame, dict]:
+    """The point table machine 3 wrote, as load_folder would return it.
+
+    v1.60.1, John: "machine 4 only takes rasters - we should make it
+    possible to use the curated raster-to-point files as well". The
+    folder and the points are the same people; this lets machine 4
+    start from either. Machine 3 writes one point per pixel with
+    EastWest/NorthSouth, iso3 and one column per cohort (f_00_2020 ...)
+    - its WIDE shape. The LONG shape (cohort + population columns) is
+    turned back into the wide one here.
+
+    table : a DataFrame (or anything DataFrame() takes) with the
+            coordinates as lon/lat, EastWest/NorthSouth or x/y
+    crs   : the coordinates' CRS, e.g. 'EPSG:4326' - machine 3 writes
+            the rasters' own. None is taken as EPSG:4326 when the
+            numbers look like degrees, and refused otherwise.
+    Columns that are not coordinates, iso3 or cohorts (an OBJECTID, a
+    joined field) are left out, and the run says which.
+    """
+    # a door that read only the fields it needs names the rest here
+    dropped = [str(c) for c in
+               (getattr(table, "attrs", None) or {}).get("fields_not_used",
+                                                          [])]
+    df = pd.DataFrame(table)
+    if not len(df):
+        raise ValueError("The point table is empty - no points to read.")
+    if {"cohort", "population"} <= set(df.columns):
+        # machine 3's LONG shape: one row per point per cohort. A point
+        # is its coordinates (and its country) and nothing else: a
+        # field that differs row by row - an OBJECTID, a FID - would
+        # otherwise keep every row a point of its own.
+        keys = [c for pair in _XY for c in pair if c in df.columns]
+        if "iso3" in df.columns:
+            df = df.assign(iso3=df["iso3"].astype(str))
+            keys.append("iso3")
+        # named BEFORE the pivot drops them (review of 1.60.1, P3)
+        dropped += [str(c) for c in df.columns
+                    if c not in keys + ["cohort", "population"]]
+        _check_counts(df, ["population"], by="cohort")
+        df = df.assign(population=_as_numbers(df["population"]))
+        # min_count=1 keeps a blank a blank, so it is counted below
+        # with the cohorts no row was given for at all
+        df = (df.groupby(keys + ["cohort"], sort=False, dropna=False,
+                         observed=True)["population"].sum(min_count=1)
+              .unstack("cohort").reset_index())
+        df.columns.name = None
+        print(f"[points] the LONG shape - turned back into one column "
+              f"per cohort, {len(df):,} points")
+    for xs, ys in _XY:
+        if xs in df.columns and ys in df.columns:
+            break
+    else:
+        raise ValueError(
+            "The point table has no coordinates EquiPop recognises - "
+            "it looks for EastWest and NorthSouth (what machine 3 "
+            "writes), lon and lat, or x and y. Fields here: "
+            + ", ".join(map(str, list(df.columns)[:12])))
+    cohorts = [c for c in df.columns if _COHORT.match(str(c))]
+    if not cohorts:
+        raise ValueError(
+            "The point table has no cohort fields - machine 4 needs "
+            "columns named like f_15_2020 (sex_age_year), which is what "
+            "machine 3 writes from an age-and-sex folder. A table made "
+            "with 'Add all cohorts into one population' holds only "
+            "'pop', and an index cannot be read from that.")
+    x = pd.to_numeric(df[xs], errors="coerce").to_numpy(float)
+    y = pd.to_numeric(df[ys], errors="coerce").to_numpy(float)
+    if crs is None:
+        # ONLY NAMES THAT PROMISE DEGREES ARE READ AS DEGREES (review
+        # of 1.60.1, P2): lon/lat say so, and EastWest/NorthSouth are
+        # what machine 3 writes from WorldPop, whose rasters are
+        # degrees. Plain x/y promise nothing - a local grid near its
+        # origin fits inside +-180/+-90 too - so they need a CRS.
+        if (xs, ys) not in (("lon", "lat"), ("EastWest", "NorthSouth")):
+            raise ValueError(
+                f"The point table's coordinates are '{xs}' and '{ys}', "
+                "and no coordinate system came with them - those names "
+                "do not say whether they are degrees or metres. Give "
+                "the coordinate system, or use the feature class or "
+                "layer machine 3 wrote, which carries one.")
+        if (np.nanmax(np.abs(x)) <= 180) and (np.nanmax(np.abs(y)) <= 90):
+            crs = "EPSG:4326"
+            print("[points] no coordinate system given; the coordinates "
+                  "are within +-180/+-90, so they are read as degrees "
+                  "(EPSG:4326)")
+        else:
+            raise ValueError(
+                "The point table's coordinates are not degrees and no "
+                "coordinate system came with them. Use the feature "
+                "class or layer machine 3 wrote, which carries one.")
+    keep = np.isfinite(x) & np.isfinite(y)
+    if not keep.all():
+        print(f"[points] {int((~keep).sum()):,} point(s) without "
+              "coordinates left out")
+        df = df.loc[keep].reset_index(drop=True)
+        x, y = x[keep], y[keep]
+    pts = pd.DataFrame({"lon": x, "lat": y})
+    if "iso3" in df.columns:
+        pts["iso3"] = (df["iso3"].astype(str).str.lower()
+                       .replace({"nan": "", "none": ""})
+                       .astype("category").to_numpy())
+    # A COUNT OF PEOPLE IS A NUMBER, NOT BELOW NOTHING (review of
+    # 1.60.1, P1). This coerced every cohort and filled the failures
+    # with 0, so text, a negative and a blank all became nobody
+    # without a word. Text, negatives and infinities are refused, by
+    # field. A BLANK IS NOBODY - John, 18 October: "zero is our way -
+    # also because what is missing in some column (year or cohort)
+    # will be needed when compared later" - but it is counted, said
+    # per field, and kept in the record.
+    _check_counts(df, cohorts)
+    blanks = {}
+    for c in cohorts:
+        v = _as_numbers(df[c])
+        n = int(v.isna().sum())
+        if n:
+            blanks[str(c)] = n
+        pts[c] = v.fillna(0.0).to_numpy(float)
+    if blanks:
+        top = sorted(blanks.items(), key=lambda kv: -kv[1])
+        print(f"[points] BLANKS COUNTED AS NOBODY (0) in "
+              f"{len(blanks)} cohort field(s): "
+              + ", ".join(f"{c} {n:,}" for c, n in top[:8])
+              + (" ..." if len(top) > 8 else "")
+              + f" (of {len(pts):,} points). A blank is read as no "
+              "people of that cohort there.")
+    other = dropped + [str(c) for c in df.columns
+                       if c not in (xs, ys, "iso3") and c not in cohorts]
+    apply_compose(pts, compose, "points")
+    man = {"files": {}, "labels": list(cohorts), "crs": crs,
+           "points": int(len(pts)), "unparsed": [], "source": "points",
+           "blanks_as_zero": blanks, "fields_not_used": other}
+    print(f"[points] {len(pts):,} points, {len(cohorts)} cohort "
+          f"column(s), CRS {crs}"
+          + (f"; other fields not used: {', '.join(other[:8])}"
+             + (" ..." if len(other) > 8 else "") if other else ""))
+    return pts, man
+
+
+def _read_counts(col):
+    """(numbers, blank, text): a column as floats with blanks (None,
+    NaN, '' or spaces) as NaN, and which rows were blank and which were
+    text. A numeric column - every field machine 3 writes - takes the
+    fast road: no row of it can be text."""
+    if pd.api.types.is_numeric_dtype(col.dtype) \
+            and not pd.api.types.is_bool_dtype(col.dtype):
+        v = col.astype(float)
+        blank = v.isna()
+        return v, blank, pd.Series(False, index=col.index)
+    blank = col.isna() | col.astype(str).str.strip().eq("")
+    v = pd.to_numeric(col.where(~blank, None), errors="coerce") \
+        .astype(float)
+    return v, blank, v.isna() & ~blank
+
+
+def _as_numbers(col):
+    return _read_counts(col)[0]
+
+
+def _check_counts(df, cols, by=None):
+    """Refuse values that cannot be counts of people, naming each field
+    (or, in the long shape, each cohort) and how many."""
+    faults = []
+    for c in cols:
+        v, _blank, text = _read_counts(df[c])
+        neg = v < 0
+        inf = np.isinf(v.to_numpy(float))
+        for mask, what in ((text, "not a number"), (neg, "negative"),
+                           (pd.Series(inf, index=v.index), "infinite")):
+            if not mask.any():
+                continue
+            groups = (df.loc[mask, by].astype(str).value_counts()
+                      if by else pd.Series({str(c): int(mask.sum())}))
+            for name, n in groups.items():
+                eg = df.loc[mask & ((df[by].astype(str) == name) if by
+                                    else True), c].iloc[0]
+                faults.append(f"{name}: {int(n):,} {what} (e.g. {eg!r})")
+    if faults:
+        raise ValueError(
+            "The point table has values that cannot be counts of people "
+            "- " + "; ".join(faults[:10])
+            + (f"; and {len(faults) - 10} more" if len(faults) > 10
+               else "")
+            + ". A blank is read as nobody; these are not. Correct them "
+            "in the layer and run again.")
+
+
+def load_source(folders=None, points=None, points_crs=None,
+                compose=None, **kw):
+    """A folder of rasters, or the points machine 3 made from one."""
+    if points is not None:
+        return load_points(points, points_crs, compose=compose)
+    return load_folder(folders, compose=compose, **kw)
+
+
 # ------------------------------------------------------- to the engine
 def _warn_aliasing(pts, unit_size, say=print):
     """Say so when the analysis grid beats against the source lattice."""
@@ -661,6 +999,7 @@ def to_long(pts, value_name="population", key_name="cohort"):
 
 def folder_to_cells(folders, weight: str | None = None,
                     compose: dict | None = None,
+                    points=None, points_crs=None,
                     unit_size: float = 100.0,
                     epsg: int | None = None,
                     groups: list[str] | None = None,
@@ -685,7 +1024,10 @@ def folder_to_cells(folders, weight: str | None = None,
     from .cells import build_cells
     from .projection import suggest_projection
 
-    pts, man = load_folder(folders, compose=compose, **kw)
+    # points= : the table machine 3 wrote, instead of the folder
+    # (v1.60.1) - the same people, so everything below is unchanged.
+    pts, man = load_source(folders, points, points_crs, compose=compose,
+                           **kw)
     # `year` names WHICH YEAR IS BEING ANALYSED. It does not filter
     # the columns loaded - every year stays available - it confines
     # the REFERENCE POPULATION below, so a run of 2020 gives the same
@@ -699,6 +1041,21 @@ def folder_to_cells(folders, weight: str | None = None,
     # people. One rule now, in measurement_columns().
     derived = tuple(compose or {})
     value_cols = measurement_columns(pts, derived=derived)
+
+    asked = weight
+    automatic = cannot = None
+    if weight is None and len(value_cols) > 1:
+        word, why = infer_everybody(
+            value_cols, year=normalise_year(kw.get("year")),
+            stems=list((man.get("files") or {})))
+        if word:
+            automatic, weight = why, word
+            print(f"[folder] No population was named, so EVERYBODY - "
+                  f"weight='{word}': {why}. To count another population, "
+                  "name it in 'Which people define the neighbourhood'.")
+        else:
+            cannot = why
+    picked_for_record = None
 
     # WEIGHT MAY BE A WORD (John, on his real download): "it asks for
     # the population, but all are populations". With sixty cohorts
@@ -756,21 +1113,42 @@ def folder_to_cells(folders, weight: str | None = None,
         pts["_people"] = pts[picked].sum(axis=1)
         print(f"[folder] weight '{weight}' = the sum of {len(picked)} "
               f"columns, {pts['_people'].sum():,.0f} people")
+        picked_for_record = (weight.lower(), list(picked))
         weight = "_people"
     elif weight is None:
         if len(value_cols) != 1:
+            # THE CHOICES THIS FOLDER CAN TAKE, not the choices some
+            # folder could. v1.59.1, John in Pro: a folder fetched by
+            # 5a holds f_ and m_ only - the t_ layers are sums, left
+            # out by default - and this message offered 'total', which
+            # would then have been refused for want of t_ files.
+            has_t = any(c.startswith("t_") for c in value_cols)
+            has_fm = (any(c.startswith("f_") for c in value_cols)
+                      and any(c.startswith("m_") for c in value_cols))
+            opts = []
+            if has_t:
+                opts.append("  weight='total'  - everybody, summed from "
+                            "the t_ columns (ages do not overlap, so "
+                            "nobody is counted twice)")
+            if has_fm:
+                opts.append("  weight='sexes'  - everybody, summed from "
+                            "the f_ and m_ columns"
+                            + (" instead" if has_t else
+                               " (this folder has no t_ files, so this "
+                               "is the way to say everybody)"))
+            opts.append(f"  weight='{value_cols[0]}'  - or name one "
+                        "column, to make that cohort the population")
             raise ValueError(
                 "Which people should define the neighbourhood? This "
                 f"folder holds {len(value_cols)} population columns and "
                 "k is a number of PEOPLE, so something has to say which "
-                "ones.\n"
-                "  weight='total'  - everybody, summed from the t_ "
-                "columns (ages do not overlap, so nobody is counted "
-                "twice)\n"
-                "  weight='sexes'  - everybody, summed from f_ and m_ "
-                "instead\n"
-                "  weight='t_15_2026'  - or name one column, to make "
-                "that cohort the population\n"
+                "ones"
+                + (f" - and it cannot be taken as everybody, because "
+                   f"{cannot}" if cannot else "")
+                + ". In QGIS or ArcGIS Pro, type the word into the box "
+                "'Which people define the neighbourhood' (under "
+                "Advanced); from Python, pass weight=.\n"
+                + "\n".join(opts) + "\n"
                 f"Columns found: {', '.join(value_cols[:8])}"
                 f"{' ...' if len(value_cols) > 8 else ''}")
         weight = value_cols[0]
@@ -802,11 +1180,32 @@ def folder_to_cells(folders, weight: str | None = None,
 
     if _projected:
         _here = _CRS.from_user_input(_src).to_epsg()
-        epsg = int(epsg) if epsg else _here
-        print(f"[folder] already projected ({_src}); "
-              + (f"reprojecting to EPSG:{epsg}" if epsg != _here
-                 else "no reprojection needed"))
         adv = None
+        if not epsg and _here is None:
+            # A PROJECTION WITH NO EPSG CODE (v1.60.2, external review
+            # of 1.60.1, P1): a custom transverse Mercator, a QGIS
+            # USER: system, a projection only Esri's WKT describes.
+            # This took to_epsg()'s None as the target and failed
+            # with "Invalid projection: EPSG:None" - for a point layer
+            # and for a folder alike. The outputs and every door speak
+            # EPSG codes, so such data is reprojected into the
+            # suggested projection, exactly as data in degrees is.
+            from pyproj import Transformer as _T
+            _g = _T.from_crs(_src, "EPSG:4326", always_xy=True)
+            _lon, _lat = _g.transform(pts["lon"].to_numpy(float),
+                                      pts["lat"].to_numpy(float))
+            adv = suggest_projection(pd.DataFrame({"lon": _lon,
+                                                   "lat": _lat}))
+            print(f"[folder] the coordinates are in a projection with "
+                  f"no EPSG code ({_CRS.from_user_input(_src).name}); "
+                  "they are reprojected into the suggested one below. "
+                  "Choose another in the projection box if you prefer.")
+        else:
+            epsg = int(epsg) if epsg else _here
+            _what = _src if _here else _CRS.from_user_input(_src).name
+            print(f"[folder] already projected ({_what}); "
+                  + (f"reprojecting to EPSG:{epsg}" if epsg != _here
+                     else "no reprojection needed"))
     else:
         adv = suggest_projection(pts)
     if adv is not None:
@@ -872,6 +1271,15 @@ def folder_to_cells(folders, weight: str | None = None,
         "name": adv.name if adv is not None else str(_src),
         "warnings": list(adv.warnings) if adv is not None else []}
     man["weight_column"] = weight
+    # WHO k COUNTED, in the record of the run as well as in its log
+    # (v1.59.2): above all when nobody named them.
+    word, cols = picked_for_record or (weight, [weight])
+    man["reference_population"] = {
+        "weight": word, "columns": cols,
+        "chosen": ("automatically" if automatic else
+                   "as asked" if asked is not None else
+                   "the only population column"),
+        "why": automatic}
     print(f"[folder] {len(pts):,} points -> {len(cd):,} cells of "
           f"{unit_size:g} m, holding {cd.n.sum():,.1f} people")
     return cd, man

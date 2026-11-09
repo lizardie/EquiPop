@@ -1,6 +1,94 @@
 # PROPOSALS.md — funding applications, and what the code owes them
 
-**Last updated: 1.57.1, 13 October 2026.**
+**Last updated: 1.63.5, 8 November 2026.**
+*Reviewed at 1.63.5: NO CLAIM CHANGES. A Pro dialog fix; the engine and every figure in this file are unchanged.*
+*Reviewed at 1.63.4: NO CLAIM CHANGES. A Stata-side change to what the doctor says about the Python; the engine is unchanged.*
+*Reviewed at 1.63.3: NO CLAIM CHANGES. A Stata-side fix to the doctor's output; the engine is unchanged.*
+*Reviewed at 1.63.2: NO CLAIM CHANGES. A Stata-side fix: the commands
+now load, and explain themselves, on a Python that cannot take the
+engine. The engine and every figure in this file are unchanged.*
+*Reviewed at 1.63.1: NO CLAIM CHANGES. SI, the figure this file uses,
+is unchanged; the place-weighted profile now weighs places equally, and
+its input is checked. A first-class segregation command is logged as a
+proposal (BACKLOG 454) - worth naming if a proposal promises the
+multiscalar profile to Stata users.*
+*Reviewed at 1.63.0: NO CLAIM CHANGES. The isolation figures this file
+leads with (13.6%, sixfold) are the 2015 paper's SI - the average k-share
+a group's members experience - which 1.63.0 leaves exactly as it was.
+What changed is the segregation profile's other indices at k: they now
+count every person's neighbourhood once (every place once is an
+option), so H and Atkinson are bounded at zero as a reviewer would
+expect. Fractional cell sizes are accepted, which widens the MAUP
+ladder downward for fine-grained data.*
+*Reviewed at 1.62.1: NO CLAIM CHANGES. theta(k) corrected after an
+external review (weights, chance, memory, settings) and now reports a
+permutation p-value - still 'in test', still not to be reported as
+results. The Stata package is ready for SSC with help for all three
+commands.*
+*Reviewed at 1.62.0: ONE CLAIM MOVES FROM 'MAY NOT' TO 'IN TEST'. The
+scale profile theta(k) - how much of an outcome's inequality lines up
+with neighbourhood type, at each k, and how much of that is on top of
+family background - is built (equipop.theta_profile, Python only) and
+recovers planted truths on a synthetic town, including that
+'neighbourhood alone' can be family composition. MAY say it is
+implemented and being tested on register data. MAY NOT yet report
+results, nor present it as causal, nor as in the GIS tools. The
+1.55.0 cautions stand: opportunity only if the types are circumstances;
+ecological unless the people are individuals with their own outcomes
+and backgrounds.*
+*Reviewed at 1.61.4: NO CLAIM CHANGES. Radius results no longer
+depend on the search window in a rare boundary case (up to 0.17%
+short at the edge of a tiled 4.5 km run, now exact); the claim that
+the window affects speed only is now true and tested.*
+*Reviewed at 1.61.3: NO CLAIM CHANGES. Python 3.11 is now the minimum;
+the suite passes on Python 3.15.*
+*Reviewed at 1.61.2: NO CLAIM CHANGES.*
+*Reviewed at 1.61.1: NO CLAIM CHANGES. Country-scale searches are
+about five times faster, with results identical bit for bit.*
+*Reviewed at 1.61.0: STRONGER, NO NEW CLAIM. Multi-country regions
+are read with each person against their own nation (no seams at
+borders), larger regions run tiled, and the methods are written out
+in METHODS_RATES.md for reviewers.*
+*Reviewed at 1.60.3: NO CLAIM CHANGES. Country-scale runs of the
+rates now take minutes (Turkey at 1 km, John, 19 October).*
+*Reviewed at 1.60.2: NO CLAIM CHANGES. The rates now warn when a
+folder is not the whole country, and the WPP data's licence is set out
+in THIRD_PARTY_NOTICES.md - both strengthen what is already claimed.*
+*Reviewed at 1.60.1: NO CLAIM CHANGES. Machine 4 reads machine 3's
+point layer as well as the folder; the same numbers either way.*
+*Reviewed at 1.60.0: ONE CAPABILITY MAY BE CLAIMED, WITH ITS LIMITS.
+Machine 4 estimates local life expectancy at 60, TFR, CBR and CDR from
+age-sex rasters anywhere in the world, with UN WPP 2024 as the national
+reference. Claim them as MODEL-BASED predictors, validated on simulated
+populations; do not claim them as measured, and do not claim life
+expectancy from birth, 30 or 50 at all until John's validation against
+Swedish municipalities is back.*
+*Reviewed at 1.59.2: NO CLAIM CHANGES; ONE MAY BE ADDED SOON. An
+outside review ran the full test suite on Windows for the first time
+(1,905 passed, 9 failed on 1.59.1; all 9 fixed). John's own Windows
+run of 1.59.2 came back clean on 18 October - 1,943 passed, 0 failed,
+Windows 11, Python 3.13 - so "tested on Linux and Windows" may now be
+said.*
+*Reviewed at 1.59.1: ONE LIMIT LIFTS. Fetching in Pro has now run on a
+real machine (John, 16 October), so "tested in simulation" can go. The
+lattice join in Pro, by contrast, has only now become reachable - claim
+it for QGIS, and for Pro only once it has run there.*
+*Reviewed at 1.59.0: THE 1.58.0 LIMIT NARROWS. Fetching by selection
+may now be claimed for QGIS and ArcGIS Pro, and as run against the live
+WorldPop and Geofabrik services (16 October). Past-year OpenStreetMap
+layers written from .pbf were confirmed live in QGIS the same afternoon
+(John, Liechtenstein 2020). For Pro, say "built and tested in
+simulation" until a real Pro run is back.*
+*Reviewed at 1.58.1: NO CLAIM CHANGES. The fetch has now run against
+WorldPop for real, once, and stopped on a slow server; it now tries
+again. Still say QGIS, and still do not claim the live check until it
+is back.*
+*Reviewed at 1.58.0: ONE CLAIM MAY BE ADDED, WITH ITS LIMIT. A proposal
+may say that WorldPop and OpenStreetMap data are fetched by selection
+from a catalogue, every file checked against the publisher's own
+checksum where one exists and recorded with a re-fetchable recipe. It
+should say QGIS, not Pro, and should not claim it has run against the
+live services until John's live check (BACKLOG 414) is back.*
 *Reviewed at 1.57.1: NO CLAIM CHANGES. An external review approved the
 1.57 analytical code; the fixes are to the release process. A proposal
 may now say that every published test count states the environment

@@ -93,7 +93,56 @@ because machine 3 stores tiles that way and says so in its manifest.
 11. **406** — reachability witnesses are substrings, so a renamed
    argument still satisfies them (405's break-check proved it). An
    AST read of every row; its own release.
-12. **412** — a fractional k from Python (k=30.5) writes `Ng_inc_30.5`,
+12. **414** — FETCH, REDESIGNED AROUND A CATALOGUE. QGIS 1.58.0, Pro
+   1.59.0 (5a, 5b, 5c). EVERY PATH NOW LIVE-CONFIRMED IN QGIS (the last,
+   .pbf -> GeoPackage, by John on Liechtenstein, 16 Oct), and 5a/5c ran
+   in real Pro (16 Oct). Then speed (parallel downloads), GHSL rows.
+12a. **416** — rates and life expectancy in machine 4, BUILT in
+   1.60.0. Waiting on John's validation against Swedish municipalities;
+   then a user-supplied national table and the e0 growth correction.
+12b. **415** — after 1.59.2: John's run of tools/windows_check.py (the
+   suite on Windows - the review found 9 failures there that Linux could
+   not show). HIS FIRST RUN (18 Oct, Windows 11, Python 3.13.9) tested
+   nothing: all 1,974 tests stopped at setup on "Access is denied" for
+   pytest's own AppData\Local\Temp\pytest-of-<user> folder. The script
+   now gives pytest a scratch folder of its own (--basetemp) and removes
+   it (tests/test_windows_check.py); the fixed script went to John
+   directly, and ships in the next release. HIS SECOND RUN, SAME DAY:
+   1,943 passed, 33 skipped, 0 failed - the first clean run of the
+   suite on Windows (Windows 11, Python 3.13.9, numpy 2.5.2, pandas
+   2.3.3; no geopandas or pyogrio, so the .pbf tests skipped). It also
+   showed what Linux cannot yet: about 5,600 NumPy 2.5 warnings,
+   "Setting the shape on a NumPy array has been deprecated", pointed at
+   our `r.read(1)` lines (rasterfolder.py:470, slope.py:107) - most
+   likely raised inside rasterio 1.4.4's compiled reader, which Python
+   then reports at the nearest Python line. When NumPy turns that
+   into an error, reading rasters breaks until rasterio is updated.
+   Check rasterio's release notes before then; it belongs in the
+   warning baseline.
+   LIVE CHECK OF 1.59.2, 18 OCT (John, Anaconda, installed 1.59.2):
+   every step OK through the new redirect-checking opener - 88 real
+   requests to WorldPop (hub API, data server) and Geofabrik (index,
+   HEAD, Range, .md5), none refused, none retried. Two WorldPop files and
+   Sweden's railways (five members, each against the zip's CRC-32)
+   fetched with the per-block size and Cancel checks in place; verify:
+   7 unchanged. So "WorldPop and Geofabrik answer directly" is observed,
+   not assumed. The .pbf step skipped (no pyogrio in Anaconda), as on
+   16 October; it was confirmed in QGIS that day.
+   AND THE BLANK-POPULATION DEFAULT, 18 OCT: John ran machine 3 on a 5a
+   folder with the box empty - "works well". Every 1.59.2 change has
+   now run on his machine. Also: put windows_check.py
+   where it can be found - it was inside the working-tree zip inside the
+   release zip. Then a WARNING BASELINE (about 760 warnings on Linux, every one
+   the same rasterio deprecation - `Affine * Affine` in rasterio's own
+   transform.py - so a new warning is invisible among them; filter that
+   one narrowly and fail on anything new); redirect checks and https-only
+   for the OLDER download path (5d: fetching._get_file and fetch.py,
+   which still follow any redirect and accept http); and the tiled run's
+   manifest does not yet carry reference_population.
+13. **413** — a WHOLE-PLANET machine 3 run cannot work as built. Four
+   causes, found from John's crashed Pro run; items (a) and (b) are
+   the small patch, the rest are their own releases.
+14. **412** — a fractional k from Python (k=30.5) writes `Ng_inc_30.5`,
    which the describer cannot read: no legend line, no alias, no
    [decompose] summary. The doors refuse fractional k, so only
    scripts meet it. Decide whether the engine accepts it at all.
@@ -3623,6 +3672,793 @@ because machine 3 stores tiles that way and says so in its manifest.
   the suite would pass. That is the guard written after inventory.py
   and vectorjoin.py shipped with no way to reach them, working on its
   own author.
+
+- 462 | DONE v1.63.5, 8 NOVEMBER 2026 | PRO SAID "IGNORED" AND READ
+  THE BOX ANYWAY (John, field, 1.63.4, a Polish OSM POI layer, Tool 1).
+  He wanted every POI as the reference population and a few types as
+  the group. His first run had the types in "Types to INCLUDE in the
+  reference population" (the wrong box), so he chose "every point
+  counts as one". Pro greyed the reference type field and table out,
+  printed "These boxes hold values that the rungs you chose do NOT
+  read, so they are IGNORED: catfield, reftable ... nothing in them
+  reaches the results", and died on that table: "These values are not
+  in the category field, so the reference population would be empty",
+  140 OSM types long. He could not empty the table: Pro had hidden it.
+  WHY. 146 (v1.29.6) lifted _boxes_for_rungs out "so the run can
+  consult the same map the dialog does", and nothing in the run ever
+  consulted it. _guard_rungs announced; execute() still handed every
+  box to _run_tool. The 146 test checked the announcement only, under
+  the name test_a_box_the_rung_does_not_read_is_announced_not_obeyed.
+  So for every release since 1.29.6 a greyed-out reference table could
+  restrict "every point counts as one", and a greyed-out group table
+  could add shares to "not measuring one" - silently whenever the
+  values happened to exist, loudly only when they did not.
+  NOW. _live_boxes(): the six type boxes (reference type field, table
+  and outside rule; treatment type field, group table, rest group) are
+  passed EMPTY off their rungs, in both Pro tools - what the QGIS door
+  has always done, so the doors agree. The grouped rung therefore
+  needs its own type field, or the reference one when that rung is in
+  use; it is refused in the rung's words otherwise, not left to give
+  distances and no shares. The count field (1a) and the group count
+  fields (2a) ARE still used off their rungs, as before in both doors
+  (scripts and saved models pass them with the default rungs), and
+  the warning now says USED, not IGNORED, and how to clear them. The
+  outside rule's default is no longer named on every first-rung run.
+  Both "not in the category field" refusals now name the field they
+  looked in, and add that the field is probably the wrong column.
+  OPEN, FOR JOHN: should 1a be dropped on "every point counts as one",
+  as the rung's name says? That changes numbers for anyone who passes
+  a count field with the default rung, so it is a decision, not a fix.
+  TESTS: tests/test_pro_hidden_boxes.py, 11, on the Pro stub - John's
+  dialog, a hidden table whose values DO exist (it must not restrict),
+  hidden groups, the statistics tool, the grouped-rung refusal and its
+  visible fallback, 1a and 2a said to be used, the default outside
+  rule quiet, the field named in both refusals. Seven guards broken on
+  purpose, seven caught. NOT REACHABLE HERE: real Pro.
+
+- 461 | DONE v1.63.4, 6 NOVEMBER 2026 | THE DOCTOR LOOKS FOR A PYTHON
+  THAT IS ALREADY THERE, AND SAYS THE WHOLE WAY OUT IN WORDS (John,
+  after Kit Baum's Mac: "if we lose Mac users because of their
+  unexperience with python - I think it is our loss"; then "yes please
+  make that change in equipop doctor - also write out clear
+  instructions of how to install what is needed directly in the doctor
+  message").
+  NOT THE FLOOR. Every EquiPop release has needed Python 3.10 or newer
+  (pyproject since the first commit, 25 August); 429 moved it to 3.11
+  on 23 October. Apple's 3.9.6 could never take any engine, and when
+  Kit installed 1.48.2 from SSC (330) pip gave him engine 1.49.1, so
+  his Stata used a newer Python then. A 3.9 floor would mean numpy
+  2.0, scipy 1.13 and pyproj 3.6 - all frozen - on a Python out of
+  support since October 2025, and engine code that does not parse
+  there. The barrier is the manual install, so that is what changed.
+  THE SEARCH. Doctor, setup and a refused run (machine 1, unit) look
+  where installers put Python - Mac: python.org, Homebrew, pyenv, uv,
+  ~/equipop-python; Windows: the PEP 514 registry,
+  %LOCALAPPDATA%/Programs/Python, the install manager's folder; Linux:
+  /usr/bin, /usr/local/bin, pyenv, uv - start each (-E, a standard-
+  library probe, at most 12, once per Stata session) and name the
+  best: one that already has an engine as new as the commands need
+  (then no setup), then one pip may install into, then the newest.
+  NEVER STARTED: Apple's own (/usr/bin/python3 on a Mac without the
+  developer tools opens an installer dialog), Anaconda and relatives
+  (README_STATA), ArcGIS Pro, QGIS, Windows Store shortcuts - named
+  in the report with the reason. NOT SUGGESTED: 32-bit, no shared
+  library, another processor than Stata's (Intel Homebrew on Apple
+  Silicon), 3.10 and older. An externally managed Python (Homebrew, a
+  distribution's) is offered through ~/equipop-python, a venv made
+  from it. A venv is keyed by its own path: its python links to the
+  base, so the real path alone merged the two.
+  NOTHING FOUND: per platform, the page, the button, what the
+  installer asks and the exact path to type. Python 3.13, because
+  python.org still ships plain installers for it on both platforms
+  (3.14 and newer on Windows go through the new install manager): Mac
+  /Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13;
+  Windows %LOCALAPPDATA%/Programs/Python/Python313/python.exe (on ARM64
+  Python313-arm64 and the ARM64 installer), with the advice to untick
+  the admin box for py.exe; Linux, a venv. Every route keeps the
+  restart BEFORE set python_exec (review of 1.63.2, F1). An ordinary
+  run on 3.10 never searches; it is not kept waiting.
+  ALSO: setup's "externally managed" branch said "install a plain
+  Python from python.org, point Stata at it, restart" - the order F1
+  ruled out, and a new Python for a user who has a good one. It now
+  gives the venv steps. And the .gitignore again: the 1.63.3 on GitHub
+  (cf4b0e5) carries the four-line file, so tests/test_gitignore.py
+  fails there; 1.63.4 restores it.
+  TESTS: tests/test_doctor_finds_python.py, 28 - the probe on this
+  machine's real Pythons (the one running, 3.9 and 3.10, Debian's
+  externally managed 3.12, a venv beside its base, a file that is not
+  a Python), and the words on a simulated Mac, Windows (x64, ARM64) and
+  Linux. The older block tests switch the search off unless asked, so
+  their wording checks do not depend on the machine. Twelve guards
+  broken on purpose (venv keying, the never-started list, the 3.10 run
+  searching, the ranking, the venv step order, the probe's field count,
+  the processor, the shared library, the session cache, the cap, the
+  engine floor, setup without the search): all twelve caught.
+  NOT REACHABLE HERE: real Stata on a real Mac - that Stata loads each
+  kind the search offers (python.org yes; a Homebrew venv per 319's
+  colleague; uv's untested) and how long the search takes there.
+
+- 460 | DONE v1.63.3, 5 NOVEMBER 2026 | "STATA NOT ALLOWED" FROM A COMMENT
+  (John's first Windows run of 1.63.2). `equipop doctor' printed "Stata
+  not allowed", then the rest of the ado's python block with >>> and ...
+  prompts, then a correct report. Stata expands macros in EVERY line of a
+  python block before Python sees it, comments and strings included.
+  459's comment quoted the doctor between backticks on a line that also
+  held "Apple's", so Stata read `: Stata had picked Apple' as a macro
+  FUNCTION. No test could see it: every block test runs the Python
+  directly, and Stata never reads it. Fixed: commands are written as
+  -equipop doctor- in both blocks; two older lines that Stata had been
+  silently rewriting (a docstring with `log using` beside "John's", a
+  comment holding `r(unit)') changed the same way; the rule is written at
+  the top of both blocks. tests/test_stata_block_without_numpy.py now
+  reads every python block of every .ado as Stata does and refuses any
+  local or global macro in it - broken with the 1.63.2 line put back,
+  and caught. The engine is unchanged.
+  AND THE REVIEW OF THE 1.63.2 BUNDLE (M1): its .gitignore had lost
+  build/, *.egg-info/, .mypy_cache/, .ruff_cache/ and arcgis/*.pyt.xml,
+  which 350 had added. Not a 1.63.2 edit: the repository's .gitignore
+  has held only the first four lines since its first commit, and 1.63.2
+  was the first tree rebuilt from a clone rather than from John's
+  folder, so the rules never reached git. Restored with their reasons,
+  and tests/test_gitignore.py keeps them (5 of 10 fail on the old file).
+  Nothing ignored is tracked today (git ls-files build *.egg-info
+  arcgis/*.pyt.xml is empty).
+  ALSO IN THAT REPORT, AND NOT A FAULT: LEFTOVERS - folders such as
+  ~umpy and ~cipy in site-packages, left by interrupted pip runs. That
+  section is the doctor working: close Stata, Python, QGIS and Pro and
+  delete them.
+
+- 459 | DONE v1.63.2, 5 NOVEMBER 2026 | THE STATA COMMANDS WOULD NOT LOAD
+  ON A PYTHON WITHOUT NUMPY (C. F. Baum, testing the SSC submission of
+  1.63.1 on a Mac). His Stata used Apple's developer-tools Python
+  3.9.6, and `equipop doctor' died with "No module named 'numpy'",
+  "error occurred while loading equipop.ado", r(7102). Cause: `import
+  numpy as np' at the top of equipop.ado's python: block, directly
+  under the comment forbidding it. Stata runs that block when it LOADS
+  the file, so every subcommand failed, doctor and setup included -
+  the two written for that machine. equipop_run.ado imported numpy and
+  the engine at load the same way. tests/test_stata_python_block.py
+  runs the block with numpy installed, so it could not see it.
+  Fixed: numpy is imported where it is used; a standard-library
+  _python_check() runs first in doctor, setup, machine 1 and unit.
+  3.11+ is silent. 3.10 is a legacy path - pip finds engine 1.61.0,
+  the last that allowed it, and the commands run on it (floor 1.48.0)
+  - with a warning, shown whole by doctor and setup and once per
+  session in short on an ordinary run. Below 3.10 nothing installs and
+  1.63's own code does not import (`list | None' at class definition,
+  cells.py), so the command stops and gives the steps; on a Mac it
+  names Apple's Python. Setup no longer runs pip there, where the only
+  answer was a "no matching distribution" that reads as a network
+  fault. Help: the floor, and the Mac case (tools/make_sthlp.py).
+  THE FLOOR STAYS 3.11 (John asked whether to allow older with a
+  warning): 3.9 cannot be warned past, 3.10 already is, and 3.10
+  reached end of life in October 2026 with numpy and scipy dropping
+  it. The whole 1.63.1 engine was run on 3.10 (all modules import; the
+  Malta teaching key reproduces exactly) to make sure 3.10 users lose
+  nothing they had.
+  THE EXTERNAL REVIEW OF THE FIRST 1.63.2 BUNDLE found four gaps, all
+  fixed before release: (F1) the recovery steps said
+  "set python_exec, then restart" - printed by a running Python, in a
+  session where Stata no longer allows the change; the restart now
+  comes first. (F2) `equipop unit' skipped the check and still said
+  "install into THAT one". (F3) the help was edited in the .sthlp, not
+  in make_sthlp.py, so regeneration would have removed it. (F4) an
+  ordinary run on 3.10 discarded the warning. (F5) the tests stopped
+  at the classifier. tests/test_stata_block_without_numpy.py: 14
+  tests at the command level, numpy, pandas, scipy and equipop
+  hidden - Apple's 3.9 with its wording, the order of the steps,
+  setup without pip, unit, machine 1, the 3.10 note once per session
+  and not after the doctor, equipop_run's message and note, the floor
+  equal to pyproject's, and no name defined differently in both ados'
+  blocks (they share one Python namespace in a Stata session). Every
+  fix broken on purpose and caught.
+  NOT REACHABLE HERE: real Stata, and a real Mac. Before SSC: Apple's
+  Python - doctor gives the steps, no r(7102); a python.org 3.12 -
+  setup, restart, doctor, a small run.
+
+- 454 | OPEN, 26 OCTOBER 2026 | A FIRST-CLASS SEGREGATION COMMAND (review
+  of 1.63.0, suggestion). The multiscalar profile is reached from Stata
+  only through a python block in the showcase. An equipop_seg command
+  and a QGIS/Pro table tool would serve the people the profile is for.
+  Proposal, not a fault; John's priority.
+- 453 | OPEN, 26 OCTOBER 2026 | THETA(K) AT REGISTER SCALE: TIME (review
+  of 1.63.0, risk). Memory no longer grows with the shuffles (440), but
+  99 shuffles per k is five times 1.62.0's 20, each a full pass over the
+  analysed people (twice with family). Before a full-register run:
+  benchmark a realistic synthetic N x k x family, add per-k progress,
+  and document a pilot setting (19) beside the inference setting (99+).
+- 452 | DONE v1.63.1, 26 OCTOBER 2026 | THE SEGREGATION PROFILE SAYS WHAT
+  IT DESCRIBES (review of 1.63.0, P2). The weighting lived only in
+  DataFrame.attrs, which a CSV drops - and the showcase writes a CSV.
+  Every row now carries weighting, global_share_P, valid_origins,
+  valid_people, excluded_people and note. Test: a CSV written and read
+  back still names its weighting.
+- 451 | DONE v1.63.1, 26 OCTOBER 2026 | CELL SIZE AND PERMUTATIONS GUARDED
+  EVERYWHERE (review of 1.63.0, P2). equipop_run checked only selfpot()
+  before Python, and its Python accepted any whole number: unit(-1)
+  through the same dispatch returned N_1 = 1, Dist_1 = 0 for every row
+  (reproduced) - plausible and meaningless - and 0, . and infinity
+  stopped as a KeyError. equipop's own guard was `unit' <= 0, which
+  Stata's . passes (it compares greater than every number). Now: both
+  ados refuse missing(unit) | unit <= 0 before Python; equipop_run
+  refuses a wperm() that is missing, below 1 or fractional (it was
+  int()-truncated); and the package checks the size itself -
+  cells.check_unit_size, called by grid_midpoints (every square grid),
+  dispatch, FrictionGrid and build_hex_cells. Tests: test_review_1_63_0.
+  Not reachable here: whether Stata's -confirm number- accepts "." -
+  the missing() test makes it not matter.
+- 450 | DONE v1.63.1, 26 OCTOBER 2026 | ORIGINS WITHOUT A NEIGHBOURHOOD
+  (review of 1.63.0, P2). With N_k = 0 or missing at some origins,
+  people-weighted Isolation left them out and SI kept their group
+  members in its denominator: 0.50 against 0.25 on two origins
+  (reproduced), breaking the Isolation = SI the release promised. Rule
+  chosen: such origins leave EVERY index at that scale, SI included,
+  and the row counts them (excluded_people) and says so in note. A
+  normal run gives every populated origin a neighbourhood, so nothing
+  moves there.
+- 449 | DONE v1.63.1, 26 OCTOBER 2026 | SEGREGATION INPUT CHECKED (review
+  of 1.63.0, P2). No group member anywhere gave warnings and NaN rows;
+  everybody in the group a ZeroDivisionError; no people warnings and
+  NaN; a group count above its total, negative and missing counts went
+  through (all reproduced). Now a SegregationError (a ValueError) names
+  the column and the scale: missing column, not numeric, infinite,
+  negative, group above total, missing local counts, nobody at all,
+  nobody or everybody in the group. A scale where every neighbourhood
+  holds none (or only) of the group gives an empty row with a note.
+  seg_indices refuses a non-positive total weight or a reference share
+  outside (0, 1). Tested with warnings as errors.
+- 448 | DONE v1.63.1, 26 OCTOBER 2026 | "CELLS" NOW COUNTS EVERY PLACE ONCE
+  (review of 1.63.0, P1). 1.63.0's weighting="cells" kept the
+  neighbourhood size N_k as the weight (the 1.62.1 formula) while every
+  text, and John's choice, said every place counts once. Under the
+  default proportional overshoot every N_k IS k - checked on the test
+  data, to 1e-14 - so the two agree and no default-mode number moves;
+  under whole or sampled overshoot N_k varies (50 to 309 at k = 50) and
+  the option answered another question: on two places with shares 0.2
+  and 0.8 and neighbourhoods of 10 and 1,000 people it gave P_ref
+  0.794, D 0.036, H 0.016 where equal places give 0.5, 0.6 and 0.278.
+  Now: weight 1 for every populated origin with a neighbourhood;
+  isolation weighs each place by its group share (what the classical
+  formula gives for equal-sized units). The N_k-weighted variant is not
+  offered; one line adds it under its own name if John wants it.
+- 447 | DONE v1.63.0, FOUND 26 OCTOBER 2026 | EFFORT RINGS SPLIT BY THE
+  LAST BIT OF A SUM. The effort engines (friction, slope) gathered a ring
+  by EXACT equality of effort; the radial engines use overshoot.RING_TOL,
+  which was named so that the effort engines "cannot quietly pick a
+  different one" - and they never used it. Dijkstra adds the same steps
+  in different orders along different paths, so cells of truly equal
+  effort could differ in the last bit (5.242640687119285 and ...286 for
+  1 + 3*sqrt(2) and (1 + sqrt(2)) + 2*sqrt(2)) and became two rings, the
+  first admitted whole: a direction chosen by rounding. Found because a
+  town in 7 m cells and the same town in 100 m cells disagreed on the
+  slope engine. Now chained within RING_TOL, as the radial engines.
+  Effect on the Stata test data with a barrier band: 3 to 49 of 10,883
+  rows change at k = 50/200/800; no mean share moves by more than
+  0.00001, the mean Dist_800 by under 1 m of 2,500. On a hilly DEM,
+  none. Test: test_friction.py, equal efforts reached by different
+  steps are one ring.
+- 446 | DONE v1.63.0, FOUND 26 OCTOBER 2026 | THE EFFORT ENGINES' GRID AT
+  ODD AND FRACTIONAL SIZES (439's remainder, found writing 444's tests).
+  FrictionGrid laid its domain out from int(lowest coordinate) and
+  int(unit_size), and found each cell by (x - x0) // u. With an odd size
+  across 0 (or wholly west or south of it) the first midpoint, -5.5,
+  became -5: the first column sat at index -1, which numpy wraps to the
+  far EAST edge, and the domain was one column short. A 1 m town across
+  0 gave other answers than the same town moved 10 km (190 of 400
+  shares at k = 5). Also: friction's output coordinates were int()
+  (the bridge then could not map .5 rows back), slope sampled its DEM
+  at midpoints rebuilt from int(unit_size), and access and fca found
+  their nodes by the same corner arithmetic. Now one rule:
+  FrictionGrid.cols_rows / node_of, column floor(x / u); the DEM is
+  matched by column and row. 100 m and 1 km studies have whole
+  midpoints and are unchanged. ONE EDGE THAT DOES CHANGE: a barrier
+  table given at cell CORNERS (the documented convention, and what
+  every door builds, is midpoints) used to land on the cell east or
+  west of each corner depending on which table held the lowest
+  coordinate - and when it was the barrier table, the slope engine's
+  DEM was sampled at corners and matched nothing, so the run was flat
+  (checked against the 1.62.1 wheel: "36 cells outside DEM coverage ->
+  altitude 0.0", every effort 1). A corner now always belongs to the
+  cell north-east of it. Tests:
+  test_odd_cells (friction and slope across 0), test_fractional_cells
+  (access and fca).
+- 445 | DONE v1.63.0, 26 OCTOBER 2026 | FRACTIONAL CELL SIZES ALLOWED.
+  John: "as determined earlier". Refused in every door since 1.29.8
+  (155) because integer centres made a 2.5 m grid's spacing 2 and 3;
+  exact midpoints (439) removed that reason. Lifting it found what
+  still rounded: 446 (the effort grid); the fast engines and the stats
+  ring rounded OUTPUT coordinates to 2 decimals (0.35000000000000003
+  came back 0.35 and the bridge found no cell for it; at 1 cm two cells
+  would come back as one) - now as stored; the ring engine (run_knn)
+  found neighbours by rebuilding midpoints as e0 + dx * step, which at
+  0.1 m is not the stored float - now by column and row. THE PROOF IS
+  SCALE (tests/test_fractional_cells.py): a town in 2.5, 0.1 and 0.3 m
+  cells gives exactly what it gives in 100 m cells, distances scaled,
+  through counts, stats, friction and slope in all three overshoot
+  modes, the ring engine, fca, LISA, access and fca's effort reach; and
+  Stata's equipop on the test data shrunk 32 times at unit(3.125)
+  gives what unit(100) gives. Doors: QGIS (both tools), Pro, Stata and
+  rungs.check_cell_size accept any finite size above 0; zero and less
+  still refused; labels no longer say "whole numbers only"; the help
+  says fractions work. equipop_run never refused one and now agrees.
+  STATA ON AN OLDER ENGINE: eqp_min_engine stays at 1.48.0 (331/385 -
+  a whole size loses nothing on an older engine), so both ados refuse
+  a FRACTIONAL unit() in words when the engine predates 1.63.0, which
+  would stop at a rounded coordinate or run the effort engines at the
+  rounded size. Tested against a stand-in 1.62.1.
+  NOTE, a limit not a bug: one ring is distances within RING_TOL
+  (1e-6 map units) of each other, so rings stay distinct out to about
+  500,000 x the cell size in cells - 50,000 cells at 0.1 m.
+- 444 | DONE v1.63.0, 26 OCTOBER 2026 | SEEDED-DRAW CELL IDENTITIES
+  COLLIDED IN PAIRS. John: "fix according to suggestion". Every engine
+  named a cell round(midpoint / unit); midpoints are k + 0.5 widths and
+  round-half-to-even sends 1.5 and 2.5 both to 2, so each 2 x 2 block
+  shared one random key. Worse than proposed: on a 3 x 3 town at
+  k = 65 (crossing ring = the mirror pair at sqrt(5)) all forty seeds
+  gave the same cell in every engine, and the engines disagreed which
+  (counts took g = 7, stats/friction/slope g = 5). The fix proposed,
+  floor(), mends squares but left 15% of hexagons (hex.py) sharing a
+  name, so overshoot.grid_identity counts HALF widths:
+  round(2 * centre / u) - squares 2k + 1, hexagons whole across and
+  sqrt(3) * row up. Every engine calls grid_identity. Measured on the
+  Stata test data: a quarter of origins' sampled results move, by what
+  a new seed moves them (0.0017 in the share at k = 200; reseed 0.0017),
+  no average by more than 0.0001. Sampled draws change AS IF RESEEDED;
+  nothing else changes. No switch back (John did not say he had
+  published sampled results). Tests: tests/test_cell_identity.py.
+- 443 | DONE v1.63.0, 26 OCTOBER 2026 | THE SEGREGATION PROFILE, WEIGHTED
+  BY PEOPLE. John: "do as suggested", and "should 1|2 be an option for
+  the user to decide, with 1 as default?" - yes. seg_profile(...,
+  weighting="people") (default): every person's neighbourhood counts
+  once (origin cells weighted by their own people, exposure weights the
+  group's own members, so isolation at k IS the 2015 paper's SI);
+  weighting="cells": every place counts once. Both measured against
+  the units' OWN weighted mean share (P_ref, reported), which is what
+  bounds H and Atkinson at 0. Showcase section 8: H was -0.020, -0.029,
+  -0.027; now +0.048, +0.038, +0.020. D, Gini and isolation move with
+  the weights; SI does not move at all (.4036, .2216, .2002, .1930).
+  The local row (a true partition) is unchanged. Tests:
+  tests/test_segregation_weighting.py.
+- 442 | DONE v1.62.1, 26 OCTOBER 2026 | THE STATA FILES FOR SSC. Help for
+  equipop_run and equipop_knn (there was none); help gives an address,
+  references and related commands; showcase and example no longer
+  name 1.46.4 or advise Anaconda; both Stata archives built from the
+  pkg's f lines. tests/stata_sim.py runs the shipped Python halves
+  against the shipped data through a stand-in sfi: every showcase
+  EXPECT holds; equipop_run reaches all engines. Not reachable here,
+  still John's: a real-Stata run with `set varabbrev off`, and a fresh
+  `ssc install`.
+- 441 | DONE v1.62.1, 26 OCTOBER 2026 | THETA(K): GROUPS, DEGENERATE DATA,
+  SETTINGS, AND JOHN'S TWO METHOD RULINGS (review of 1.62.0, P2 and
+  questions). The completing person stays in its group (300 values ->
+  10 x 30); constant outcome and unusable character refused in words,
+  a k with nobody gives an empty row with a note; fractional and
+  negative settings refused. The no-groups check fits the outcome, not
+  its log (bounded; 1.046 -> 1 in the exact case); 95th percentile and
+  permutation p-value per k, 99 shuffles by default.
+- 440 | DONE v1.62.1, 26 OCTOBER 2026 | THETA(K) WEIGHTS AND CHANCE
+  (review of 1.62.0, P1 x3). Implicit context takes `weight`; shuffles
+  move people (fractional weights: chance columns empty, said); one
+  shuffle at a time, so memory does not grow with them.
+- 439 | DONE v1.62.1, 26 OCTOBER 2026 | ODD CELL SIZES ACROSS ZERO (review
+  of 1.62.0, P1; pre-existing). int() truncation merged the cells either
+  side of 0. cells.grid_midpoints / exact_coords everywhere; even sizes
+  unchanged; translation-invariance tests through three engines.
+- 438 | DONE v1.62.0, 25 OCTOBER 2026 | TOOLS 3-6 HIDDEN UNTIL SHOWN.
+  John: one plugin for everybody, "the same except for ONE detail - the
+  visualisation of the 3 and up tools", default hidden, "please indicate
+  in help etc., how it can be lifted". equipop.doors.toolset holds the
+  rule and the saved choice (one JSON file per user, shared by QGIS and
+  Pro; EQUIPOP_SHOW_ALL_TOOLS overrides). Tool 0 in both doors. QGIS:
+  HideFromToolbox flag, every tool still registered (models keep
+  working), tool 0 runs NoThreading and refreshes the provider. Pro: the
+  list filtered, `all_tools` keeps every tool for the help files and the
+  tests, refresh to see a change. Any failure shows everything. Not
+  done, and why: separately named plugins (IT approval, QGIS's
+  experimental flag) - John chose the switch.
+- 437 | DONE v1.62.0, 25 OCTOBER 2026 | "READ THE RATES AGAINST" IN THE
+  MAIN DIALOG of machine 4 (QGIS box 1f; Pro beside the rates). Under
+  Advanced since 1.61.0, and John had forgotten it existed.
+- 436 | BUILT v1.62.0 FOR A TEST ROUND, 25 OCTOBER 2026; DOORS OPEN |
+  theta(k) - 405's STEP 4. equipop.theta_profile: the between-type
+  share of an outcome's inequality (MLD, or Theil with zeros), with
+  types = equal-sized groups of the neighbourhood character at each k.
+  JOHN'S RULINGS for the round: 10 groups, low education as the
+  character, family background (known for people under ~40) as the
+  second circumstance. Reports beside theta: the no-groups share
+  (Ferreira-Gignoux, quadratic in the character), a SHUFFLED noise
+  floor, the smallest group, and on top of family (types = groups x
+  family, minus family alone; its floor shuffles within family). Own
+  cell left out by default. Decided from a synthetic town with planted
+  truths, shown to John first: the peak sat at the planted scale
+  whichever way types were formed; 3/5/10/20 groups gave 73/85/92/95%
+  of the no-groups value; fixed cut-offs emptied their outer groups as
+  k grew (5 types -> 3) and are not offered; 100 groups on 2,000
+  people gave 5.7% from noise alone. Python only: QGIS, Pro and Stata
+  doors wait on the round (the matrix carries their witnesses).
+- 435 | DONE v1.61.4, 23 OCTOBER 2026 | PYTHON 3.11-3.15 CLASSIFIERS.
+  Labels for PyPI only (a pure-Python wheel). Every version listed is
+  run by the build record; a test keeps the list starting at the floor
+  with no gaps.
+- 434 | DONE v1.61.4, 23 OCTOBER 2026 | ADO BANNERS CARRY THE RELEASE.
+  `which equipop_knn` said v1.35 and `which equipop_run` EquiPop 1.6.
+  Both banners now move with bump_version, tested.
+- 433 | DONE v1.61.4, 23 OCTOBER 2026 | WORDING (review of 1.61.3, P3).
+  The build record lists every OTHER file (the release note is added
+  after it); the reviewer brief points to the public GitHub history
+  instead of promising a clone.
+- 432 | DONE v1.61.4, 23 OCTOBER 2026 | THE WINDOWS CHECK MISSED PYYAML
+  (review of 1.61.3, P2). pyyaml joined the test extra in 1.61.3 and
+  not the checker's list, so the citation checks skipped in silence.
+  Now needed, named as pip knows it; cffconvert reported, never
+  suggested (it pins jsonschema<4).
+- 431 | DONE v1.61.4, 23 OCTOBER 2026 | 0/0 IN THE RADIUS SHARE (review
+  of 1.61.3, P3). Guarded on the population rather than the share's
+  own denominator: NaN either way, but 37 RuntimeWarnings a suite run.
+- 430 | DONE v1.61.4, 23 OCTOBER 2026 | A RADIUS DEPENDED ON THE SEARCH
+  WINDOW (review of 1.61.3, P1). A window ending exactly on the radius
+  was trusted although the ring of equal distances could continue
+  beyond it; both engine paths shared the rule, so comparing them
+  could not show it. Six cells in a cross: N_r100 = 3 instead of 5.
+  On a 100 m lattice the automatic window never met it (300 m - 2 km);
+  tiled runs (fixed 4,096-cell window) did at 4.5 km, 24 of 8,100
+  cells, up to 0.17% short. `<=` now, on both paths, and
+  test_radius_window.py compares every short window with the whole map.
+- 429 | DONE v1.61.3, 23 OCTOBER 2026 | PYTHON 3.11 IS THE FLOOR.
+  3.10 reaches end of life in October 2026; 3.11 is the oldest Python a
+  current ArcGIS Pro ships. pyproject, MANUAL, MANUAL_TOPICS, the
+  reviewer brief and the Stata door's pip advice, kept equal by a test.
+- 428 | DONE v1.61.3, 23 OCTOBER 2026 | CITATION.cff INVALID SINCE
+  1.60.2: `license: CC-BY-3.0-IGO` on the WPP entry is not in CFF
+  1.2.0's licence list. Moved to notes. The cffconvert check had
+  skipped in every release run; cffconvert is now in the release
+  venvs (NOT the `test` extra: it pins jsonschema<4, which would
+  downgrade a user's Jupyter), pyyaml in the extra, and a regex check
+  needs neither.
+- 427 | DONE v1.61.3, 23 OCTOBER 2026 | NO IN-PLACE DROP. pandas 3.1
+  (what Python 3.15 installs) deprecates `drop(inplace=True)`; machine
+  4's rate step used it twice. The functions return the trimmed frame.
+- 426 | DONE v1.61.3, 23 OCTOBER 2026 | UTF-8 BY NAME on every text
+  file EquiPop opens. Python 3.15 defaults to UTF-8, older Pythons on
+  Windows to cp1252: the .meta.txt differed by Python, and a Turkish
+  name could not be written at all on Windows (QGIS lost the file).
+- 425 | OFFERED, AWAITING JOHN | (a) e0/e30/e50 ANCHORED AT 60 beside
+  the unreliable ones; (b) PER-COHORT k for life expectancy (distance to
+  the k nearest of each band; density ratios). HANDOVER 0ah.
+- 424 | DONE v1.61.2, 19 OCTOBER 2026 | EVERY FAST-ENGINE SETTING
+  BATCHED: decay, radii, sampled, long rings. Bit for bit with _solve.
+- 423 | DONE v1.61.1, 19 OCTOBER 2026 | THE FAST ENGINE IN CHUNKS, AND A
+  PROGRESS LINE. _solve_batch, bit for bit with _solve (the reference;
+  tests/test_batched_engine.py). About 5x on the search. Progress per
+  tenth of a pass over 20,000 origins. (Decay, radii, `sampled` and
+  long rings followed in 1.61.2 - 424.)
+- 422 | DONE v1.61.0, 19 OCTOBER 2026 | MACHINE 4 FOR MERGED REGIONS.
+  (a) A tiles box in both doors (the engine has out_dir already). (b)
+  Each person read against their OWN country as the default, the
+  cell's country as the option: per-cell coefficients from the cell's
+  own country, so the neighbourhood sums ARE the pooled estimators;
+  exactly today's formulas within one country (HANDOVER 0ae has the
+  forms). (c) A methods document with every formula, shipped and
+  linked from the help. Measured: a Turkey-sized run peaks near
+  9.5 GB in the neighbourhood step - tiles matter for anything larger.
+- 421 | DONE v1.60.3, 19 OCTOBER 2026 | build_cells IN ONE PASS. The
+  per-cell loop cost 0.31 ms per cell-group: John's Turkey with the
+  rates (32 groups) sat silent over an hour. np.add.reduceat over
+  sorted segments (not bincount - left-to-right summation put a cell
+  of exactly k people 1.4e-12 short; test_unitsize caught it).
+  28,000 cells 286 s -> 0.5 s. The old loop is the answer key in
+  test_review_1_60_1.
+- 420 | DONE v1.60.3, 19 OCTOBER 2026 | A PACKAGE OLDER THAN
+  ITS DOOR IS REFUSED. John, 19 October: Pro machine 4 with the 1.60.2
+  toolbox -> "TypeError: run_folder() got an unexpected keyword
+  argument 'vital'". The package in arcgispro-equipop was 1.59.2 (its
+  demography.py line 867 is 1.59.2's run_folder call): the toolbox
+  files were replaced, the wheel was not installed. Only machines 1-2
+  ever announced versions, and only as a warning. Now every Pro tool
+  calls _announce_version first, and an OLDER package stops the run
+  with both versions, where the package lives, and the install line;
+  a NEWER one (usually a cached toolbox, BACKLOG 314) still warns.
+  QGIS check_versions refuses the same case. Tests in
+  test_review_1_60_1.py; the two QGIS mismatch tests updated.
+- 419 | OPEN | FROM THE REVIEW OF 1.60.1, NOT DONE. (a) Provenance of
+  equipop/data/berlin_example.xlsx - asked of John; if third-party,
+  into THIRD_PARTY_NOTICES.md (both copies). (b) A preflight 'health
+  report' for a point layer (CRS, shape, cohorts, years, blanks,
+  coverage, memory) before an expensive run. (c) Chunked or columnar
+  point reading for national layers. (d) A border policy for the
+  rates: cells take the country of the nearest point to their centre;
+  the review offers largest-population or per-country contributions.
+  (e) Method/quality fields beside each estimate (WPP year, sex, k,
+  coverage) - the record has them; the output columns do not.
+- 418 | DONE v1.60.2, 18 OCTOBER 2026 | EXTERNAL REVIEW OF 1.60.1.
+  P1 children under five from one complete route; P1 EPSG:None
+  (points and folders) -> reprojected into the suggested projection;
+  P1 point cohort values: text/negative/inf refused, blanks = nobody,
+  counted (John). P2 redirects checked on 5a/5d and fetch(); plain x/y
+  need a CRS. P3 omitted fields named; WPP table checked at load;
+  THIRD_PARTY_NOTICES.md; CITATION.cff references. NEW: whole-country
+  warning from WPP's national population (John). Break-check 234/234.
+- 417 | DONE v1.60.1, 18 OCTOBER 2026 | MACHINE 4 FROM MACHINE 3'S POINTS.
+  John: "machine 4 only takes rasters - we should make it possible to
+  use the curated raster-to-point files as well". rasterfolder.
+  load_points (wide or long shape; EastWest/NorthSouth, lon/lat or x/y;
+  only iso3 and cohort fields used, the rest named; metres without a
+  CRS refused) behind load_source, so the rest of the path is the
+  folder's. QGIS: FeatureSource box 'points'; Pro: GPFeatureLayer
+  'points'; either one, not both. Same numbers from both routes,
+  tested in the engine and in both doors.
+- 416 | BUILT IN v1.60.0, 18 OCTOBER 2026; VALIDATION OPEN | LOCAL LIFE EXPECTANCY,
+  TFR AND CDR FROM ONE AGE PYRAMID (machine 4). John: a second-best,
+  model-based local LE ("LEpred") for global local demographic data, to
+  be validated against exposomes; regressors stay on the right-hand
+  side, so a composition measure is acceptable as a covariate.
+  THE TRAP: LE and TFR are free of age composition, so national rates
+  applied to local ages give the NATIONAL value everywhere. Only crude
+  measures (CDR, CBR, expected counts) vary under borrowed rates; LE and
+  TFR need a local signal of LEVEL.
+  JOHN'S SAME-YEAR IDEA (equal cohorts at birth, no net migration, so
+  the pyramid IS the life table): simulated on stable populations
+  (scratchpad lepred/sim.py, sim2.py, sim3.py). Read as stationary it
+  measures growth, not survival - about 1/CBR: a Kenya-like nation, e0
+  65.1, reads 32.5; a Sweden-like one growing 0.4 %, e0 81.1, reads 67.1.
+  READ RELATIVE TO THE NATION (local survival = national survival x
+  local/national age share, so the nation's own cohort history cancels;
+  needs only the WPP abridged life table) it recovers a poorer district
+  (57.7 -> 58.5), but e0 is FRAGILE to local growth: 3.0 % instead of
+  2.2 % reads 49.0, 1.2 % reads 97.6, young in-migrants 79.3. A growth
+  correction from local TFR (child-woman ratio) is exact in principle,
+  and +-5 % TFR error gives +-4 years.
+  NORMALISED AT 60 IT HOLDS: e60 20.2 read as 18.7-22.4 under those
+  growth differences, 20.2 under young in-migration and under a uniform
+  15 % loss of the 60+, and the poorer district 17.3 -> 17.5.
+  PROPOSED: e60 relative to the nation first; TFR from the child-woman
+  ratio (Hauer & Schmertmann 2020); CDR/CBR expected and local; e0 only
+  with the growth correction, flagged. VALIDATE against places with
+  known local LE (Swedish kommuner, English MSOAs, US counties) before
+  any global use. Caveats: WorldPop age structure comes from census
+  breakdowns at admin level; old-age misreporting inflates e60.
+  JOHN'S RULING (18 Oct): build e60, TFR, CBR, CDR - AND e50, e30, e0,
+  FLAGGED UNRELIABLE ("as a researcher I am not looking for truth but
+  variables to make better predictions"). He validates against Swedish
+  data.
+  BUILT IN 1.60.0: doors/vital.py; demography.vital_plan /
+  vital_references / apply_vital (same traverse as the indices, tiled
+  too); equipop/data/wpp2024_reference.csv.xz from the wpp2024 R
+  package (CC BY 3.0 IGO; life tables within 0.05 years of WPP's e0);
+  box 1e and 2d in both doors. TFR is read against the nation as well
+  (an absolute reading was 5-6 % low at 2.5 % growth). Each cell takes
+  the country of the point nearest its centre. Tests on populations
+  built from WPP's own Kenya schedules: e60 of a district with 40 %
+  higher death rates within half a year; TFR and CBR within 4 % for
+  rates 30 % either side of Kenya's; CDR within 3 %.
+  STILL OPEN: John's Swedish validation; a user-supplied national
+  table (SCB's instead of WPP's); the e0 growth correction from local
+  TFR (exact in simulation, +-4 years for a 5 % TFR error).
+- 415 | DONE IN v1.59.2, 17 OCTOBER 2026 (follow-ups open, see the
+  top) | THE EXTERNAL REVIEW OF 1.59.1 - THE FIRST RUN OF THE SUITE ON
+  WINDOWS. 1,905 passed, 9 failed. Every finding reproduced first:
+  (1) os.replace refused while a scanner or OneDrive holds the file
+  (one intermittent failure). Now equipop/atomic.swap_in at every swap,
+  retried for about 4 s. Behind it, run_fetch's stop message said
+  everything was recorded when the manifest write had failed, and the
+  retry then refused the unrecorded file; it now names that file. A
+  file arrived but not yet checked when a run stops is removed.
+  (2) 8 failures: the ArcGIS simulator keyed CreateTable by
+  os.path.join, so on Windows 'work.gdb\wp' was never found as
+  'work.gdb/wp'. tests/test_arcgis_stub.table_key now, and Pro's
+  _write_catalogue splits on either separator.
+  (3) max_mb added up KNOWN sizes only: all 40 unknown-size Burundi
+  files passed 0.0001 MB. Net.block counts bytes per 1 MiB and against
+  the declared size; a retried file counts once.
+  (4) Cancel only between files. `cancelled=` from both doors, asked
+  per 1 MiB.
+  (5) Redirects followed blindly. safe_opener checks each with
+  check_url and refuses https -> http.
+  (6) '.gdb' substring checks in Pro: _in_container, by path part.
+  (7) make_release_zip.py's `C:\Data` escape; every source file is now
+  compiled with warnings as errors.
+  AND JOHN'S OPEN QUESTION, decided: a blank population box means
+  EVERYBODY when the folder settles it (rasterfolder.infer_everybody):
+  'sexes' for every age band of f_ and m_ in one year, 'total' for
+  every t_ band, else refused with the reason. The review would have
+  refused f_/m_ plus t_ as "competing"; they are the same people, so
+  'sexes' is taken and the log says why. Found on the way: Pro's
+  machine 3 let the loader's ValueError out as a traceback (John's 16
+  October run). And the break-check found the old QGIS cancel test
+  passing with the door's own check removed (the new per-block check
+  stopped it first); a test for that check alone found each .pbf layer
+  SAID before it was RECORDED, so a Cancel then left an unrecorded
+  GeoPackage. Recorded first now. tools/windows_check.py runs the suite
+  on Windows without CI.
+- 414 | BUILT FOR QGIS, v1.58.0, 15 OCTOBER 2026; OPEN FOR THE LIVE CHECK
+  AND PRO | FETCH, REDESIGNED AROUND A CATALOGUE.
+  WHAT 1.58.0 BUILT (John: "please do - and first for Q with the
+  suggested data providers"): equipop/doors/catalogue.py (browse, one
+  26-column table for both providers, an injectable Net, a RangeFile
+  for remote zips) and equipop/doors/fetchrows.py (fetch any rows
+  through run_fetch: WorldPop files whole; a shapefile LAYER as range
+  reads of the zip, each member checked against the zip's CRC-32 and
+  refused with If-Range if the zip was replaced mid-fetch; a .pbf once
+  per region and date, checked against its .md5, its layers written to
+  GeoPackage by osgeo.gdal or pyogrio and recorded as DERIVED with the
+  rule). QGIS 5a, 5b, 5c; the settings tool relabelled 5d. 102 new
+  tests on John's captures, served by tests/fakeweb.py; break-check 79
+  of 79.
+  DECISIONS TAKEN IN THE BUILD, each said in the rows and the help:
+  one WorldPop series across years when one covers them all (2010 +
+  2020 -> 2000-2020 at 100 m, since it has no 1 km per country);
+  with OSM years, every row from .pbf, today's too; 1 km and no sum
+  layers by default; a 'latest' extract replaced since browsing is
+  fetched under ITS date and said; Georgia (country) and Georgia (US)
+  both named rather than the id winning; a three-letter code never
+  matched as a fragment of a name.
+  NOT YET VERIFIED LIVE: WorldPop HEAD sizes, a member out of Sweden's
+  real zip, real dated .pbf, and osgeo.gdal.VectorTranslate in QGIS
+  (checked against a recording stand-in only). tools/live_fetch_check.py
+  runs all four. STILL OPEN AFTER THAT: Pro (needs pyogrio for .pbf);
+  GHSL as rows (tiles); HDX (a search, not a tree - may stay in 5d);
+  Geofabrik's -free.gpkg.zip; a memory estimate per raster row
+  (practice 3 says size, count AND memory; only the first two are in).
+  1.59.1, 16 OCTOBER, EVENING - JOHN'S FIRST PRO RUN. 5a/5b/5c worked;
+  the output boxes needed to say "geodatabase or memory" and "a folder
+  on disk" (done, and checked in the dialog). Fetch-then-curate in Pro
+  hit two machine-3 faults: k was Required (QGIS: optional since 1.43),
+  and the weight refusal offered 'total' to a folder with no t_ files.
+  Both fixed; behind the first, Pro's point writer cast text to float and
+  the Pro lattice join was unreachable - both fixed and tested. OPEN FOR
+  JOHN: default machine 3's weight to everybody for an age-sex folder?
+  16 OCTOBER, AFTERNOON: John ran 5b/5c on Liechtenstein, buildings and
+  roads, 2020 - "worked well". THE LAST UNSEEN PATH, a dated .pbf
+  written to GeoPackage by QGIS's own GDAL (osgeo.gdal.VectorTranslate),
+  is confirmed. Still unseen: Pro on a real machine, and pyogrio as the
+  converter in Pro.
+  1.59.0, 16 OCTOBER - PRO, AND THE LIVE CHECK. John's records
+  (Anaconda, equipop 1.58.0): WorldPop catalogue + fetch OK; Sweden
+  railways as one layer out of the real 1.87 GB zip, 12 requests, 5 MB
+  OK; Germany = 16 states OK; Norway 404 -> pbf OK; Sweden dated .pbf
+  EXIST 2014-2026 (resolved). NOT YET LIVE: .pbf -> GeoPackage (no GDAL
+  in Anaconda; asked for in QGIS). Pro door built: CreateTable +
+  InsertCursor for NULLs, selection via the table view. Tool 6 stays 6
+  (John). WorldPop dropdown reworded after John read "Population" as
+  age-sex plus totals.
+  1.58.1, 16 OCTOBER - THE FIRST LIVE RUN. 5c stopped on one WorldPop
+  file: RemoteDisconnected. John's six-way check (wp_get_check.py, kept
+  in the scratchpad, not the tree) found EVERY request working - EquiPop's
+  user agent, a browser's, Python's - and EVERY request taking 7-11 s,
+  HEAD included, where 14 October measured 0.2 s. Cause: a slow server
+  dropping a request, and a fetcher that tried once. Fixed: Net.attempt,
+  4 tries (3/10/30 s), transient() says which failures earn another try.
+  STILL OPEN FROM IT: (a) SPEED - at 10 s a request, 40 files are ~7 min;
+  three or four downloads at a time would cut that, but run_fetch commits
+  the manifest per file and would need a lock. (b) The QGIS network path
+  (QgsBlockingNetworkRequest) was not needed - Python reached WorldPop
+  directly - so 5c stays on urllib. (c) The break-check harness ran with
+  a .pyc cache, which can hide a same-size break or let one outlive its
+  restore; it now runs without. Earlier releases' checks were not rerun.
+  THE ORIGINAL ENTRY FOLLOWS. John: the series of reruns needed to fetch anything
+  "ended as a discussion between us where the info and what to fill in
+  was unclear", and he wants best practices and an easier way to ask.
+  THE DIAGNOSIS: the dialog is a Setting/Value table in which the user
+  types each provider's OWN key words (project, category, iso3, epoch,
+  region). Every failed round recorded in 268 and 284 was a right
+  value in a wrong row, or a word the tool did not accept. The fault is
+  the design, not the user.
+  PROPOSED, NOT YET AGREED: catalogue first. (1) BROWSE writes a table,
+  one row per downloadable file, with the SAME columns for every
+  provider - theme, product, release, coverage, year, resolution,
+  projection, variable, format, size, licence, citation, link. (2) The
+  user selects rows in the attribute table, the GIS way. (3) FETCH
+  SELECTED downloads exactly those, with the manifest, and keeps the
+  selection as a re-runnable recipe. Nobody types a key.
+  THE COMMON HIERARCHY (draft): provider > theme > product > release >
+  coverage > year > resolution/projection > variable > file. How each
+  provider maps onto it is what the probe is for.
+  STEP 1: equipop_probe.py, kept OUTSIDE the tree until agreed,
+  stdlib only, allow-listed hosts, catalogue pages only, per-provider
+  request budgets and byte caps, one zip back. Tested offline against
+  the captured fixtures and forced failures. John runs it; the sandbox
+  reaches none of the four hosts. Once agreed it also becomes the live
+  DRIFT CHECK the 1.57.1 status review asked for.
+  ROUNDS ONE AND TWO, RUN BY JOHN 14 OCT (718 requests, 54 MB):
+  - WORLDPOP is theme (18) > product (~95) > country-year record > files.
+    A product CODE packs four choices - release, 100 m/1 km, constrained,
+    country/global (G2_CN_Age_R25A_100m). Age structures alone: 17
+    products over four generations. NEWEST: R2025A, 242 countries,
+    2015-2030, 100 m and 1 km, constrained, 62 files per record (20 age
+    bands x f/m/t + T_F, T_M). R2024B covers only 26 countries.
+    THE INDEX CALL (no iso3) returns a whole product's coverage - id,
+    iso3, year, title - in one request; a record by ?id= returns its
+    files. So browsing is cheap, and file lists are needed only for
+    rows a user picks. ITS OWN DATA HAS FAULTS: one product with no
+    alias (server 500), one alias with a leading space that works no
+    way, one with a trailing space that works only STRIPPED, and an old
+    series listing .aux.xml sidecars as files.
+  - SIZES (HEAD, one f_15 file, 2020): 100 m - BDI 10.7, KEN 68.7, SWE
+    46.6 MB; 1 km - 0.15, 1.6, 2.2 MB. KEN's 100 m age-sex zip is 4.0 GB
+    PER YEAR. For three countries x two years, female + male only:
+    5.55 GB at 100 m, 0.15 GB at 1 km. With EquiPop cells at ~1 km the
+    100 m files buy nothing. t_ and T_ layers are f + m: skip by default.
+  - GHSL: no API; regular names GHS_{product}_E{year}_{coverage}_
+    {release}_{crs}_{res}; global zips (POP 2020 3ss 12.6 GB, 30ss 482
+    MB) or 10-degree TILES (~1.5 MB, R#_C#; 349 in WGS84, 376 in
+    Mollweide) - tiles make country-sized GHSL possible. Listings take
+    up to 60 s: cache. GHS_AGE (R2025A) is NOT population age: by its
+    name (1975 to 2020 in 5-year steps) and its colour table it is the
+    AGE OF THE BUILT-UP SURFACE. Round two's note called it "a new age
+    product", and the message to John repeated it; corrected in round
+    three.
+  - HDX: a search engine, not a tree - SWE 98, BDI 306, KEN 565 datasets.
+  - GEOFABRIK: 554 regions in four levels. 29 big ones have NO
+    shapefile (Germany, France, UK, US, every continent) - but e.g. all
+    16 German states do, so a country can mean its subregions. Norway's
+    shapefile is in the INDEX and 404 on the SERVER: check before
+    promising. Sweden's shapefile zip is 1.87 GB.
+  JOHN'S THREE COMMON REQUESTS: (1) WorldPop, all age cohorts by sex,
+  several countries, one or two years; (2) Geofabrik buildings, one or
+  more countries, AND A YEAR; (3) Geofabrik roads and railways, or all
+  POIs. A real 732-row example catalogue for (1) was built from the
+  captured records; round three asks whether Geofabrik keeps dated
+  extracts (the year in (2)) and lists the layers inside a shapefile
+  zip by reading only its table of contents (HTTP Range).
+  ROUND THREE (John, 14 Oct, 22:37):
+  - A YEAR FROM GEOFABRIK MEANS .osm.pbf. The raw listing for German
+    states keeps a 1 JANUARY pbf for EVERY YEAR 2014-2026 (plus recent
+    days). Shapefiles are patchy - Bayern's dated shapefiles stop at
+    2021 (its 2020 one was 911 MB); small Berlin's run to 2026 - and
+    GeoPackages exist only from August 2026. Country files sit on
+    pages whose "raw directory index" is a hidden table, not a folder
+    listing; round three's pattern missed them, so Sweden's dated
+    files are still to be confirmed from europe/sweden.html.
+  - EquiPop CAN READ .osm.pbf ALREADY: pyogrio's GDAL (3.12) carries the
+    OSM driver. Verified on a hand-made file: buildings come out as
+    multipolygons with `building`, roads and railways as lines with
+    `highway` / `railway`, a school as a point with amenity in
+    `other_tags`. QGIS always has GDAL; the Pro clone needs pyogrio
+    (the `geo` extra), which is the open question for Pro.
+  - A SHAPEFILE ZIP HOLDS 20 LAYERS, and the server accepts RANGE
+    requests, so ONE LAYER CAN BE DOWNLOADED ALONE. Sweden (1,872 MB
+    zipped): buildings 329, roads 400, railways 5, pois + pois_a 20,
+    landuse 648, water 354 MB packed. Roads + railways is 405 MB, not
+    1.9 GB; buildings alone 329 MB. Burundi: 123 MB zipped, buildings
+    56, roads 47.
+  - Geofabrik now also offers -free.gpkg.zip (one GeoPackage, no 2 GB
+    shapefile limit) - which the captured index does not list.
+  - For CHANGE OVER TIME, take every year in the same format: the free
+    shapefile applies Geofabrik's own selection rules, and a pbf read
+    through GDAL does not, so mixing them would read as change.
+
+- 413 | OPEN, 14 OCTOBER 2026 (John's whole-planet Pro run crashed) |
+  MACHINE 3 CANNOT RUN THE WHOLE PLANET, FOR FOUR REASONS.
+  (a) THE PROJECTION. Blank means suggest_projection(), which for an
+      extent spanning many UTM zones returns the MAJORITY ZONE and
+      only warns. Measured with zone 44N: 1 km at Lagos is 3.69 km on
+      the map, and beyond 90 degrees the map FOLDS - Dakar lands nearer
+      the centre than Lagos - so for a world run, places on the far
+      side can overlap others. Should REFUSE, naming equal-area
+      choices, instead of proceeding.
+  (b) THE PRO BOX LOSES CHOICES. _epsg_of() passes factoryCode as an
+      EPSG code: Esri projections (Africa Albers 102022, Mollweide
+      54009) are then REFUSED by pyproj ("crs not found"), and a
+      custom projection (factoryCode 0) silently becomes "blank" and
+      so the majority UTM zone. The map's projection is never read.
+  (c) MEMORY. rasterfolder reads each raster WHOLE as float64: a
+      global 30-arc-second raster is ~809 M pixels, ~10 GB at peak,
+      inside Pro. Results are then held per origin; and a TILED run in
+      Pro still calls load_tiled() and writes the whole table at the
+      end. Needs windowed reading and a tiled output that stays on
+      disk.
+  (d) k=50,000 ON ISLANDS AND IN DESERTS widens the search towards
+      every cell on the planet - very slow, and a neighbourhood
+      spanning an ocean means little.
+  Smaller: 900 m cells on 30-arc-second pixels (926 m at the equator,
+  narrower poleward) hold one or two pixels in a latitude pattern -
+  _warn_aliasing's own worst case - so Dist_k can stripe.
+  THE LONG-TERM ANSWER: neighbourhoods measured ON THE SPHERE (3-D unit
+  vectors, chord distance is monotone in great-circle distance), so a
+  world run has no projection, no fold, no seam and no date line.
+  Until then: one run per continent, each in its own equal-area
+  projection with an EPSG code (EPSG:8857 Equal Earth, EPSG:6933
+  EASE-Grid 2.0 are both accepted today).
 
 - ~~411~~ | DONE v1.57.1, 13 OCTOBER 2026 (external review of 1.57.0,
   the same morning) | THE BUNDLE WENT ROUND ITS OWN PROTECTION, AND

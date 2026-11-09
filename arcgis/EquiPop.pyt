@@ -706,18 +706,56 @@ def _ref(value):
 #: The manifest has always recorded the PACKAGE version and never the
 #: TOOLBOX version, and this whole episode is the gap between those
 #: two. Now every run says both, and says so loudly when they differ.
-TOOLBOX_VERSION = "1.57.1"
+TOOLBOX_VERSION = "1.63.5"
+
+
+def _vtuple(v):
+    try:
+        return tuple(int(p) for p in str(v).split(".")[:3])
+    except ValueError:
+        return None
 
 
 def _announce_version(messages):
-    """Say which toolbox and which package are actually running."""
+    """Say which toolbox and which package are actually running - and
+    REFUSE when the package is the older of the two.
+
+    v1.60.3. John, 19 October, machine 4 from the 1.60.2 toolbox:
+    "TypeError: run_folder() got an unexpected keyword argument
+    'vital'". The toolbox was 1.60.2; the package in Pro's environment
+    was still 1.59.2 (its demography.py line 867 is 1.59.2's), so the
+    toolbox asked it for rates it has never heard of. Two gaps made
+    that a puzzle rather than a sentence: only machines 1 and 2 ever
+    called this (3 to 6 said nothing at all), and a mismatch was only
+    a warning. A package OLDER than its toolbox cannot do what the
+    toolbox asks, so the run stops before it starts and says how to
+    install the right one. A NEWER package is usually a toolbox Pro has
+    cached (BACKLOG 314) - still a warning, since the run can work.
+    """
     try:
         import equipop
         pkg = getattr(equipop, "__version__", "unknown")
+        where = os.path.dirname(getattr(equipop, "__file__", "") or "")
     except Exception:                                # pragma: no cover
-        pkg = "not installed"
+        pkg, where = "not installed", ""
     messages.addMessage(
         f"EquiPop toolbox {TOOLBOX_VERSION}, package {pkg}.")
+    old, new = _vtuple(pkg), _vtuple(TOOLBOX_VERSION)
+    if old and new and old < new:
+        raise arcpy.ExecuteError(
+            f"THE EQUIPOP PACKAGE IN PRO'S PYTHON IS OLDER THAN THIS "
+            f"TOOLBOX - toolbox {TOOLBOX_VERSION}, package {pkg}"
+            + (f" (in {where})" if where else "") + ". The toolbox "
+            f"asks for things {pkg} does not have, so the run would "
+            "fail part-way, typically with 'unexpected keyword "
+            f"argument'. Match them in Pro's environment: Start menu -> "
+            "ArcGIS -> Python Command Prompt, then EITHER the wheel "
+            "from the release\n"
+            f"    pip install --no-deps --force-reinstall "
+            f"\"C:\\path\\to\\equipop-{TOOLBOX_VERSION}-py3-none-any.whl\"\n"
+            "OR, once that release is on PyPI,\n"
+            "    pip install --upgrade --no-deps equipop\n"
+            "and restart Pro.")
     if pkg not in ("unknown", "not installed") and pkg != TOOLBOX_VERSION:
         messages.addWarningMessage(
             f"THE TOOLBOX AND THE PACKAGE ARE DIFFERENT VERSIONS - "
@@ -1326,12 +1364,17 @@ def _refuse_shp_overflow(target, names, messages=None):
     return refuse_short_target(target, names)
 
 
-def _values_from_table(rows, cat_values, messages, what):
+def _values_from_table(rows, cat_values, messages, what, field=None):
     """One column: which values belong to a population (v1.22).
 
     An EMPTY table means EVERY value belongs - which is what makes
     "fast food per POI" and "fast food per eating place" one edit
     apart, with no tick to misread.
+
+    BACKLOG 462: the refusal names the FIELD it looked in. John met
+    "These values are not in the category field" twice on a Polish
+    POI layer and could not tell which field "the category field"
+    was - the second time it was a box he could not even see.
     """
     if not rows:
         return []
@@ -1343,11 +1386,14 @@ def _values_from_table(rows, cat_values, messages, what):
             continue
         (vals if v in cat_values else unknown).append(v)
     if unknown:
+        where = f"the type field '{field}'" if field else \
+            "the category field"
         raise arcpy.ExecuteError(
-            f"These values are not in the category field, so the "
+            f"These values are not in {where}, so the "
             f"{what} would be empty: {', '.join(sorted(set(unknown)))}."
             f" Pick from the dropdown - the field's own values are "
-            "offered there.")
+            "offered there. If the values look right, the type field "
+            "is probably the wrong column.")
     if vals:
         messages.addMessage(
             f"{what.capitalize()}: {len(set(vals))} value(s) - "
@@ -1356,7 +1402,7 @@ def _values_from_table(rows, cat_values, messages, what):
     return sorted(set(vals))
 
 
-def _groups_from_table(rows, cat_values, messages):
+def _groups_from_table(rows, cat_values, messages, field=None):
     """Two columns: value, group name. Rows sharing a group name
     merge, which is how one group is built from several values."""
     groups, unknown = {}, []
@@ -1372,10 +1418,14 @@ def _groups_from_table(rows, cat_values, messages):
             continue
         groups.setdefault(grp, []).append(val)
     if unknown:
+        where = f"the type field '{field}'" if field else \
+            "the category field"                     # BACKLOG 462
         raise arcpy.ExecuteError(
-            f"These values are not in the category field: "
+            f"These values are not in {where}: "
             f"{', '.join(sorted(set(unknown)))}. Pick from the "
-            "dropdown - the field's own values are offered there.")
+            "dropdown - the field's own values are offered there. If "
+            "the values look right, the type field is probably the "
+            "wrong column.")
     if groups:
         messages.addMessage(
             "Treatment groups: "
@@ -1616,8 +1666,7 @@ def _set_aliases(where, names, kw, messages):
     same rule as the run record, BACKLOG 348). And it may never fail a
     run: the results are written and verified before this starts.
     """
-    low = str(where or "").lower()
-    if ".gdb" not in low and ".sde" not in low:
+    if not _in_container(where, (".gdb", ".sde")):
         messages.addMessage(
             "Field aliases - a description on each new field - need a "
             "geodatabase target; this one cannot keep them. What each "
@@ -1958,8 +2007,9 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             # reference table means every row belongs - which is how
             # "fast food per POI" and "fast food per eating place"
             # differ, without a tick to misread.
-            pop_vals = _values_from_table(ref_rows, known, messages,
-                                          "reference population")
+            pop_vals = _values_from_table(
+                ref_rows, known, messages, "reference population",
+                field=cat_field or treat_cat_field)
             # the treatment names its OWN type column (v1.23): it is
             # usually the same one, but reading it from a box in
             # another section was the hidden dependency John hit
@@ -1968,7 +2018,9 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
                     else col)
             tknown = sorted({str(v).strip() for v in tcol
                              if str(v).strip()})
-            groups = _groups_from_table(treat_rows, tknown, messages)
+            groups = _groups_from_table(
+                treat_rows, tknown, messages,
+                field=treat_cat_field or cat_field)
             # BACKLOG 144: names differing only in case cannot both
             # become columns - GIS field names ignore case. Refuse
             # here, not eight seconds later in the write, where John
@@ -2088,13 +2140,15 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
             raise arcpy.ExecuteError(txt)
 
     _u = getattr(_read_input, "last_unit", "map units")   # 160
-    if not float(unit) > 0 or abs(float(unit) - round(float(unit))) > 1e-9:
-        raise ValueError(                          # BACKLOG 155 + 160
-            f"[equipop] cell size must be a WHOLE number of {_u} "
-            f"greater than 0; got {float(unit):g}. Fractional sizes "
-            "are rounded differently by different parts of EquiPop, "
-            "so they are refused rather than silently changed.")
-    unit = float(round(float(unit)))
+    # BACKLOG 155 + 160 + 445: any size above 0 since 1.63.0 - no part
+    # of EquiPop rounds a fractional size any more, and a 2.5 m town
+    # gives what a 100 m one does, scaled.
+    if not float(unit) > 0:
+        raise ValueError(
+            f"[equipop] cell size must be greater than 0 {_u}; got "
+            f"{float(unit):g}. It is the grid the neighbourhoods are "
+            "built on, so there is no sensible zero.")
+    unit = float(unit)
     kw = dict(unit_size=float(unit),
               self_potential=float(self_potential))
     # BACKLOG 99. None means "the dialog did not ask", which
@@ -2448,8 +2502,7 @@ def _run_tool(engine, layer, messages, treat_fields=(), value_fields=(),
                "the write succeeded and only this message was wrong. "
                "Writing to a FILE GEODATABASE avoids both the cache "
                "and the speed penalty."
-               if not str(where).lower().endswith((".gdb",))
-               and ".gdb" not in str(where).lower() else ""))
+               if not _in_container(where) else ""))
     else:
         messages.addMessage(
             f"EquiPop: {len(res)} fields written and VERIFIED present "
@@ -2656,6 +2709,19 @@ def _settings_rows(engine, ref_mode, treat_mode, weight_field,
 #: Container formats that LOOK like a folder to the file system but
 #: are presented as a database by ArcGIS Catalog.
 _CONTAINERS = (".gdb", ".gpkg", ".sde", ".mdb")
+
+
+def _in_container(path, exts=(".gdb",)):
+    """Is some PART of this path a geodatabase (or one of `exts`)?
+
+    v1.59.2, external review of 1.59.1: these checks asked whether
+    ".gdb" appeared ANYWHERE in the text, so a folder called
+    data.gdb_backup counted as a geodatabase - 5c refused it as a
+    download folder, and 5a wrote a dBASE table into it. A part of
+    the path must END in .gdb. Both separators, as in _sidecar_path.
+    """
+    parts = [q for q in re.split(r"[\\/]+", str(path or "")) if q]
+    return any(q.lower().endswith(tuple(exts)) for q in parts)
 
 
 def _sidecar_path(target, suffix):
@@ -3118,21 +3184,99 @@ def _guard_rungs(pm, messages, machine="counts"):
                 else TREAT_MODES[tre]
             raise arcpy.ExecuteError(_r.missing(what, ladder, rung))
 
-    ignored = []
+    # BACKLOG 462. A type field for the groups is needed by the
+    # grouped rung. It may come from the reference type field ONLY
+    # when that box is in use: a greyed-out box is no longer read
+    # (_live_boxes), so a run that leaned on one would otherwise give
+    # distances and no shares, and say nothing.
+    if (tre == 2 and not _txt(pm, "treatcatfield")
+            and not (ref == 2 and _txt(pm, "catfield"))):
+        raise arcpy.ExecuteError(_r.missing(
+            "the type field for the groups", "the treatment population",
+            TREAT_MODES[tre]))
+
+    # BACKLOG 462. Only what the run really drops is called IGNORED.
+    # Until 1.63.5 this list was printed and then every box in it was
+    # handed to _run_tool anyway: John, 8 November 2026, chose "every
+    # point counts as one", was told the reference table was IGNORED,
+    # and the run died on that very table - which Pro had hidden, so
+    # it could not even be emptied. The count field (1a) and the group
+    # count fields (2a) ARE still used off their rungs, as they always
+    # were in both doors (scripts and saved models pass them with the
+    # default rungs), so they are told truthfully instead.
+    ignored, honoured = [], []
     for name, used in _boxes_for_rungs(ref, tre).items():
         if used or name not in pm:
             continue
         if machine != "counts" and name.startswith("treat"):
             continue
-        if _txt(pm, name):
-            ignored.append(name)
+        val = _txt(pm, name)
+        if not val:
+            continue
+        if name == "keepoutside" and val == OUTSIDE_MODES[0]:
+            continue                 # its default, not something typed
+        (honoured if name in _HONOURED_OFF_RUNG else ignored).append(name)
     if ignored:
         messages.addWarningMessage(
             "These boxes hold values that the rungs you chose do NOT "
             "read, so they are IGNORED: " + ", ".join(sorted(ignored)) +
             ". They are left as you typed them in case you switch "
             "back - but nothing in them reaches the results.")
+    if "pop" in honoured:
+        messages.addWarningMessage(
+            f"Box 1a, the count field, holds '{_txt(pm, 'pop')}'. The "
+            f"reference population is on '{REF_MODES[ref]}', which "
+            "greys the box out, but the count IS used: each row counts "
+            "as its value, not as one. If that is not what you meant, "
+            f"switch to '{REF_MODES[1]}' to see the box, clear it, and "
+            "switch back.")
+    if "treat" in honoured:
+        messages.addWarningMessage(
+            f"Box 2a, the group count fields, holds "
+            f"'{_txt(pm, 'treat')}'. The treatment population is on "
+            f"'{TREAT_MODES[tre]}', which greys the box out, but those "
+            "columns ARE used and you will get results from them. If "
+            f"that is not what you meant, switch to '{TREAT_MODES[1]}' "
+            "to see the box, clear it, and switch back.")
     return ignored
+
+
+# BACKLOG 462. Greyed out but still used, in both doors, since before
+# the rungs existed - see _guard_rungs.
+_HONOURED_OFF_RUNG = ("pop", "treat")
+
+
+def _live_boxes(pm, machine="counts"):
+    """BACKLOG 462. The type boxes as the run may read them: a box the
+    chosen rungs do not read is handed over EMPTY.
+
+    _boxes_for_rungs was "lifted out so the run can consult the same
+    map the dialog does" (146) - and then nothing in the run consulted
+    it. The dialog greyed the boxes, _guard_rungs said IGNORED, and
+    execute() passed every one of them to _run_tool regardless. These
+    are the boxes the QGIS door has always dropped off their rungs, so
+    the two doors now agree.
+    """
+    ref = _mode(pm, "refmode", REF_MODES)
+    tre = _mode(pm, "treatmode", TREAT_MODES) if machine == "counts" \
+        else 0
+    use = _boxes_for_rungs(ref, tre)
+    live = {
+        "cat_field": (_txt(pm, "catfield") or None)
+        if use["catfield"] else None,
+        "ref_rows": _vt_rows(pm["reftable"]) if use["reftable"] else [],
+        "keep_outside": (_mode(pm, "keepoutside", OUTSIDE_MODES) == 0)
+        if use["keepoutside"] else True,
+    }
+    if machine == "counts":
+        live.update(
+            treat_cat_field=(_txt(pm, "treatcatfield") or None)
+            if use["treatcatfield"] else None,
+            treat_rows=(_vt_rows(pm["treattable"])
+                        if use["treattable"] else []),
+            rest_group=(_txt(pm, "restgroup") or None)
+            if use["restgroup"] else None)
+    return live
 
 def _decay_model(pm):
     """The ENGINE's model name out of the dropdown label.
@@ -3669,8 +3813,15 @@ def _write_points(table, man, target, messages):
             if c not in ("EastWest", "NorthSouth", "CellId")]
     names = _short_names(cols) if "_short_names" in globals() else {
         c: c[:31] for c in cols}
+    # NOT EVERY COLUMN IS A NUMBER - iso3 is text in the point table.
+    # The QGIS writer has decided per column since 1.43; this one cast
+    # the lot to float, which nothing reached while Pro's k box was
+    # Required (v1.59.1: the point table is reachable from Pro now).
+    import pandas.api.types as pdt
+    text = {c for c in cols if not pdt.is_numeric_dtype(table[c])}
     dt = [("EastWest", "<f8"), ("NorthSouth", "<f8")]
-    dt += [(names[c], "<f8") for c in cols]
+    dt += [(names[c], (f"<U{max([len(str(v)) for v in table[c]] + [1])}"
+                       if c in text else "<f8")) for c in cols]
     # WRITE IN THE RASTERS' OWN PROJECTION, as the QGIS door does.
     # BACKLOG 235: the two doors had DRIFTED. The false-northing fix
     # (227) went into the QGIS writer and was never carried here, so
@@ -3690,7 +3841,8 @@ def _write_points(table, man, target, messages):
     arr["EastWest"] = np.asarray(gx, dtype=float)
     arr["NorthSouth"] = np.asarray(gy, dtype=float)
     for c in cols:
-        arr[names[c]] = table[c].to_numpy(dtype=float)
+        arr[names[c]] = (table[c].astype(str).to_numpy() if c in text
+                         else table[c].to_numpy(dtype=float))
 
     sr = arcpy.SpatialReference(int(epsg)) if epsg else None
     if arcpy.Exists(target):
@@ -3742,6 +3894,7 @@ class FolderInventory:
         return
 
     def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
         from equipop.doors.inventory import inventory
 
         pm = _byname(parameters)
@@ -4059,16 +4212,23 @@ class ContinentalRasters:
         ps = [_p("folder", "Folder of population rasters (.tif) - "
                  "subfolders are searched, so a country-per-folder "
                  "download can stay as it is", "DEFolder"),
-              _p("k", "Neighbourhood sizes, in PEOPLE (e.g. 1000)",
-                 "GPString"),
+              # v1.59.1, John's first Pro run of a fetched folder:
+              # REQUIRED here and optional in QGIS since 1.43 - a blank
+              # k is a real choice, "just give me the points", and Pro
+              # could not make it. The lattice join below needs that
+              # point table, so it was unreachable in Pro as well.
+              _p("k", "Neighbourhood sizes, in PEOPLE (blank = just "
+                 "give me the points)", "GPString", required=False),
               _p("unit", "Analysis cell size, in metres", "GPDouble",
                  required=False),
               _p("crs", "Projection to work in (blank = suggested "
                  "from the data)", "GPCoordinateSystem",
                  required=False, category="Advanced"),
-              _p("weight", "Which column holds the people (blank = "
-                 "the only one)", "GPString", required=False,
-                 category="Advanced"),
+              # worded as QGIS words it, and as the refusal names it
+              _p("weight", "Which people define the neighbourhood - "
+                 "blank = everybody, when the folder settles who that "
+                 "is; or 'total', 'sexes', or one column name", "GPString",
+                 required=False, category="Advanced"),
               _p("sumcohorts", "Add all cohorts into one population",
                  "GPBoolean", required=False, category="Advanced"),
               _p("pattern", "Your own filename pattern (blank = the "
@@ -4122,6 +4282,7 @@ class ContinentalRasters:
         return
 
     def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
         from equipop.doors.continental import (ContinentalError,
                                                run_folder)
         pm = _byname(parameters)
@@ -4144,11 +4305,30 @@ class ContinentalRasters:
                 sum_cohorts=bool(pm["sumcohorts"].value),
                 pattern=_txt(pm, "pattern") or None,
                 out_dir=_txt(pm, "tiles") or None, channel=ch)
-        except ContinentalError as exc:
+        except (ContinentalError, ValueError) as exc:
             # The spine refuses in plain words. Do not add to them.
+            # ValueError too, as in QGIS since 1.43: the LOADER refuses
+            # that way, and John's first Pro run of machine 3 (16 Oct)
+            # showed its refusal as a Python traceback (v1.59.2).
             raise arcpy.ExecuteError(str(exc))
 
-        if _txt(pm, "tiles"):
+        if "points_table" in man:
+            # NO k: the rasters as one point layer, every cohort a
+            # field - written where the rasters are, in THEIR OWN CRS,
+            # exactly as the QGIS door has written it since 1.43.
+            table = man["points_table"].rename(
+                columns={"lon": "EastWest", "lat": "NorthSouth"})
+            src = str(man.get("crs") or "EPSG:4326")
+            code = (int(src.split(":", 1)[1])
+                    if src.upper().startswith("EPSG:")
+                    and src.split(":", 1)[1].isdigit() else None)
+            if code is None:
+                ch.warning(
+                    f"The rasters are in {src!r}, which is not a plain "
+                    "EPSG code. The output carries no projection - set "
+                    "it by hand before using the coordinates.")
+            man.setdefault("projection", {})["epsg"] = code
+        elif _txt(pm, "tiles"):
             from equipop.bigrun import load_tiled
             table = load_tiled(_txt(pm, "tiles"))
         else:
@@ -4167,6 +4347,88 @@ INDEX_ROWS = [
     "Dependency ratio",  "0-14,65-", "15-64",
     "Sex ratio",         "m:",       "f:",
 ]
+
+# v1.60.0, BACKLOG 416: rates and life expectancy, read from each
+# neighbourhood's age pyramid against its nation's. Written down, as
+# the QGIS door writes them down, and pinned against vital.MEASURES
+# and against the QGIS lists by tests/test_vital_doors.py.
+RATE_NAMES = ["life_expectancy_60", "life_expectancy_50",
+              "life_expectancy_30", "life_expectancy_0",
+              "total_fertility_rate", "crude_birth_rate",
+              "crude_death_rate"]
+RATE_LABELS = ["Life expectancy at 60",
+               "Life expectancy at 50 (UNRELIABLE)",
+               "Life expectancy at 30 (UNRELIABLE)",
+               "Life expectancy at birth (UNRELIABLE)",
+               "Total fertility rate", "Crude birth rate",
+               "Crude death rate"]
+RATE_SEXES = ["both", "women", "men"]
+RATE_SEX_LABELS = ["Both sexes", "Women", "Men"]
+# v1.61.0: the engine's VITAL_REFERENCES, in this order (a test pins it)
+RATE_REFS = ["own", "cell"]
+RATE_REF_LABELS = ["Each person's own country (pools across a border)",
+                   "The country of the neighbourhood's cell"]
+
+
+def _machine3_points(layer, messages):
+    """The point layer machine 3 wrote, as a table for the engine:
+    coordinates from the geometry in the layer's OWN coordinate system
+    (the engine projects them as it projects a folder's pixels, so the
+    two routes agree), iso3, and every cohort field. A table without
+    geometry is read through its EastWest/NorthSouth fields."""
+    desc = arcpy.Describe(layer)
+    names = [f.name for f in arcpy.ListFields(layer)]
+    keep = [n for n in names
+            if n in ("iso3", "cohort", "population")
+            or re.match(r"^[fmt]_\d+_\d{4}$", n)]
+    geom = str(getattr(desc, "shapeType", "")) == "Point"
+    if geom:
+        data = _read_columns(layer, ["SHAPE@X", "SHAPE@Y"] + keep,
+                             messages, context="point layer")
+        data["EastWest"] = np.asarray(data.pop("SHAPE@X"), float)
+        data["NorthSouth"] = np.asarray(data.pop("SHAPE@Y"), float)
+    else:
+        xy = [n for n in ("EastWest", "NorthSouth") if n in names]
+        data = _read_columns(layer, xy + keep, messages, table=True,
+                             context="point table")
+    import pandas as pd
+    table = pd.DataFrame(data)
+    # not read, but named in the log by the engine (review of 1.60.1)
+    table.attrs["fields_not_used"] = [
+        n for n in names if n not in keep
+        and n not in ("EastWest", "NorthSouth", "Shape", "SHAPE")
+        and n != getattr(desc, "OIDFieldName", None)
+        and n != getattr(desc, "shapeFieldName", None)]
+    return table, _pyproj_crs(getattr(desc, "spatialReference", None))
+
+
+def _pyproj_crs(sr):
+    """arcpy's spatial reference as text pyproj can read, or None.
+
+    factoryCode alone is not enough: Esri numbers its own projections
+    (World Mollweide 54009, Web Mercator 102100 ...) in the same field
+    as EPSG's, and 'EPSG:54009' does not exist. So the code is tried
+    under EPSG and then ESRI; a projection with no code at all goes as
+    its definition (exportToString's first part is Esri WKT)."""
+    if sr is None:
+        return None
+    code = getattr(sr, "factoryCode", 0) or 0
+    if code:
+        try:
+            from pyproj import CRS
+        except ImportError:                           # pragma: no cover
+            return f"EPSG:{code}"
+        for auth in ("EPSG", "ESRI"):
+            try:
+                CRS.from_user_input(f"{auth}:{code}")
+                return f"{auth}:{code}"
+            except Exception:
+                continue
+    try:
+        wkt = str(sr.exportToString()).split(";")[0].strip()
+    except Exception:
+        wkt = ""
+    return wkt or None
 
 
 class SpatialDemography:
@@ -4192,17 +4454,34 @@ class SpatialDemography:
         names = ["Ageing index", "Child-woman ratio",
                  "Dependency ratio", "Sex ratio"]
         ps = [_p("folder", "Folder of population rasters (.tif) - "
-                 "subfolders are searched", "DEFolder"),
+                 "subfolders are searched", "DEFolder", required=False),
+              # v1.60.1, John: the curated raster-to-point files should
+              # do as well as the rasters. Either box, not both.
+              _p("points", "...or the point layer machine 3 made from "
+                 "such a folder (instead of the folder)",
+                 "GPFeatureLayer", required=False),
               _p("indices", "Which indices (tick several - they cost "
-                 "one pass, not one each)", "GPString"),
+                 "one pass, not one each)", "GPString", required=False),
               _p("k", "Neighbourhood sizes, in PEOPLE (e.g. 1000)",
                  "GPString"),
               _p("unit", "Analysis cell size, in metres", "GPDouble",
+                 required=False),
+              _p("rates", "Rates and life expectancy - MODEL-BASED, "
+                 "read from the age pyramid against the nation's (tick "
+                 "several)", "GPString", required=False),
+              # v1.62.0, John: in the main dialog, not under Advanced
+              _p("rateref", "Read the rates against", "GPString",
                  required=False),
               _p("year", "Which year (blank = the only one present)",
                  "GPString", required=False, category="Advanced"),
               _p("crs", "Projection to work in (blank = suggested)",
                  "GPCoordinateSystem", required=False,
+                 category="Advanced"),
+              _p("ratesex", "Life tables and death rate for",
+                 "GPString", required=False, category="Advanced"),
+              # v1.61.0, John: tiles for merged regions, as machine 3
+              _p("tiles", "Folder for a TILED, resumable run (blank "
+                 "= run in memory)", "DEFolder", required=False,
                  category="Advanced"),
               _p("settings", "Change a measure - one row per index. "
                  "Ages as '0-4', '65-', 'f:15-49', or two ranges "
@@ -4220,11 +4499,21 @@ class SpatialDemography:
         ps[-2].value = [list(r) for r in
                         (INDEX_ROWS[i:i + 3]
                          for i in range(0, len(INDEX_ROWS), 3))]
-        ps[1].filter.type = "ValueList"
-        ps[1].filter.list = names
-        ps[1].multiValue = True
-        ps[1].value = "Child-woman ratio"
-        ps[3].value = 1000.0
+        by = {p.name: p for p in ps}
+        by["indices"].filter.type = "ValueList"
+        by["indices"].filter.list = names
+        by["indices"].multiValue = True
+        by["indices"].value = "Child-woman ratio"
+        by["unit"].value = 1000.0
+        by["rates"].filter.type = "ValueList"
+        by["rates"].filter.list = list(RATE_LABELS)
+        by["rates"].multiValue = True
+        by["ratesex"].filter.type = "ValueList"
+        by["ratesex"].filter.list = list(RATE_SEX_LABELS)
+        by["ratesex"].value = RATE_SEX_LABELS[0]
+        by["rateref"].filter.type = "ValueList"
+        by["rateref"].filter.list = list(RATE_REF_LABELS)
+        by["rateref"].value = RATE_REF_LABELS[0]
         return ps
 
     def updateMessages(self, parameters):
@@ -4233,11 +4522,18 @@ class SpatialDemography:
         accepts, because a space is a value - reached the engine as nothing at all. k is compulsory here and has no radius to fall back on, so a
         whitespace-only box is refused by name.
         """
-        _k_or_r_message(_byname(parameters), need_one=False,
-                        k_required=True)
+        pm = _byname(parameters)
+        _k_or_r_message(pm, need_one=False, k_required=True)
+        # Either the folder or the points: said in the dialog, before
+        # Run, the moment both are filled in.
+        if pm.get("folder") is not None and pm.get("points") is not None \
+                and pm["folder"].valueAsText and pm["points"].valueAsText:
+            pm["points"].setErrorMessage(
+                "Give the folder OR machine 3's point layer, not both.")
         return
 
     def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
         from equipop.doors.continental import ContinentalError
         from equipop.doors.demography import (INDICES, DemographyError,
                                               run_indices)
@@ -4255,8 +4551,31 @@ class SpatialDemography:
                     f"No such index: {piece!r}. Use one of: "
                     + "; ".join(sorted(by_label)))
             picked.append(by_label[piece])
-        if not picked:
-            raise arcpy.ExecuteError("Tick at least one index.")
+        rates, raw = [], _txt(pm, "rates")
+        for piece in raw.replace(";", ",").split(","):
+            piece = piece.strip().strip("'\"")
+            if not piece:
+                continue
+            if piece not in RATE_LABELS:
+                raise arcpy.ExecuteError(
+                    f"No such rate: {piece!r}. Use one of: "
+                    + "; ".join(RATE_LABELS))
+            rates.append(RATE_NAMES[RATE_LABELS.index(piece)])
+        if not picked and not rates:
+            raise arcpy.ExecuteError(
+                "Tick at least one index or rate.")
+        sex_label = _txt(pm, "ratesex") or RATE_SEX_LABELS[0]
+        if sex_label not in RATE_SEX_LABELS:
+            raise arcpy.ExecuteError(
+                f"Life tables for {sex_label!r}? Use one of: "
+                + ", ".join(RATE_SEX_LABELS))
+        sex = RATE_SEXES[RATE_SEX_LABELS.index(sex_label)]
+        ref_label = _txt(pm, "rateref") or RATE_REF_LABELS[0]
+        if ref_label not in RATE_REF_LABELS:
+            raise arcpy.ExecuteError(
+                f"Read the rates against {ref_label!r}? Use one of: "
+                + "; ".join(RATE_REF_LABELS))
+        rule = RATE_REFS[RATE_REF_LABELS.index(ref_label)]
 
         # BACKLOG 377, v1.53.2. A SIXTH and SEVENTH open-coded k
         # parser lived here, one per door, and the property test
@@ -4291,18 +4610,527 @@ class SpatialDemography:
             if edit:
                 over[key] = edit
 
+        folder, layer = _txt(pm, "folder"), _txt(pm, "points")
+        if bool(folder) == bool(layer):
+            raise arcpy.ExecuteError(
+                "Give EITHER the folder of rasters OR the point layer "
+                "machine 3 made from one"
+                + (" - not both." if folder else "."))
+        points = points_crs = None
+        if layer:
+            points, points_crs = _machine3_points(layer, messages)
+            folder = None
         try:
             man = run_indices(
-                _txt(pm, "folder"), picked, k_values=ks,
+                folder, picked, k_values=ks,
                 unit_size=_num(pm, "unit", 1000.0) or 1000.0,
                 year=_txt(pm, "year") or None,
                 epsg=_epsg_of(pm.get("crs")),
-                overrides=over or None, channel=ch)
+                overrides=over or None, channel=ch,
+                vital=rates, vital_sex=sex, vital_reference=rule,
+                points=points, points_crs=points_crs,
+                out_dir=_txt(pm, "tiles") or None)
         except (DemographyError, ContinentalError, ValueError) as exc:
             raise arcpy.ExecuteError(str(exc))
 
-        _write_points(man["results"], man, pm["out"].valueAsText,
-                      messages)
+        if _txt(pm, "tiles"):
+            from equipop.bigrun import load_tiled
+            table = load_tiled(_txt(pm, "tiles"))
+        else:
+            table = man["results"]
+        _write_points(table, man, pm["out"].valueAsText, messages)
+
+
+# ====================================================================
+# MACHINE 5 IN PRO: LOOK, SELECT, FETCH (BACKLOG 414, v1.59.0)
+#
+# The same three tools QGIS has had since 1.58.0, on the same engine
+# (equipop/doors/catalogue.py and fetchrows.py). What is Pro's own:
+#
+#   * the catalogue is a STANDALONE TABLE written with real NULLs. The
+#     inventory's writer (_write_table) puts 0 in an empty integer,
+#     which here would turn the open top band "90+" into "90 to 0".
+#   * 5c reads a TABLE VIEW, and Pro hands a tool only the SELECTED
+#     rows of a table view - every row when none is selected. That is
+#     QGIS's "Selected features only" without the tick-box, so 5c says
+#     which of the two it got.
+#
+# Labels and option lists are WRITTEN DOWN, as everywhere in this file:
+# the toolbox must open when equipop is absent. Tests pin each list
+# against the package and against the QGIS door.
+# ====================================================================
+
+#: catalogue.COLUMNS as Pro field types.
+CATALOGUE_COLUMNS = [
+    ("provider", "TEXT"), ("theme", "TEXT"), ("series", "TEXT"),
+    ("place", "TEXT"), ("place_code", "TEXT"), ("year", "LONG"),
+    ("date", "TEXT"), ("layer", "TEXT"), ("sex", "TEXT"),
+    ("age_from", "LONG"), ("age_to", "LONG"), ("resolution", "TEXT"),
+    ("format", "TEXT"), ("crs", "TEXT"), ("size_mb", "DOUBLE"),
+    ("size_is", "TEXT"), ("file", "TEXT"), ("url", "TEXT"),
+    ("inside", "TEXT"), ("md5_url", "TEXT"), ("licence", "TEXT"),
+    ("citation", "TEXT"), ("doi", "TEXT"), ("source_page", "TEXT"),
+    ("record_id", "TEXT"), ("note", "TEXT"),
+]
+
+WP_THEMES = ["age_sex", "population"]
+WP_THEME_LABELS = [
+    "Age and sex - one file per sex and age band (0, 1-4, 5-9 ... 90+): "
+    "40 per country and year",
+    "Total population only - ONE file per country and year, not split "
+    "by age or sex",
+]
+WP_RESOLUTIONS = ["1km", "100m"]
+WP_RESOLUTION_LABELS = [
+    "1 km - small: Sweden is about 2 MB a file",
+    "100 m - large: Sweden is about 47 MB a file",
+]
+#: Pro shows a multi-value list as a checklist, and quotes any entry
+#: holding a space - so the OSM layers are offered by their plain
+#: names; the help says what each holds.
+OSM_THEMES = ["buildings", "roads", "railways", "pois", "places",
+              "landuse", "water", "natural", "transport", "traffic",
+              "worship", "protected", "admin"]
+
+
+def _catalogue_modules():
+    """The 1.58 modules, or a refusal that says how to get them -
+    `_doors()` passes on any package since 1.18, which may be older
+    than the catalogue."""
+    _doors()
+    try:
+        from equipop.doors import catalogue, fetchrows
+    except ImportError as exc:
+        import equipop
+        raise arcpy.ExecuteError(
+            "These tools need EquiPop 1.58.0 or later, and the package "
+            f"in this ArcGIS Pro environment is {equipop.__version__} "
+            f"({exc}). In its Python Command Prompt run:  pip install "
+            "--upgrade equipop  - then close and reopen ArcGIS Pro.")
+    return catalogue, fetchrows
+
+
+def _catalogue_target_problem(target):
+    """Why a catalogue cannot go to `target`, or None. Asked by the
+    dialog (updateMessages) as well as at Run, so the box says so
+    while it is still in front of you (John, 16 Oct: the refusal was
+    clear, but it came only after OK)."""
+    if not target or str(target).lower().endswith(".csv"):
+        return None
+    parts = [q for q in re.split(r"[\\/]+", str(target)) if q]
+    name, folder = (parts[-1] if parts else ""), parts[:-1]
+    if _in_container("/".join(folder), (".gdb", ".sde")) or (
+            len(folder) == 1 and folder[0].lower() in ("memory",
+                                                       "in_memory")):
+        return None
+    return (f"Save the catalogue in a geodatabase or in memory "
+            f"(memory\\{os.path.splitext(name)[0] or 'catalogue'}), or "
+            "as a .csv - not in a folder. A table in a folder is a "
+            "dBASE table, which cuts column names to ten characters "
+            "and text to 254, and the fetch reads both.")
+
+
+def _check_catalogue_box(parameters):
+    for p in parameters:
+        if p.name == "CATALOGUE" and p.valueAsText:
+            why = _catalogue_target_problem(p.valueAsText)
+            if why:
+                p.setErrorMessage(why)
+
+
+def _check_folder_box(parameters):
+    """5c's folder must be a folder on disk: GeoTIFFs and shapefiles do
+    not go into a geodatabase (John, 16 Oct)."""
+    for p in parameters:
+        if p.name == "FOLDER" and p.valueAsText and \
+                _in_container(p.valueAsText):
+            p.setErrorMessage(
+                "Choose a folder on disk, not a geodatabase: the fetched "
+                "files are GeoTIFFs and shapefiles, which a geodatabase "
+                "cannot hold as they are.")
+
+
+def _write_catalogue(rows, target, messages):
+    """The catalogue as a standalone table, empty cells as NULL.
+
+    A .csv is written as it is - the same file a recipe is - and Pro
+    opens it as a table. A dBASE table is refused: it cuts column names
+    to ten characters (source_page) and text to 254 (citations, rules),
+    and 5c reads both.
+    """
+    if not target:
+        raise arcpy.ExecuteError("Choose where the catalogue table goes.")
+    if target.lower().endswith(".csv"):
+        from equipop.doors.catalogue import write_csv
+        write_csv(rows, target)
+        messages.addMessage(f"[out] {len(rows)} row(s) -> {target}")
+        return target
+    # Split on EITHER separator, as Pro hands back both - the same
+    # answer on every system (v1.59.2).
+    whole = target.rstrip("\\/")
+    name = re.split(r"[\\/]", whole)[-1]
+    folder = whole[:len(whole) - len(name)].rstrip("\\/")
+    why = _catalogue_target_problem(target)
+    if why:
+        raise arcpy.ExecuteError(why)
+    if arcpy.Exists(target):
+        arcpy.management.Delete(target)
+    arcpy.management.CreateTable(folder, name)
+    for nm, kind in CATALOGUE_COLUMNS:
+        if kind == "TEXT":
+            width = max([len(str(r.get(nm) or "")) for r in rows] + [1])
+            arcpy.management.AddField(target, nm, "TEXT",
+                                      field_length=max(50, width + 10))
+        else:
+            arcpy.management.AddField(target, nm, kind)
+    names = [nm for nm, _ in CATALOGUE_COLUMNS]
+    with arcpy.da.InsertCursor(target, names) as cur:
+        for r in rows:
+            cur.insertRow([r.get(nm) for nm in names])
+    messages.addMessage(f"[out] {len(rows)} row(s) -> {target}")
+    return target
+
+
+def _pick(pm, name, labels, keys):
+    """A dropdown's choice, as the package's key."""
+    text = _txt(pm, name)
+    if text in labels:
+        return keys[labels.index(text)]
+    if text in keys:
+        return text
+    return keys[0]
+
+
+def _multi(pm, name):
+    """A multi-value box's entries. Pro joins them with ';' and quotes
+    any entry with a space in it."""
+    p = pm.get(name)
+    vals = getattr(p, "values", None) if p is not None else None
+    if vals:
+        return [str(v).strip("'\" ") for v in vals if str(v).strip()]
+    text = _txt(pm, name)
+    return [v.strip("'\" ") for v in str(text).split(";") if v.strip()]
+
+
+def _table_note(ch):
+    ch.info("NEXT: open this table, select the rows you want (Select By "
+            "Attributes, or by hand) and run 5c on it - Pro passes only "
+            "the selected rows to a tool.")
+
+
+class WorldPopCatalogue:
+    """5a. What WorldPop has, one row per GeoTIFF. Downloads nothing."""
+
+    def __init__(self):
+        self.label = "5a. WorldPop - what is there? (lists, downloads nothing)"
+        try:
+            from equipop.doors.help import summary_for
+            self.description = summary_for("WorldPopCatalogue")
+        except Exception:
+            self.description = self.label
+
+    def getParameterInfo(self):
+        theme = _p("wp_theme", "1a. What", "GPString")
+        theme.filter.type = "ValueList"
+        theme.filter.list = list(WP_THEME_LABELS)
+        theme.value = WP_THEME_LABELS[0]
+        res = _p("wp_resolution", "1d. Resolution", "GPString")
+        res.filter.type = "ValueList"
+        res.filter.list = list(WP_RESOLUTION_LABELS)
+        res.value = WP_RESOLUTION_LABELS[0]
+        totals = _p("wp_totals", "1e. Age and sex: also list the totals - "
+                    "both sexes per band (t_), and all ages per sex "
+                    "(T_F, T_M; 100 m only)", "GPBoolean", required=False)
+        totals.value = False
+        exact = _p("wp_exact", "2a. Measure every file's size (one "
+                   "request each; otherwise one per country and year)",
+                   "GPBoolean", required=False)
+        exact.value = False
+        out = _p("CATALOGUE", "WorldPop catalogue - a table in a "
+                 "geodatabase or in memory, or a .csv (not a folder)",
+                 "DETable", direction="Output")
+        out.value = "memory\\worldpop_catalogue"
+        return [theme,
+                _p("wp_places", "1b. Countries - names or three-letter "
+                   "codes, separated by commas (Sweden, KEN, Burundi)",
+                   "GPString"),
+                _p("wp_years", "1c. Years - such as 2015, 2020 or "
+                   "2010-2020. Empty: every year there is", "GPString",
+                   required=False),
+                res, totals, exact, out]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        _check_catalogue_box(parameters)
+        return
+
+    def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
+        cat, _fr = _catalogue_modules()
+        from equipop.doors.fetching import FetchError
+        pm = _byname(parameters)
+        ch = _channel(messages)
+        places = _txt(pm, "wp_places").strip()
+        if not places:
+            raise arcpy.ExecuteError(
+                "Box 1b: name at least one country - Sweden, or SWE.")
+        try:
+            rows = cat.browse_worldpop(
+                _pick(pm, "wp_theme", WP_THEME_LABELS, WP_THEMES), places,
+                _txt(pm, "wp_years"),
+                _pick(pm, "wp_resolution", WP_RESOLUTION_LABELS,
+                      WP_RESOLUTIONS),
+                include_totals=_flag(pm, "wp_totals"),
+                exact_sizes=_flag(pm, "wp_exact"), say=ch.info)
+        except FetchError as exc:
+            raise arcpy.ExecuteError(str(exc))
+        _write_catalogue(rows, pm["CATALOGUE"].valueAsText, messages)
+        _table_note(ch)
+
+
+class OsmCatalogue:
+    """5b. What Geofabrik has, one row per layer. Downloads nothing."""
+
+    def __init__(self):
+        self.label = "5b. OpenStreetMap (Geofabrik) - what is there? (lists, downloads nothing)"
+        try:
+            from equipop.doors.help import summary_for
+            self.description = summary_for("OsmCatalogue")
+        except Exception:
+            self.description = self.label
+
+    def getParameterInfo(self):
+        layers = _p("osm_layers", "1b. Layers", "GPString",
+                    multiValue=True)
+        layers.filter.type = "ValueList"
+        layers.filter.list = list(OSM_THEMES)
+        layers.value = ["buildings"]
+        latest = _p("osm_latest", "1d. With years: also list today's "
+                    "extract", "GPBoolean", required=False)
+        latest.value = True
+        out = _p("CATALOGUE", "OpenStreetMap catalogue - a table in a "
+                 "geodatabase or in memory, or a .csv (not a folder)",
+                 "DETable", direction="Output")
+        out.value = "memory\\osm_catalogue"
+        return [_p("osm_places", "1a. Regions - names, two-letter codes "
+                   "or Geofabrik ids, separated by commas (Sweden, KE, "
+                   "bayern)", "GPString"),
+                layers,
+                _p("osm_years", "1c. Past years, as 1 January extracts - "
+                   "such as 2018, 2022. Empty: today's extract only",
+                   "GPString", required=False),
+                latest, out]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        _check_catalogue_box(parameters)
+        return
+
+    def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
+        cat, _fr = _catalogue_modules()
+        from equipop.doors.fetching import FetchError
+        pm = _byname(parameters)
+        ch = _channel(messages)
+        places = _txt(pm, "osm_places").strip()
+        if not places:
+            raise arcpy.ExecuteError(
+                "Box 1a: name at least one region - Sweden, KE, bayern.")
+        picked = [t for t in _multi(pm, "osm_layers") if t]
+        if not picked:
+            raise arcpy.ExecuteError("Box 1b: tick at least one layer.")
+        try:
+            rows = cat.browse_geofabrik(
+                places, picked, _txt(pm, "osm_years"),
+                latest=_flag_or(pm, "osm_latest", True), say=ch.info)
+        except FetchError as exc:
+            raise arcpy.ExecuteError(str(exc))
+        _write_catalogue(rows, pm["CATALOGUE"].valueAsText, messages)
+        _table_note(ch)
+
+
+class FetchSelected:
+    """5c. Download the selected catalogue rows into a folder."""
+
+    def __init__(self):
+        self.label = "5c. Fetch the rows you selected (downloads into a folder)"
+        try:
+            from equipop.doors.help import summary_for
+            self.description = summary_for("FetchSelected")
+        except Exception:
+            self.description = self.label
+
+    def getParameterInfo(self):
+        lim = _p("max_mb", "2. Size limit in MB - stop if the selection, "
+                 "or what arrives, is larger (0: no limit)", "GPDouble",
+                 required=False)
+        lim.value = 5000
+        keep = _p("keep_pbf", "3. Keep the OpenStreetMap .pbf after its "
+                  "layers are written out", "GPBoolean", required=False)
+        keep.value = True
+        return [_p("rows", "1. The catalogue table from 5a or 5b (or a "
+                   "saved equipop_recipe.csv) - with the rows you want "
+                   "selected", "GPTableView"),
+                lim, keep,
+                _p("FOLDER", "Folder to fetch into - a folder on disk, "
+                   "not a geodatabase (the files are GeoTIFFs and "
+                   "shapefiles)", "DEFolder")]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        _check_folder_box(parameters)
+        return
+
+    def execute(self, parameters, messages):
+        _announce_version(messages)    # v1.60.3: every machine
+        cat, fr = _catalogue_modules()
+        from equipop.doors.fetching import FetchError
+        pm = _byname(parameters)
+        ch = _channel(messages)
+        table = _txt(pm, "rows")
+        folder = _txt(pm, "FOLDER")
+        if not table:
+            raise arcpy.ExecuteError("Box 1: choose the catalogue table.")
+        if not folder:
+            raise arcpy.ExecuteError("Choose a folder to fetch into.")
+        names = [f.name for f in arcpy.ListFields(table)]
+        gone = [c for c in ("provider", "url", "file") if c not in names]
+        if gone:
+            raise arcpy.ExecuteError(
+                f"This table has no {', '.join(gone)} column, so it is not "
+                "a catalogue. Make one with 5a or 5b, or add an "
+                "equipop_recipe.csv to the map.")
+        fields = [n for n in names if n in cat.COLUMN_NAMES]
+        rows = []
+        with arcpy.da.SearchCursor(table, fields) as cur:
+            for rec in cur:
+                rows.append(dict(zip(fields, rec)))
+        try:
+            chosen = str(getattr(arcpy.Describe(table), "FIDSet", "") or "")
+        except Exception:
+            chosen = ""
+        ch.info(f"{len(rows)} row(s) selected in the table."
+                if chosen else
+                f"NO ROWS ARE SELECTED, so all {len(rows)} are taken - the "
+                "size limit in box 2 is there for exactly this.")
+
+        def stop_asked():
+            env = getattr(arcpy, "env", None)
+            return bool(env is not None
+                        and getattr(env, "isCancelled", False))
+
+        def say(line):
+            # Cancel between steps; inside a download, `cancelled`
+            # below asks after every 1 MiB (v1.59.2).
+            if stop_asked():
+                raise arcpy.ExecuteError(
+                    "Cancelled. What had arrived is recorded in "
+                    "equipop_fetch.json, so running again continues.")
+            ch.info(line)
+        max_mb = _num(pm, "max_mb", 5000)
+        try:
+            fr.fetch_rows(rows, folder, say=say, max_mb=max_mb or None,
+                          keep_pbf=_flag_or(pm, "keep_pbf", True),
+                          cancelled=stop_asked)
+        except FetchError as exc:
+            raise arcpy.ExecuteError(str(exc))
+
+
+#: v1.62.0, BACKLOG 438: tool 0's two answers. WRITTEN DOWN, not
+#: imported, so the dialog opens even under an older package; the same
+#: words as equipop.doors.toolset.CHOICES - a test pins it.
+SHOW_CHOICES = ["Only tools 1 and 2 (the standard set)",
+                "All tools, 1 to 6"]
+
+
+class ShowTools:
+    """TOOL 0 - show or hide tools 3 to 6 (v1.62.0, BACKLOG 438).
+
+    John, 25 October 2026: the same toolbox for everybody, differing
+    in one thing - whether tools 3 to 6 are listed - and "let us make
+    the default to hide - but please indicate in help etc., how it can
+    be lifted". The rule and the saved choice are in
+    equipop.doors.toolset, shared with QGIS. A Python toolbox has no
+    way to hide a tool it lists, so a hidden tool is simply not in the
+    list; Pro re-reads the list when the toolbox is refreshed.
+    """
+
+    def __init__(self):
+        self.label = "0. Show or hide tools 3-6"
+        try:
+            from equipop.doors.help import summary_for
+            self.description = summary_for("ShowTools")
+        except Exception:                            # pragma: no cover
+            self.description = ("Shows or hides tools 3 to 6 in this "
+                                "toolbox.")
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        p = _p("show", "Which tools the toolbox shows", "GPString")
+        p.filter.type = "ValueList"
+        p.filter.list = list(SHOW_CHOICES)
+        try:
+            from equipop.doors.toolset import show_all
+            p.value = SHOW_CHOICES[1 if show_all() else 0]
+        except Exception:
+            p.value = SHOW_CHOICES[0]
+        return [p]
+
+    def isLicensed(self):
+        return True
+
+    def updateParameters(self, parameters):
+        return
+
+    def updateMessages(self, parameters):
+        return
+
+    def execute(self, parameters, messages):
+        _announce_version(messages)
+        from equipop.doors.toolset import set_show_all, state_sentence
+        pm = _byname(parameters)
+        pick = _txt(pm, "show") or SHOW_CHOICES[0]
+        if pick not in SHOW_CHOICES:
+            raise arcpy.ExecuteError(
+                f"'{pick}' is not one of the two choices: "
+                + "; ".join(SHOW_CHOICES))
+        try:
+            where = set_show_all(pick == SHOW_CHOICES[1])
+        except OSError as exc:
+            raise arcpy.ExecuteError(
+                f"The choice could not be saved ({exc}). Nothing has "
+                "changed.")
+        messages.addMessage(f"Saved in {where}.")
+        messages.addMessage(state_sentence())
+        messages.addMessage(
+            "To see the change, right-click the EquiPop toolbox in the "
+            "Catalog pane and choose Refresh (or restart Pro).")
+
+
+def _shown_tools(every):
+    """The tools the toolbox lists: tools 3 to 6 only when shown. If
+    the rule cannot be read - an older package - every tool is listed,
+    because a tool hidden by an error could not be found at all."""
+    try:
+        from equipop.doors.toolset import is_shown
+        return [t for t in every if is_shown(t.__name__)]
+    except Exception:
+        return list(every)
 
 
 class Toolbox:
@@ -4315,9 +5143,16 @@ class Toolbox:
         # them - and registering an untested tool puts it in front of
         # users on the strength of a reading. The simulator now covers
         # both, and tests/test_arcgis_continental.py EXECUTES them.
-        self.tools = [CountsShares, ValueStatistics,
-                      ContinentalRasters, SpatialDemography,
-                      FolderInventory]
+        # v1.59.0, BACKLOG 414: machine 5 at last - 5a, 5b, 5c.
+        # v1.62.0, BACKLOG 438: EVERY tool, in order. The help files
+        # and the tests read THIS list, so a hidden tool still gets
+        # its '?' page and its tests. What Pro LISTS is `tools`: tool
+        # 0 and tools 1 and 2, and 3 to 6 once tool 0 shows them.
+        self.all_tools = [ShowTools, CountsShares, ValueStatistics,
+                          ContinentalRasters, SpatialDemography,
+                          WorldPopCatalogue, OsmCatalogue, FetchSelected,
+                          FolderInventory]
+        self.tools = _shown_tools(self.all_tools)
         # two machines, one shared loader (v1.16). Friction/slope
         # stay DISTANCE INGREDIENTS on machine 1, not tools.
 
@@ -4431,7 +5266,7 @@ class CountsShares:
                   direction="Output"),
                _p("outtable", "Output table (.csv) - for TABLE inputs",
                   "DEFile", required=False, direction="Output"),
-               _p("unit", "Cell size in map units (whole numbers only)",
+               _p("unit", "Cell size in map units",
                   "GPDouble", required=False),
                _p("selfpot", "Self-potential - the distance to "
                   "what is LOCAL, inside your own cell",
@@ -4702,15 +5537,10 @@ class CountsShares:
                   half_life_from_dist=_num(pm, "hlfromdist") or None,
                   decay_bins=int(_num(pm, "hlbins", 10)),  # 116
                   seed=_num(pm, "seed"),
-                  cat_field=_txt(pm, "catfield") or None,
                   ref_mode=_mode(pm, "refmode", REF_MODES),
                   treat_mode=_mode(pm, "treatmode", TREAT_MODES),
-                  ref_rows=_vt_rows(pm["reftable"]),
-                  treat_rows=_vt_rows(pm["treattable"]),
-                  treat_cat_field=_txt(pm, "treatcatfield") or None,
-                  keep_outside=(_mode(pm, "keepoutside",
-                                      OUTSIDE_MODES) == 0),
-                  rest_group=_txt(pm, "restgroup") or None,
+                  # BACKLOG 462: the type boxes the rungs read, only
+                  **_live_boxes(pm, "counts"),
                   barrier_rows=(_vt_rows(pm["barriertable"])
                                 + [[r, None] for r in
                                    (_txt(pm, "barrierrasters")
@@ -4808,7 +5638,7 @@ class ValueStatistics:
                   direction="Output"),
                _p("outtable", "Output table (.csv) - for TABLE inputs",
                   "DEFile", required=False, direction="Output"),
-               _p("unit", "Cell size in map units (whole numbers only)",
+               _p("unit", "Cell size in map units",
                   "GPDouble", required=False),
                _p("selfpot", "Self-potential - the distance to "
                   "what is LOCAL, inside your own cell",
@@ -4981,11 +5811,9 @@ class ValueStatistics:
                   x_field=_txt(pm, "xfield") or None,
                   y_field=_txt(pm, "yfield") or None,
                   weight_field=_txt(pm, "pop") or None,
-                  cat_field=_txt(pm, "catfield") or None,
                   ref_mode=_mode(pm, "refmode", REF_MODES),
-                  ref_rows=_vt_rows(pm["reftable"]),
-                  keep_outside=(_mode(pm, "keepoutside",
-                                      OUTSIDE_MODES) == 0),
+                  # BACKLOG 462: the type boxes the rungs read, only
+                  **_live_boxes(pm, "stats"),
                   value_fields=[f for f in
                                 _txt(pm, "values").split(";") if f],
                   stats_list=[m.strip("' ") for m in

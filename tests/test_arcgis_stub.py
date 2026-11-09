@@ -39,6 +39,20 @@ class _Messages:
     addWarningMessage = addMessage
 
 
+def table_key(path):
+    """A table's path as the simulator files it: one separator.
+
+    v1.59.2, external review of 1.59.1. CreateTable filed a table under
+    os.path.join(out_path, out_name), which on Windows is
+    'C:/Data/work.gdb\\wp' - and every later look-up by the path the
+    door was given, 'C:/Data/work.gdb/wp', missed it. Eight Pro
+    catalogue tests failed on Windows for that alone, while passing
+    on Linux. Real arcpy takes either separator, so the simulator
+    must too: every table path in and out goes through here.
+    """
+    return re.sub(r"[\\/]+", "/", str(path))
+
+
 def _install_fake_arcpy(table: pd.DataFrame):
     arcpy = types.ModuleType("arcpy")
     da = types.ModuleType("arcpy.da")
@@ -96,7 +110,14 @@ def _install_fake_arcpy(table: pd.DataFrame):
                 key, _fallback_catalog_path(key)),
             spatialReference=_SR(type=state.get("crs_types", {})
                                  .get(key, "Projected"),
-                                 name="SWEREF99 TM"))
+                                 name="SWEREF99 TM",
+                                 # v1.60.1: real layers carry their
+                                 # code; 0 is what arcpy gives for none
+                                 factoryCode=state.get("crs_codes", {})
+                                 .get(key, 0)))
+        # the selected object ids, ';'-joined, empty with no selection
+        d.FIDSet = ";".join(str(i + 1) for i in sorted(
+            state.get("selections", {}).get(str(_layer)) or []))
         if key in state.get("extents", {}):
             x0, y0, x1, y1 = state["extents"][key]
             d.extent = types.SimpleNamespace(XMin=x0, YMin=y0,
@@ -116,6 +137,10 @@ def _install_fake_arcpy(table: pd.DataFrame):
         return d
 
     def _df_for(key):
+        # v1.59.0: a standalone table made by CreateTable (machine 5's
+        # catalogue), looked up by the path it was made at
+        if table_key(key) in state.get("created", {}):
+            return state["created"][table_key(key)]
         key = _unalias(key)
         if key in state.get("aux_tables", {}):
             return state["aux_tables"][key]
@@ -449,6 +474,13 @@ def _install_fake_arcpy(table: pd.DataFrame):
                 self.rows = state["geom_layers"][key]
                 return
             df = _df_for(key)
+            # v1.59.0: A SELECTION ON A TABLE VIEW IS WHAT A CURSOR
+            # SEES - real arcpy hands a tool only the selected rows,
+            # and every row when none is selected. Machine 5's fetch is
+            # built on exactly that.
+            chosen = state.get("selections", {}).get(str(layer))
+            if chosen:
+                df = df.iloc[sorted(chosen)]
             if spatial_reference is not None:
                 df = df.copy()
                 zone = spatial_reference.factoryCode % 100
@@ -558,6 +590,78 @@ def _install_fake_arcpy(table: pd.DataFrame):
     arcpy.SpatialReference = SpatialReference
     arcpy.ExecuteError = ExecuteError
     arcpy.Parameter = Parameter
+
+    # ---- v1.59.0: standalone tables WRITTEN ROW BY ROW (machine 5).
+    # The catalogue has open-ended age bands, which must reach Pro as
+    # NULL; NumPyArrayToTable cannot write a NULL integer, so the door
+    # uses CreateTable + AddField + InsertCursor, and the simulator
+    # keeps what a real geodatabase would refuse: text longer than its
+    # field, and text put into a number.
+    def CreateTable(out_path, out_name, *a, **kw):
+        key = table_key(f"{out_path}/{out_name}")
+        state.setdefault("created", {})[key] = pd.DataFrame()
+        state.setdefault("field_types", {})[key] = {}
+        return key
+
+    _add_field_to_layer = AddField
+
+    def AddFieldAnywhere(layer, name, ftype, *a, **kw):
+        k = table_key(layer)
+        if k in state.get("created", {}):
+            state["created"][k][name] = pd.Series(dtype=object)
+            state["field_types"][k][name] = (ftype, kw.get("field_length"))
+            return
+        return _add_field_to_layer(layer, name, ftype, *a, **kw)
+
+    class InsertCursor:
+        def __init__(self, table, fields):
+            self.key, self.fields, self.rows = (table_key(table),
+                                                list(fields), [])
+            types_ = state["field_types"][self.key]
+            missing = [f for f in self.fields if f not in types_]
+            if missing:
+                raise RuntimeError(f"Cannot find field {missing[0]!r}")
+
+        def insertRow(self, row):
+            for f, v in zip(self.fields, row):
+                ftype, length = state["field_types"][self.key][f]
+                if v is None:
+                    continue
+                if ftype == "TEXT" and length and len(str(v)) > length:
+                    raise RuntimeError(
+                        f"The value is too long for the field {f!r}")
+                if ftype in ("LONG", "DOUBLE") and isinstance(v, str):
+                    raise TypeError(f"value type is incompatible with "
+                                    f"the field type [{f}]")
+            self.rows.append(list(row))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            new = pd.DataFrame(self.rows, columns=self.fields,
+                               dtype=object)
+            old = state["created"][self.key]
+            state["created"][self.key] = (
+                new if not len(old) else
+                pd.concat([old, new], ignore_index=True))
+            return False
+
+    def DeleteAnything(target):
+        for key in ("tables", "written"):
+            state.get(key, {}).pop(str(target), None)
+        state.get("created", {}).pop(table_key(target), None)
+
+    def ExistsAnywhere(target):
+        return (table_key(target) in state.get("created", {})
+                or Exists(target))
+
+    mgmt.CreateTable = CreateTable
+    mgmt.AddField = AddFieldAnywhere
+    mgmt.Delete = DeleteAnything
+    da.InsertCursor = InsertCursor
+    arcpy.Exists = ExistsAnywhere
+
     sys.modules["arcpy.management"] = mgmt
     sys.modules["arcpy"] = arcpy
     sys.modules["arcpy.da"] = da
@@ -1704,7 +1808,7 @@ def test_generating_the_help_does_not_dirty_the_working_tree(tmp_path):
     pyt_src = open(os.path.join(root, "arcgis", "EquiPop.pyt"),
                    encoding="utf-8").read()
     n_tools = len([t for t in re.search(
-        r"self\.tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
+        r"self\.all_tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
         if t.strip()])
     assert len(written) == n_tools, (
         f"--out produced {sorted(written)} for {n_tools} registered "
@@ -2966,10 +3070,12 @@ def test_every_run_says_which_toolbox_and_package_are_live():
     assert "EquiPop toolbox" in said and pyt.TOOLBOX_VERSION in said, said
 
     # and it must SHOUT when the two disagree, because that is the
-    # state a stale cached module leaves you in
+    # state a stale cached module leaves you in - a toolbox OLDER than
+    # the package (v1.60.3: a package older than the toolbox is
+    # refused outright; test_review_1_60_1 holds that test)
     import equipop
     real = equipop.__version__
-    equipop.__version__ = "0.0.1"
+    equipop.__version__ = "99.0.0"
     try:
         m2 = _Msg()
         pyt._announce_version(m2)
@@ -3507,7 +3613,7 @@ def test_the_help_generator_reads_the_checkout_not_an_installed_equipop(
     pyt_src = open(os.path.join(root, "arcgis", "EquiPop.pyt"),
                    encoding="utf-8").read()
     n_tools = len([t for t in re.search(
-        r"self\.tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
+        r"self\.all_tools = \[([^\]]+)\]", pyt_src).group(1).split(",")
         if t.strip()])
     assert len(list(out.glob("*.pyt.xml"))) == n_tools
 

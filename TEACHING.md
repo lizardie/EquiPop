@@ -1,6 +1,99 @@
 # TEACHING.md — the course material, and what it still needs
 
-**Last updated: 1.57.1, 13 October 2026.**
+**Last updated: 1.63.5, 8 November 2026.**
+*Reviewed at 1.63.5: ONE THING WORTH KNOWING IN A PRO LAB. On "every point counts as one" the greyed-out reference boxes are now really ignored, so a student who tried "only selected types" first and switched back no longer gets an error from a table they cannot see. The rule to teach is unchanged: the types you MEASURE go in the treatment group table, not in the reference table.*
+*Reviewed at 1.63.4: ONE THING FOR THE FIRST HOUR, SIMPLER. On a machine whose Stata uses a Python that is too old, `equipop doctor` now looks for a newer one already installed and prints the exact `set python_exec` line; when there is none it names the installer (Python 3.13 from python.org), the button and the path. For a course, the install slide can say: run `equipop doctor` and do what it says, in order - the restart always comes first.*
+*Reviewed at 1.63.3: NO TEACHING CHANGES. `equipop doctor` no longer prints "Stata not allowed" and a page of its own code before the report.*
+*Reviewed at 1.63.2: ONE THING FOR THE FIRST HOUR. A Mac whose Stata
+uses Apple's own Python (3.9) used to stop `equipop doctor` itself with
+r(7102); the doctor now names that Python and gives the steps. Teach the
+order: install a python.org Python, QUIT AND RESTART STATA, and only then
+`set python_exec ..., permanently` - Stata will not change it once Python
+has started in the session. Python 3.10 still runs (engine 1.61.0) with
+a note; the course needs 3.11 or newer, as since 1.61.3.*
+*Reviewed at 1.63.1: NO TEACHING CHANGES. The segregation profile's
+"cells" option now gives every place the same weight, as its name says;
+the default (people) and SI are unchanged. A profile now names its
+weighting in every row, so a saved CSV can be read without the script.*
+*Reviewed at 1.63.0: NO TEACHING CHANGES, ONE QUESTION WORTH ASKING. The
+segregation profile now counts every PERSON's neighbourhood once at
+each k, with every PLACE once as the alternative - "whose
+neighbourhoods are we averaging?" is a good seminar question, and the
+entropy and Atkinson indices can no longer go below zero. Fractional
+cell sizes (2.5 m) are accepted; the course uses 100 m. `sampled`
+draws changed as if reseeded; no course material quotes one.*
+*Reviewed at 1.62.1: NO TEACHING CHANGES, ONE BETTER SEMINAR. The theta(k)
+seminar now has a permutation p-value to argue about, and the no-groups
+check is the limit the groups approach. Grids of an odd cell size (1 m,
+25 m) are now exact on both sides of zero; the course uses 100 m. Stata
+students get `help equipop_run` at last.*
+*Reviewed at 1.62.0: ONE STEP MORE, ONE NEW SEMINAR. Tools 3 to 6 are
+now hidden until shown, so a class that uses machine 3, 4, 5a-5c or 6
+starts by running tool 0 (or the lab image sets
+EQUIPOP_SHOW_ALL_TOOLS=1); classes on machines 1 and 2 see less to be
+distracted by. MANUAL_TOPICS.md section 17 (theta(k)) and
+examples/cookbook_13_theta_profile.py make a seminar on inequality of
+opportunity: three synthetic worlds, and the students say which is
+which from the profiles. Box 2e of machine 4 is now box 1f.*
+*Reviewed at 1.61.4: NO TEACHING CHANGES. A radius count could fall
+short when the search window ended exactly on the radius; no example
+in the course met it, and the Book's results are unchanged (tested).
+A good classroom case of two methods agreeing on the wrong answer.*
+*Reviewed at 1.61.3: ONE LINE CHANGES. Students now need Python 3.11 or
+newer (3.10 reaches its end of life this month). Everything in the course
+runs on Python 3.15 as well, tested.*
+*Reviewed at 1.61.2: NO TEACHING CHANGES. Decay and radius runs are
+faster with identical results; METHODS_RATES.md now shows why e0 read
+from a pyramid goes wrong - a good classroom example of an estimator
+dominated by the wrong signal.*
+*Reviewed at 1.61.1: NO TEACHING CHANGES. The neighbourhood search is
+about five times faster with identical results, and long runs print
+their progress - a class waiting on a country-sized run can see it
+moving.*
+*Reviewed at 1.61.0: ONE NEW RESOURCE. METHODS_RATES.md sets out
+every formula behind machine 4's rates - the natural handout when a
+class meets them. Border neighbourhoods now read each person against
+their own country by default.*
+*Reviewed at 1.60.3: NO TEACHING CHANGES. Cells are built in one pass
+(a country-sized class exercise now runs in minutes) and a door
+refuses a package older than itself - worth showing a class that
+installs the wheel and the toolbox separately.*
+*Reviewed at 1.60.2: NO TEACHING CHANGES. The external review's fixes
+- children under five, projections without a code, a point layer's
+values - and the whole-country warning change no exercise; the
+warning is worth pointing at when a class clips a country.*
+*Reviewed at 1.60.1: ONE STEP FEWER. Machine 4 now starts from the point
+layer machine 3 made as well as from the folder, so a class that has
+looked at its points first does not have to point at the rasters
+again.*
+*Reviewed at 1.60.0: ONE THING CHANGES. Machine 4 now gives life
+expectancy at 60, TFR, CBR and CDR from the same age-sex folder - a
+class can map them, and then has to be told what they are: estimates
+read from an age pyramid against the nation's, not registered events.
+That distinction is itself a good lesson in demography, and the
+UNRELIABLE flag on life expectancy from birth, 30 and 50 is where to
+start it.*
+*Reviewed at 1.59.2: NOTHING IN THIS FILE CHANGES, ONE STEP FEWER. A
+class that fetches an age-and-sex folder with 5a and runs machine 3 on
+it no longer has to type 'sexes': a blank population box takes
+everybody when the folder has every age band, and says so. In a lab,
+Cancel now stops a large download at once, and box 2's limit holds
+even when a size is unknown.*
+*Reviewed at 1.59.1: NOTHING IN THIS FILE CHANGES, ONE THING GETS
+EASIER. In Pro, raster curation now gives the plain point table with a
+blank k, as QGIS always has - which is the first thing a class looks at.*
+*Reviewed at 1.59.0: ONE THING CHANGES. A class on ArcGIS Pro can now
+fetch the same way as a class on QGIS - list, select, fetch - and the
+same recipe file works in both.*
+*Reviewed at 1.58.1: NOTHING IN THIS FILE CHANGES. A fetch now waits
+out a slow server instead of stopping - which matters in a computer
+lab, where thirty students asking WorldPop at once is exactly when it
+is slow.*
+*Reviewed at 1.58.0: ONE THING CHANGES FOR A COURSE. Getting data is
+now a selection, not a typing exercise: 5a/5b list what exists as a
+table, students select rows with an expression, 5c fetches them. A
+class can be handed ONE equipop_recipe.csv and every student fetches
+the same files, checksummed. Nothing else in this file changes.*
 *Reviewed at 1.57.1: NOTHING IN THIS FILE CHANGES. A packaging release:
 the working-tree zip extracts on Windows again, which matters to any
 student who downloads the whole tree rather than installing.*

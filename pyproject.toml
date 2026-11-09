@@ -4,20 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "equipop"
-version = "1.57.1"
+version = "1.63.5"
 description = "k-nearest neighbour contexts/neighbourhoods on gridded and hexagonal data: bespoke neighbourhoods, friction growth, distance decay, statistics and segregation measures"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "John Östh", email = "johnosth@oslomet.no"}]
 maintainers = [{name = "John Östh", email = "johnosth@oslomet.no"}]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+# What PyPI shows as supported (v1.61.4). Labels only: EquiPop is one
+# pure-Python wheel, and pip chooses it the same way on every Python.
+# Each version listed is one the release record runs the suite on, and
+# tests/test_python_3_15.py keeps the list starting at the floor above.
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
 dependencies = ["pandas>=2.0", "numpy>=1.24", "scipy>=1.10", "pyproj>=3.4"]
 
 [project.optional-dependencies]
 geo = ["geopandas>=0.14", "pyogrio", "rasterio"]
 io = ["openpyxl", "pyarrow", "pyreadstat", "dbfread"]
 viz = ["matplotlib", "jenkspy"]
-test = ["pytest", "openpyxl", "pyarrow", "rasterio"]
+test = ["pytest", "openpyxl", "pyarrow", "rasterio", "pyyaml"]
 
 [project.urls]
 Homepage = "https://github.com/GeoJohnSwe/EquiPop"
@@ -31,4 +44,4 @@ include = ["equipop*"]
 # a pip install - so load("gridby"), the first line of chapter 1,
 # failed for every student who installed from PyPI.
 [tool.setuptools.package-data]
-equipop = ["data/*.csv", "data/*.xlsx", "providers/*.json", "tables/*.json"]
+equipop = ["data/*.csv", "data/*.xlsx", "data/*.xz", "data/*.json", "providers/*.json", "tables/*.json", "THIRD_PARTY_NOTICES.md", "METHODS_RATES.md"]

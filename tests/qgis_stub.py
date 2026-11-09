@@ -283,6 +283,11 @@ class QgsCoordinateReferenceSystem:
     def authid(self):
         return self._id
 
+    def toWkt(self):
+        """v1.60.2: a USER: system has no code to look up, so the door
+        sends its definition; a test sets _wkt to give it one."""
+        return getattr(self, "_wkt", "")
+
     def isGeographic(self):
         return self._id in ("EPSG:4326", "EPSG:4258")
 
@@ -599,6 +604,10 @@ class _Param:
     def description(self):
         return self.description_
 
+    def defaultValue(self):
+        """As QgsProcessingParameterDefinition.defaultValue()."""
+        return self.defaultValue_
+
     def setHelp(self, text):
         self.help_ = text
 
@@ -775,12 +784,47 @@ class QgsProcessing:
 
 
 # ------------------------------------------------------- algorithm
+class Qgis:
+    """v1.62.0. Only what the doors use: the algorithm flags, with the
+    values real QGIS gives them (3.36 and later)."""
+
+    class ProcessingAlgorithmFlag:
+        HideFromToolbox = 1 << 1
+        HideFromModeler = 1 << 2
+        SupportsBatch = 1 << 3
+        CanCancel = 1 << 4
+        NoThreading = 1 << 6
+
+
+class _Registry:
+    def __init__(self):
+        self.providers = {}
+
+    def providerById(self, pid):
+        return self.providers.get(pid)
+
+
+class QgsApplication:
+    """v1.62.0: the processing registry tool 0 refreshes. A test puts
+    a provider in it with `QgsApplication.registry.providers[...]`."""
+    registry = _Registry()
+
+    @staticmethod
+    def processingRegistry():
+        return QgsApplication.registry
+
+
 class QgsProcessingAlgorithm:
     """The base QGIS calls. The parameterAs* helpers read from the
     plain dict a test passes in, which is how QGIS works too."""
 
     def __init__(self):
         self._params = []
+
+    def flags(self):
+        """Real QGIS's default: batch and cancel supported."""
+        return (Qgis.ProcessingAlgorithmFlag.SupportsBatch
+                | Qgis.ProcessingAlgorithmFlag.CanCancel)
 
     def addParameter(self, p):
         self._params.append(p)
@@ -906,6 +950,7 @@ class QgsProcessingAlgorithm:
 class QgsProcessingProvider:
     def __init__(self):
         self._algs = []
+        self.refreshed = 0
 
     def addAlgorithm(self, alg):
         self._algs.append(alg)
@@ -916,6 +961,12 @@ class QgsProcessingProvider:
 
     def loadAlgorithms(self):
         pass
+
+    def refreshAlgorithms(self):
+        """As QGIS: drop the algorithms and load them again."""
+        self._algs = []
+        self.loadAlgorithms()
+        self.refreshed += 1
 
 
 # ------------------------------------------------------- installer
@@ -933,6 +984,7 @@ _NAMES = [
     "QgsProcessingParameterRasterLayer", "QgsWkbTypes",
     "QgsProcessingParameterFile", "QgsProcessingParameterCrs",
     "QgsProcessingParameterFolderDestination",
+    "Qgis", "QgsApplication",
 ]
 
 

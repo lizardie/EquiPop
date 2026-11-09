@@ -19,11 +19,13 @@ time is four of those.
 """
 from qgis.core import (QgsCoordinateReferenceSystem, QgsFeature, QgsField,
                        QgsFields, QgsGeometry, QgsPointXY,
-                       QgsProcessingException,
+                       QgsProcessing, QgsProcessingException,
                        QgsProcessingParameterCrs,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterFeatureSink,
+                       QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterFile,
+                       QgsProcessingParameterFolderDestination,
                        QgsProcessingParameterMatrix,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterString, QgsWkbTypes)
@@ -61,6 +63,31 @@ INDEX_ROWS = [
 ]
 
 
+# v1.60.0, BACKLOG 416. RATES AND LIFE EXPECTANCY, read from each
+# neighbourhood's age pyramid against its nation's (doors/vital.py).
+# Written down for the same reason as INDEX_NAMES, and pinned against
+# vital.MEASURES by tests/test_vital_doors.py. The three marked
+# UNRELIABLE are computed on John's request and say so here, in the
+# log and in the field descriptions.
+RATE_NAMES = ["life_expectancy_60", "life_expectancy_50",
+              "life_expectancy_30", "life_expectancy_0",
+              "total_fertility_rate", "crude_birth_rate",
+              "crude_death_rate"]
+RATE_LABELS = ["Life expectancy at 60",
+               "Life expectancy at 50 (UNRELIABLE)",
+               "Life expectancy at 30 (UNRELIABLE)",
+               "Life expectancy at birth (UNRELIABLE)",
+               "Total fertility rate", "Crude birth rate",
+               "Crude death rate"]
+RATE_SEXES = ["both", "women", "men"]
+RATE_SEX_LABELS = ["Both sexes", "Women", "Men"]
+# v1.61.0, John: whose nation a neighbourhood's people are read
+# against. The engine's VITAL_REFERENCES, in this order - a test pins it.
+RATE_REFS = ["own", "cell"]
+RATE_REF_LABELS = ["Each person's own country (pools across a border)",
+                   "The country of the neighbourhood's cell"]
+
+
 def _index_names():
     """Sorted so the tick-box order is stable between QGIS sessions."""
     return list(INDEX_NAMES)
@@ -95,12 +122,20 @@ class SpatialDemography(EquipopAlgorithm):
         self._names = names
         self.add(QgsProcessingParameterFile(
             "folder", "1a. Folder of population rasters (.tif)",
-            behavior=QgsProcessingParameterFile.Folder))
+            behavior=QgsProcessingParameterFile.Folder, optional=True))
+        # v1.60.1, John: "machine 4 only takes rasters - we should make
+        # it possible to use the curated raster-to-point files as
+        # well". The points machine 3 made ARE the folder, read once.
+        self.add(QgsProcessingParameterFeatureSource(
+            "points", "1a. ...or the point layer machine 3 made from "
+                      "such a folder (instead of the folder)",
+            [QgsProcessing.TypeVectorPoint, QgsProcessing.TypeVector],
+            optional=True))
         self.add(QgsProcessingParameterEnum(
             "indices", "1b. Which indices (tick several - they cost "
                        "one pass, not one each)",
             options=list(INDEX_LABELS),
-            allowMultiple=True, defaultValue=[0]))
+            allowMultiple=True, defaultValue=[0], optional=True))
         self.add(QgsProcessingParameterString(
             "k", "1c. Neighbourhood sizes, in PEOPLE (e.g. 1000)",
             defaultValue="1000"))
@@ -108,6 +143,18 @@ class SpatialDemography(EquipopAlgorithm):
             "unit", "1d. Analysis cell size, in metres",
             type=QgsProcessingParameterNumber.Double,
             defaultValue=1000.0, minValue=0.000001))
+        self.add(QgsProcessingParameterEnum(
+            "rates", "1e. Rates and life expectancy - MODEL-BASED, read "
+                     "from the age pyramid against the nation's (tick "
+                     "several)",
+            options=list(RATE_LABELS), allowMultiple=True,
+            defaultValue=[], optional=True))
+        # v1.62.0, John: in the main dialog, not under Advanced - it
+        # decides the answer for every neighbourhood near a border, and
+        # where it sat, he had forgotten it existed.
+        self.add(QgsProcessingParameterEnum(
+            "rateref", "1f. Read the rates against",
+            options=list(RATE_REF_LABELS), defaultValue=0))
         self.add(QgsProcessingParameterString(
             "year", "2a. Which year (blank = the only one present)",
             optional=True), advanced=True)
@@ -132,8 +179,18 @@ class SpatialDemography(EquipopAlgorithm):
             defaultValue=list(INDEX_ROWS),
             numberRows=len(INDEX_NAMES), hasFixedNumberRows=True,
             optional=True), advanced=True)
+        self.add(QgsProcessingParameterEnum(
+            "ratesex", "2d. Life tables and death rate for",
+            options=list(RATE_SEX_LABELS), defaultValue=0),
+            advanced=True)
+        # v1.61.0, John: "please add also an opportunity to split a run
+        # into tiles for Q and Pro" - merged regions are coming.
+        self.add(QgsProcessingParameterFolderDestination(
+            "tiles", "2e. Folder for a TILED, resumable run "
+                     "(blank = run in memory)",
+            optional=True), advanced=True)
         self.add(QgsProcessingParameterCrs(
-            "outcrs", "2e. Write the output in (blank = the same "
+            "outcrs", "2f. Write the output in (blank = the same "
                       "projection the rasters were in)",
             optional=True), advanced=True)
         self.add(QgsProcessingParameterFeatureSink(
@@ -152,11 +209,34 @@ class SpatialDemography(EquipopAlgorithm):
         names = _index_names()
         picked = [names[i] for i in
                   self.parameterAsEnums(parameters, "indices", context)]
-        if not picked:
+        rates = [RATE_NAMES[i] for i in
+                 self.parameterAsEnums(parameters, "rates", context)]
+        if not picked and not rates:
             raise QgsProcessingException(
-                "Box 1b: tick at least one index.")
+                "Boxes 1b and 1e: tick at least one index or rate.")
+        sex = RATE_SEXES[self.parameterAsEnum(parameters, "ratesex",
+                                              context)]
+        rule = RATE_REFS[self.parameterAsEnum(parameters, "rateref",
+                                              context)]
+        # an optional FolderDestination left alone arrives as the
+        # literal TEMPORARY_OUTPUT (machine 3 learnt this first)
+        tiles = (self.parameterAsString(parameters, "tiles",
+                                        context) or "").strip()
+        if tiles in ("", "TEMPORARY_OUTPUT"):
+            tiles = None
 
-        folder = self.parameterAsFile(parameters, "folder", context)
+        folder = (self.parameterAsFile(parameters, "folder", context)
+                  or "").strip()
+        source = self.parameterAsSource(parameters, "points", context)
+        if bool(folder) == (source is not None):
+            raise QgsProcessingException(
+                "Box 1a: give EITHER the folder of rasters OR the point "
+                "layer machine 3 made from one"
+                + (" - not both." if folder else "."))
+        points = points_crs = None
+        if source is not None:
+            points, points_crs = _points_table(source)
+            folder = None
         ks = self._numbers(self.parameterAsString(parameters, "k",
                                                   context), "1c")
         unit = self.parameterAsDouble(parameters, "unit", context)
@@ -182,12 +262,20 @@ class SpatialDemography(EquipopAlgorithm):
         try:
             man = run_indices(folder, picked, k_values=ks,
                               unit_size=unit, year=year, epsg=epsg,
-                              overrides=over or None, channel=ch)
+                              overrides=over or None, channel=ch,
+                              vital=rates, vital_sex=sex,
+                              vital_reference=rule, out_dir=tiles,
+                              points=points, points_crs=points_crs)
         except (DemographyError, ContinentalError, ValueError) as exc:
             # The engine refuses in plain words. Do not add to them.
             raise QgsProcessingException(str(exc))
 
-        return {"OUTPUT": self._write(man["results"], man, parameters,
+        if tiles:
+            from equipop.bigrun import load_tiled
+            table = load_tiled(tiles)
+        else:
+            table = man["results"]
+        return {"OUTPUT": self._write(table, man, parameters,
                                       context, feedback)}
 
     # -----------------------------------------------------------------
@@ -349,3 +437,66 @@ class SpatialDemography(EquipopAlgorithm):
                    for c, col in zip(cols, block)])
             sink.addFeature(f)
         return dest
+
+
+def _points_table(source):
+    """The point layer machine 3 wrote, as a table for the engine.
+
+    Coordinates from the geometry, IN THE LAYER'S OWN CRS - the engine
+    projects them exactly as it projects a folder's pixels, so the two
+    routes give the same answer. A layer without geometry (a CSV of
+    machine 3's table) is read through its EastWest/NorthSouth fields.
+    Only iso3 and the cohort fields go on; the engine says what it
+    left out.
+    """
+    import re
+
+    import numpy as np
+    import pandas as pd
+    names = list(source.fields().names())
+    keep = [n for n in names
+            if n in ("iso3", "cohort", "population", "EastWest",
+                     "NorthSouth")
+            or re.match(r"^[fmt]_\d+_\d{4}$", n)]
+    where = {n: names.index(n) for n in keep}
+    cols = {n: [] for n in keep}
+    xs, ys, any_geom = [], [], False
+    for f in source.getFeatures():
+        attrs = f.attributes()
+        for n, i in where.items():
+            cols[n].append(_plain(attrs[i]))
+        g = f.geometry() if f.hasGeometry() else None
+        if g is not None and not g.isEmpty():
+            # A layer saved through another format can come back as
+            # MultiPoint, which asPoint() refuses even with one part;
+            # the centroid of one point is that point.
+            p = (g.centroid() if g.isMultipart() else g).asPoint()
+            xs.append(p.x())
+            ys.append(p.y())
+            any_geom = True
+        else:
+            xs.append(np.nan)
+            ys.append(np.nan)
+    table = pd.DataFrame(cols)
+    if any_geom:
+        table["EastWest"], table["NorthSouth"] = xs, ys
+    # not read, but named in the log by the engine (review of 1.60.1)
+    table.attrs["fields_not_used"] = [n for n in names if n not in keep]
+    crs = source.sourceCrs()
+    code = crs.authid() if crs is not None and crs.isValid() else ""
+    if crs is not None and crs.isValid() and (
+            not code or code.upper().startswith("USER:")):
+        # a custom projection has no code the engine can look up;
+        # its definition travels instead
+        code = getattr(crs, "toWkt", lambda: "")() or code
+    return table, (code or None)
+
+
+def _plain(v):
+    """A QGIS attribute as plain Python: NULL becomes None."""
+    try:
+        if v is None or (hasattr(v, "isNull") and v.isNull()):
+            return None
+    except Exception:                                 # pragma: no cover
+        pass
+    return v

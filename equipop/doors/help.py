@@ -18,6 +18,16 @@ Text moved unchanged from arcgis/make_help_xml.py in 1.18.0.
 """
 
 HELP = {
+    # v1.62.0, BACKLOG 438: tool 0's one box.
+    "show":
+        "WHICH TOOLS THE TOOLBOX SHOWS. Tools 1 and 2 - counts and "
+        "shares, value statistics - are always shown. Tools 3 to 6 - "
+        "raster curation, spatial demography, the downloads (5a to "
+        "5c) and the folder inventory - are hidden until you choose "
+        "'All tools' here. Hiding only changes the list: nothing is "
+        "uninstalled, results do not change, and the choice is kept "
+        "for the next session and for both QGIS and ArcGIS Pro on this "
+        "computer. Choose 'Only tools 1 and 2' to hide them again.",
     # BACKLOG 102/42. Stata reached the decay boxes first (1.39);
     # QGIS still has none, and Pro's wording should come from here
     # when 102 is done rather than being written a third time.
@@ -362,7 +372,8 @@ HELP = {
     "unit": "The grid cell size in metres. Bigger cells mean fewer "
             "origins and much faster runs; smaller cells mean finer "
             "geography. This is the strongest speed control you "
-            "have.\n\n"
+            "have. Any size above zero works, fractions included "
+            "(2.5 is fine).\n\n"
             "NOT SURE WHAT TO PUT HERE? Ask the data, in two runs. "
             "Leave the size unset and run as usual: at the end, "
             "EquiPop reports whether another size would suit this "
@@ -539,14 +550,21 @@ HELP = {
            "Degree data is refused with the projection that fits, "
            "rather than quietly analysed as if a degree of longitude "
            "were the same distance everywhere.",
-    "weight": "WHICH COLUMN HOLDS THE PEOPLE, when a raster carries "
-              "more than one band or a table more than one count. "
-              "Leave it blank when there is only one - the usual "
-              "case, and EquiPop will say which it used. Name it when "
-              "the file holds several and you want a particular one. "
-              "This decides what k counts: k is a number of whatever "
-              "this column measures, so if it holds households then "
-              "k is households.",
+    "weight": "WHICH PEOPLE DEFINE THE NEIGHBOURHOOD - k is a number "
+              "of them. With one population raster, leave it blank and "
+              "EquiPop will say which it used. A folder of age and sex "
+              "cohorts has no single column of people; LEFT BLANK, it "
+              "is taken as EVERYBODY when the folder settles who that "
+              "is - every age band for women and men of one year (f_ "
+              "plus m_, as 5a fetches by default), or every band of the "
+              "t_ files - and the log says which. Any other folder is "
+              "refused, with the reason, rather than guessed at. To "
+              "choose, name the sum: 'total' (the t_ files - everybody) "
+              "or 'sexes' (f_ plus m_ - everybody). Or name one column "
+              "to make that cohort the population. Whatever "
+              "it holds, k counts: if the column holds households, k is "
+              "households. Leave k blank as well and no population is "
+              "needed at all - you get the point table.",
     "sumcohorts": "ADD ALL COHORTS INTO ONE POPULATION. Age-and-sex "
                   "downloads arrive as many rasters - one per cohort "
                   "per country - and most questions want the total. "
@@ -583,6 +601,60 @@ HELP = {
                "ticked index is read off the same counts, so four "
                "indices take barely longer than one. Each arrives as "
                "its own column, per k.",
+    "points": "THE POINTS MACHINE 3 MADE, INSTEAD OF THE FOLDER "
+              "(v1.60.1). Machine 3 with no k writes the rasters as one "
+              "point layer - every cohort a field, iso3 beside them. "
+              "Those points are the same people as the folder, so "
+              "machine 4 can start from either, and gives the same "
+              "answers from both. Use this box OR the folder box, not "
+              "both. The layer must keep the cohort fields (f_15_2020 "
+              "and so on) and, for rates and life expectancy, iso3; "
+              "the long shape (one row per point per cohort) is turned "
+              "back into fields. A layer made with 'Add all cohorts "
+              "into one population' holds only 'pop', which no index "
+              "can be read from. A blank cohort value is read as "
+              "nobody, and the log counts them per field; text or a "
+              "negative number is refused.",
+    "rates": "RATES AND LIFE EXPECTANCY, MODEL-BASED (v1.60.0). An "
+             "age-and-sex folder holds people, not births or deaths, so "
+             "none of these is measured: each neighbourhood's age "
+             "pyramid is read AGAINST ITS NATION'S, and the nation's "
+             "own age patterns of death and birth (UN World Population "
+             "Prospects 2024, shipped with EquiPop) do the rest. Life "
+             "expectancy at 60 holds up in tests on populations with "
+             "known answers; at 50, 30 and birth it does not - a place "
+             "growing faster than the nation, or drawing young "
+             "migrants, reads as one with different mortality - so "
+             "those three are marked UNRELIABLE and belong in a model "
+             "as predictors only. TFR comes from the children under "
+             "five per woman, weighted by the nation's fertility by "
+             "age; CBR from the same children; CDR uses the nation's "
+             "death rates below 60 and, from 60, the level this "
+             "neighbourhood's e60 implies. Use a k of 5,000 or more for "
+             "life expectancy - fewer people leave the oldest bands "
+             "nearly empty. The reference is each point's own country, "
+             "read from the file names; the nation's pyramid is the "
+             "folder's own total for it, so give whole countries - "
+             "the log warns when a country holds under 90% of WPP's "
+             "population for it. Every formula, its assumptions and "
+             "references: METHODS_RATES.md, in the release and inside "
+             "the installed package.",
+    "rateref": "WHOSE NATION THE PEOPLE ARE READ AGAINST (v1.61.0). "
+               "Each person's own country, the default: a neighbourhood "
+               "that crosses a border pools both sides, each person "
+               "against their own nation's life table, fertility and "
+               "pyramid - so the rates change smoothly across the "
+               "border instead of jumping where the reference flips. "
+               "Within one country this gives exactly what the other "
+               "choice gives. The country of the neighbourhood's cell "
+               "reads everybody in it against that one country, as "
+               "EquiPop did to 1.60.3. In the main dialog since 1.62.0, "
+               "because it matters for every run with more than one "
+               "country.",
+    "ratesex": "WHOSE LIFE TABLES - both sexes, women or men - for the "
+               "life expectancies and the crude death rate. Women and "
+               "men each get their own national table. TFR and CBR "
+               "always use the women and the children of both sexes.",
     "year": "WHICH YEAR, when the folder holds several. Leave it "
             "blank if there is only one and EquiPop will use it and "
             "say so. Set it when a folder holds a series and you want "
@@ -720,6 +792,93 @@ HELP = {
                 "people than this, or only one group is present, the "
                 "split columns are left EMPTY rather than guessed. "
                 "Default 30; zero means no minimum.",
+    # ---- machine 5, catalogue first (v1.58.0, BACKLOG 414) ----
+    "wp_theme": "WHAT TO LIST. Age and sex gives one file per sex and "
+                "age band - 0 (under one), 1-4, then five-year bands to "
+                "90+ - so a country and year is 40 files. Total "
+                "population gives ONE file per country and year holding "
+                "everyone, not split by age or sex: it is not the age-"
+                "and-sex files with a total added. For totals BESIDE the "
+                "bands, choose age and sex and tick 1e.",
+    "wp_places": "THE COUNTRIES, by name or three-letter code, separated "
+                 "by commas: Sweden, KEN, Burundi. A part of a name "
+                 "works when it fits one country only ('United Kingdom'); "
+                 "a name that fits several, or none, is refused with the "
+                 "candidates or the nearest names.",
+    "wp_years": "THE YEARS: 2015, 2020 - or a span, 2010-2020. Empty "
+                "lists every year of the newest release. WHEN ONE "
+                "SERIES COVERS EVERY YEAR GIVEN, ALL ROWS COME FROM IT, "
+                "even at another resolution: WorldPop's 2000-2020 series "
+                "and its R2025A release differ in method and in their "
+                "top age band (80+ against 90+), and a change between "
+                "two years must not be a change between two products. "
+                "When none does, every row says so.",
+    "wp_resolution": "1 KM IS THE DEFAULT, AND THE SIZES ARE WHY: a "
+                     "Swedish age-sex file is about 2 MB at 1 km and "
+                     "47 MB at 100 m - three countries and two years "
+                     "are 0.15 GB against 5.5 GB. Take 100 m when the "
+                     "neighbourhoods are smaller than a kilometre.",
+    "wp_totals": "FOR AGE AND SEX, ALSO LIST THE TOTALS WorldPop "
+                 "publishes beside the bands: t_ (both sexes in one band, "
+                 "the sum of f_ and m_) and T_F / T_M (all ages of one "
+                 "sex, 100 m only). Off by default: they add nothing that "
+                 "cannot be added up from the bands, and at 100 m they "
+                 "are a third of the download. For everyone in one file "
+                 "per year, choose Total population in 1a instead.",
+    "wp_exact": "MEASURE EVERY FILE'S SIZE, one request each. Off: one "
+                "file per country and year is measured and the rest are "
+                "estimated from it - the size_is column says which.",
+    "osm_places": "THE REGIONS: names, two-letter country codes or "
+                  "Geofabrik's ids - Sweden, KE, bayern. Any level "
+                  "works: a continent, a country, a state. WHERE "
+                  "GEOFABRIK PUBLISHES NO SHAPEFILE FOR A COUNTRY - "
+                  "Germany, France, the United States - its parts that "
+                  "have one are listed instead, each saying whose part "
+                  "it is.",
+    "osm_layers": "WHICH LAYERS. Each is one row per region: buildings, "
+                  "roads, railways, POIs (points and areas, two rows), "
+                  "places, landuse, water and more. Only the layers "
+                  "ticked are downloaded - Sweden's buildings are 329 "
+                  "MB of a 1.87 GB zip, and only those bytes come.",
+    "osm_years": "PAST YEARS, as Geofabrik's 1 January extracts: 2018, "
+                 "2022. Empty: today's extract only. WITH YEARS, EVERY "
+                 "ROW COMES FROM OSM's RAW .pbf - today's too - because "
+                 "the dated extracts exist only as .pbf, and its raw "
+                 "tags are classified differently from the shapefiles: "
+                 "two years must not be two classifications. A year "
+                 "Geofabrik does not hold is said, not guessed.",
+    "osm_latest": "WITH YEARS GIVEN, ALSO LIST TODAY'S EXTRACT, from "
+                  "the same kind of .pbf as the past years, so it "
+                  "compares like with like.",
+    "CATALOGUE": "THE CATALOGUE TABLE: one row per downloadable thing, "
+                 "with its size, date, licence and a note. Nothing has "
+                 "been downloaded. Keep it as {temptable}, open it, "
+                 "select the rows you want and run 5c on them.",
+    "rows": "THE ROWS TO FETCH: the table 5a or 5b made - "
+            "{selectionrule} - or a saved equipop_recipe.csv to fetch "
+            "a selection again. A row pointing anywhere but WorldPop or "
+            "Geofabrik is refused.",
+    "max_mb": "A SAFETY LIMIT, in MB: a selection larger than this is "
+              "refused before anything is downloaded, so 'select all' "
+              "on a 100 m table cannot quietly start a 50 GB fetch. The "
+              "bytes are also counted as they arrive, so a file of "
+              "unknown size, or one that has grown since the catalogue "
+              "was made, stops the fetch at the limit; the file it "
+              "stops in is not kept, and those before it are. 0 means "
+              "no limit.",
+    "keep_pbf": "KEEP THE OpenStreetMap .pbf after its layers have been "
+                "written to GeoPackages. Ticked by default: it is the "
+                "publisher's file, checked against its .md5, and more "
+                "layers can be taken from it later. Unticked, it is "
+                "deleted and the manifest says so.",
+    "FOLDER": "THE FOLDER TO FETCH INTO - a folder on disk, not a "
+              "geodatabase, since the files are GeoTIFFs and "
+              "shapefiles. A file already there is "
+              "reused only if its checksum matches what was fetched "
+              "before; anything else stops the run - nothing is ever "
+              "overwritten. equipop_fetch.json (the manifest) and "
+              "equipop_recipe.csv (the rows) are written beside the "
+              "files.",
 }
 
 # THE TOOL NAMES, in one place. BACKLOG 237: the two doors had drifted
@@ -729,6 +888,9 @@ HELP = {
 # LABELS, so nothing noticed. A name in two places drifts, exactly like
 # a rule in two places.
 LABELS = {
+    # v1.62.0, BACKLOG 438. Numbered 0: it is about the toolbox, not
+    # an analysis, and it must sort first so it is found.
+    "ShowTools": "0. Show or hide tools 3-6",
     "CountsShares": "1. Counts and Shares (k / radius / decay)",
     "ValueStatistics": "2. Value Statistics (numeric fields among the "
                        "k nearest)",
@@ -738,10 +900,49 @@ LABELS = {
     # is fetching; this reads a folder that is already on disk.
     "FolderInventory": "6. What is in this folder? (reads, changes "
                        "nothing)",
+    # v1.58.0 in QGIS, v1.59.0 in Pro (BACKLOG 414): look, select, fetch.
+    "WorldPopCatalogue": "5a. WorldPop - what is there? (lists, downloads "
+                         "nothing)",
+    "OsmCatalogue": "5b. OpenStreetMap (Geofabrik) - what is there? "
+                    "(lists, downloads nothing)",
+    "FetchSelected": "5c. Fetch the rows you selected (downloads into a "
+                     "folder)",
 }
 
 
 SUMMARY = {
+    "ShowTools":
+        "Shows or hides tools 3 to 6 in the toolbox. Tools 1 and 2 are "
+        "EquiPop's standard set and are always there; 3 to 6 - raster "
+        "curation, spatial demography, downloads from WorldPop and "
+        "OpenStreetMap, and the folder inventory - are hidden until "
+        "you show them here. Nothing is installed or removed, and no "
+        "result changes.",
+    "WorldPopCatalogue":
+        "Lists what WorldPop has for some countries and years - one "
+        "row per GeoTIFF, with its sex, age band, resolution, size, "
+        "licence and citation as WorldPop states them - and downloads "
+        "NOTHING. You then select rows in the table and fetch them with "
+        "5c. Rows from different series, methods or resolutions say so "
+        "in their note, because a difference between two years must "
+        "not be a difference between two products.",
+    "OsmCatalogue":
+        "Lists OpenStreetMap layers from Geofabrik for some regions - "
+        "one row per layer (buildings, roads, POIs...) - with its size "
+        "and the date of the extract, and downloads NOTHING. Today's "
+        "extract comes as single shapefile layers out of Geofabrik's "
+        "zip, so only the layer you take is downloaded; past years come "
+        "from 1 January .pbf extracts, written out to GeoPackage by "
+        "GDAL. OpenStreetMap is ODbL: attribution and SHARE-ALIKE on "
+        "derived databases.",
+    "FetchSelected":
+        "Downloads the catalogue rows you selected into a folder, and "
+        "stops. Every file is checked - against WorldPop's declared "
+        "length, the CRC-32 Geofabrik's zip records for each layer, or "
+        "the .md5 beside a .pbf - and recorded in equipop_fetch.json "
+        "as it arrives; the rows themselves are kept as "
+        "equipop_recipe.csv, which this tool can fetch again. Nothing "
+        "is ever overwritten.",
     "FolderInventory":
         "Looks at a folder of rasters and vector files and reports "
         "what is in it: layers, fields, coordinate systems, extents, "
@@ -797,9 +998,12 @@ SUMMARY = {
         "among, and inherits nothing from any boundary. Every index is "
         "a ratio of two groups counted over the same neighbourhood, so "
         "several cost one pass over the data rather than one each. "
-        "Rate measures - TFR, ASFR, birth and death rates, life "
-        "expectancy - are deliberately absent: they need vital events, "
-        "and an age-sex folder carries stock, not flow.",
+        "Rates and life expectancy (box 1e) are MODEL-BASED: an "
+        "age-sex folder carries people, not births or deaths, so each "
+        "neighbourhood's age pyramid is read against its nation's, "
+        "with the nation's age patterns from UN WPP 2024. Life "
+        "expectancy at 50, 30 and birth is marked UNRELIABLE - use it "
+        "as a predictor only.",
     "ContinentalRasters":
         "Builds k-neighbourhoods straight from a FOLDER of population "
         "rasters, at the scale of a continent. Subfolders are "
@@ -817,6 +1021,36 @@ SUMMARY = {
 }
 
 USAGE = {
+    "ShowTools":
+        "Choose 'All tools, 1 to 6' and run; {afterswitch} Run it again "
+        "with 'Only tools 1 and 2' to hide them. The choice is saved "
+        "for both QGIS and ArcGIS Pro on this computer.",
+    "WorldPopCatalogue":
+        "Name the countries and years and run. The table appears as "
+        "{temptable}; open it and select rows - {selectby} with "
+        "\"sex\" = 'f' AND \"age_from\" >= 15 takes the women from "
+        "fifteen up. The size column shows what "
+        "the selection will cost before 5c downloads it. 1 km is the "
+        "default: the same request at 100 m is 20 to 70 times larger "
+        "(measured for Sweden, Kenya and Burundi).",
+    "OsmCatalogue":
+        "Name the regions, tick the layers, and run. Leave the years "
+        "empty for today's extract; give years to compare - every row "
+        "then comes from the same kind of .pbf. Select rows in the "
+        "table and run 5c. For a country Geofabrik splits (Germany, the "
+        "United States) the table lists its parts: select the ones "
+        "you need.",
+    "FetchSelected":
+        "Choose the catalogue table and {selectionrule}. The size "
+        "limit in box 2 catches a selection larger than you meant. "
+        "Cancel stops a download part-way: that file is not kept, the "
+        "ones before it are, and running again continues. Point it at "
+        "a folder; machine 3 "
+        "and the inventory read that folder afterwards. To repeat a "
+        "fetch, load equipop_recipe.csv from the folder as a layer and "
+        "run this on it. A .pbf row needs GDAL's Python bindings, which "
+        "QGIS always has; in ArcGIS Pro, install pyogrio in the Pro "
+        "environment, or take those rows in QGIS.",
     "FolderInventory":
         "Point it at a folder - a country-per-folder download can "
         "stay exactly as it is, subfolders are searched. The table "
@@ -829,6 +1063,10 @@ USAGE = {
         "without them the files are still listed, by name only, and "
         "the run says so.",
     "SpatialDataFetch":
+        "FOR WORLDPOP AND OPENSTREETMAP, USE 5a, 5b AND 5c INSTEAD: "
+        "they list what exists as a table you select from, so nothing "
+        "has to be typed. This tool stays for GHSL, HDX and the "
+        "providers defined in providers/. "
         "Run it once with DOWNLOAD unticked: it lists what would be "
         "fetched, how many files and under which licence, and takes "
         "nothing. Leave the dataset box empty and it lists the "
@@ -839,11 +1077,14 @@ USAGE = {
         "reused if its checksum matches and the run stops if it does "
         "not.",
     "SpatialDemography":
-        "Point it at the same folder machine 3 uses and tick the "
-        "indices you want. The suggested columns are shown in the log "
-        "before anything is computed, so you can see exactly which "
-        "cohorts are being added up; boxes 2c and 2d replace them for "
-        "a single ticked index. WorldPop's age bands are not all five "
+        "Point it at the same folder machine 3 uses - or at the point "
+        "layer machine 3 made from it, which gives the same answers - "
+        "and tick the indices you want, the rates you want, or both; "
+        "they share one pass. The suggested columns are shown in the log before "
+        "anything is computed, so you can see exactly which cohorts "
+        "are being added up; box 2c changes them, one row per index. "
+        "For life expectancy use a k of 5,000 or more, and whole "
+        "countries. WorldPop's age bands are not all five "
         "years wide - 0 is under-one alone, 1 covers 1-4, and 90 is "
         "open-ended - and the selection accounts for that, so 15-49 "
         "means 15 to 49 and not 15 to 54.",
@@ -863,7 +1104,10 @@ USAGE = {
         "longer. Cell size is the speed control: doubling it "
         "quarters the number of origins. Long result names need a "
         "roomy target: shapefile field names cap at 10 characters, "
-        "so {container} is the safer home for them.",
+        "so {container} is the safer home for them. "
+        "MORE TOOLS: 3 to 6 - raster curation, spatial demography, "
+        "downloads and the folder inventory - are hidden until shown; "
+        "{showtools}",
     "ValueStatistics":
         "Give the treatment values, tick the measures, set k. Use the "
         "reference population's count field whenever a point stands "
@@ -872,7 +1116,10 @@ USAGE = {
         "their box. Tick MLD or Theil and give a grouping field to "
         "split inequality between and within groups. As with "
         "machine 1, cell size controls the "
-        "runtime and {container} avoids the shapefile name limit.",
+        "runtime and {container} avoids the shapefile name limit. "
+        "MORE TOOLS: 3 to 6 - raster curation, spatial demography, "
+        "downloads and the folder inventory - are hidden until shown; "
+        "{showtools}",
 }
 
 
@@ -897,16 +1144,39 @@ USAGE = {
 # there, and he reasonably read it as "you must save into a database
 # first".
 VOCAB = {
+    # v1.62.0, BACKLOG 438: how hidden tools are shown, in each door
+    "showtools": ("run 0. Show or hide tools 3-6, then right-click the "
+                  "EquiPop toolbox in the Catalog pane and choose "
+                  "Refresh."),
+    "afterswitch": ("then right-click the EquiPop toolbox in the "
+                    "Catalog pane and choose Refresh (or restart Pro) "
+                    "to see them."),
     "target": "feature class",
     "container": "a file geodatabase",
     "formatnote": "",
+    # v1.59.0: machine 5 in both doors. Selecting rows is the same act
+    # with different words - and in QGIS a tick-box, in Pro none.
+    "temptable": "a table in memory (the default)",
+    "selectby": "Select By Attributes",
+    "selectionrule": ("select your rows in it: Pro passes only the "
+                      "selected rows to a tool (every row when none is "
+                      "selected)"),
 }
 VOCAB_QGIS = {
+    "showtools": ("run 0. Show or hide tools 3-6 in the EquiPop group "
+                  "of the Processing Toolbox."),
+    "afterswitch": ("they appear in the Processing Toolbox at once (if "
+                    "not, restart QGIS). Hidden tools still run from "
+                    "saved models and scripts."),
     "target": "layer",
     "container": "a GeoPackage (.gpkg)",
     "formatnote": (" QGIS reads the format from the file extension, "
                    "so end the name with .gpkg or .shp - a bare name "
                    "is refused."),
+    "temptable": "a temporary layer (the default)",
+    "selectby": "Select by Expression",
+    "selectionrule": ("select your rows in it and tick 'Selected "
+                      "features only' (unticked, it takes every row)"),
 }
 
 

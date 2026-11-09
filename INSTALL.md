@@ -61,11 +61,14 @@ route in section 2.
    Must print a path under `C:\OSGeo4W\`.
 3. Install:
    ```
-   python -m pip install --user --no-deps --force-reinstall "C:\path\to\equipop-1.57.1-py3-none-any.whl"
+   python -m pip install --user --no-deps --force-reinstall "C:\path\to\equipop-1.63.5-py3-none-any.whl"
    ```
 4. Verify (see below), then **restart QGIS**.
 5. Plugin: **Plugins → Manage and Install Plugins → Install from ZIP**,
-   choose `equipop_qgis-1.57.1.zip`, then restart QGIS again.
+   choose `equipop_qgis-1.63.5.zip`, then restart QGIS again.
+6. The Processing Toolbox shows tools 0, 1 and 2. **Tools 3 to 6 are
+   hidden until you run 0. Show or hide tools 3-6** and choose *All
+   tools* (since 1.62.0; the same choice shows them in ArcGIS Pro).
 
 **pyproj is REQUIRED and QGIS does not ship it.** Install it in the
 same shell, before verifying:
@@ -80,6 +83,12 @@ python -m pip install --user --no-deps rasterio==1.4.4 affine
 **Not `rasterio` unpinned** — 1.5+ demands numpy≥2 and will drag a
 numpy into your user folder that shadows QGIS's own and breaks scipy.
 
+**Tools 5a, 5b and 5c (1.58.0) need nothing more.** OpenStreetMap layers
+for past years come as `.pbf` and are written to GeoPackage by GDAL's
+Python bindings, which QGIS always has. From plain Python the same step
+needs pyogrio (the `geo` extra); without it a `.pbf` row is refused
+before anything is downloaded.
+
 ## 2. Stata — verified working
 
 1. In Stata: `python query`. Note the **Python executable** path, and
@@ -89,7 +98,7 @@ numpy into your user folder that shadows QGIS's own and breaks scipy.
 is not loaded, so nothing is memory-mapped. Prefix with `shell`:
 
 ```
-shell C:\Users\...\python.exe -m pip install --no-deps --force-reinstall C:\path\to\equipop-1.57.1-py3-none-any.whl
+shell C:\Users\...\python.exe -m pip install --no-deps --force-reinstall C:\path\to\equipop-1.63.5-py3-none-any.whl
 shell C:\Users\...\python.exe -m pip install pyproj
 ```
 
@@ -120,7 +129,7 @@ py = os.path.join(sys.exec_prefix, "python.exe")
 env = dict(os.environ, PYTHONNOUSERSITE="1")
 subprocess.run([py, "-m", "pip", "install", "--no-deps",
                 "--force-reinstall",
-                r"C:\path\to\equipop-1.57.1-py3-none-any.whl"], env=env)
+                r"C:\path\to\equipop-1.63.5-py3-none-any.whl"], env=env)
 ```
 
 **Then pyproj, which Pro does not ship and `--no-deps` skipped.** Same
@@ -161,6 +170,12 @@ with `"equipop==1.47.11"` and drop `--no-deps --force-reinstall`.
 → Package Manager → gear → **Clone**, activate the clone, restart Pro,
 and repeat. Cloning is entirely GUI.
 
+**The toolbox** (`EquiPop.pyt` and its help files, see
+`arcgis/ARCGIS_GUIDE.md`) shows tools 0, 1 and 2. **Tools 3 to 6 are
+hidden until you run 0. Show or hide tools 3-6**, choose *All tools*,
+then right-click the toolbox in the Catalog pane and choose
+**Refresh** (since 1.62.0; the same choice shows them in QGIS).
+
 ## Verify — the same line in every host
 
 ```
@@ -179,6 +194,25 @@ reported a traceback and looked broken.
 tree's 1.40.7 were different code, which cost a full round trip.
 `rasterfolder` importing is what proves the local build arrived; if it
 raises `ModuleNotFoundError`, pip found an older release instead.
+
+### The whole test suite, on Windows (v1.59.2)
+
+Extract the release archive. In the Anaconda Prompt, go into the
+folder it made - the one holding `windows_check.py` and
+`equipop_working_tree.zip` - and run:
+
+```
+python windows_check.py
+```
+
+It unpacks the working tree beside itself the first time. (Inside an
+already extracted tree, `python tools\windows_check.py` does the same.)
+
+It tests the code in that folder (not an installed copy), names any
+package the tests need that is missing and the line that installs it,
+and at the end names a report file to send back. Real ArcGIS Pro runs
+only on Windows, and the first outside run of the suite there (1.59.1)
+found failures Linux could not show.
 
 ---
 

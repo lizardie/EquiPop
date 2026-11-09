@@ -187,10 +187,23 @@ def run_knn(
     def col(kind: str, k: int) -> str:
         return nm[kind].format(k=k)
 
-    # ---- fast lookup: (E, N) -> (count_all, count_group) ----
+    # ---- fast lookup: (column, row) -> (count_all, count_group) ----
+    # v1.62.1 keyed it by the exact midpoint, because int() truncated
+    # toward zero and an odd size's cells either side of 0 shared a
+    # key. v1.63.0 (BACKLOG 445): by COLUMN AND ROW, floor(midpoint /
+    # size), and neighbours by column and row too. A midpoint rebuilt
+    # as e0 + dx * step is not the stored float at a fractional size -
+    # 0.35000000000000003 is not 0.35 - so at 0.1 m most neighbours
+    # were simply not found.
+    step = float(unit_size)
+
+    def _cr(e, n):
+        return (int(np.floor(float(e) / step)),
+                int(np.floor(float(n) / step)))
+
     lookup: dict[tuple[int, int], tuple[float, float]] = {}
     for row in cells.itertuples(index=False):
-        key = (int(getattr(row, "E_grid")), int(getattr(row, "N_grid")))
+        key = _cr(getattr(row, "E_grid"), getattr(row, "N_grid"))
         lookup[key] = (float(getattr(row, count_all_col)),
                        float(getattr(row, count_group_col)))
 
@@ -207,19 +220,19 @@ def run_knn(
     print(f"[analysis] {len(rings)} distance rings ready")
 
     results = []
-    step = int(unit_size)
 
     for row in cells.itertuples(index=False):
-        e0 = int(getattr(row, "E_grid"))
-        n0 = int(getattr(row, "N_grid"))
-        local_all, local_grp = lookup[(e0, n0)]
-        origin_ident = int(overshoot.cell_identity(
-            round(e0 / step), round(n0 / step)))
+        e0 = float(getattr(row, "E_grid"))
+        n0 = float(getattr(row, "N_grid"))
+        i0, j0 = _cr(e0, n0)
+        local_all, local_grp = lookup[(i0, j0)]
+        origin_ident = int(overshoot.grid_identity(e0, n0, step))
 
         rec: dict = {
             "Id": getattr(row, id_col) if id_col else None,
-            "EastWest": e0,
-            "NorthSouth": n0,
+            # whole numbers stay integers, as before 1.62.1
+            "EastWest": int(e0) if e0.is_integer() else e0,
+            "NorthSouth": int(n0) if n0.is_integer() else n0,
             "CountAllLocal": local_all,
             "CountGroupLocal": local_grp,
         }
@@ -305,7 +318,7 @@ def run_knn(
 
             if tie_mode == "sequential":
                 for dx, dy in offsets:
-                    cell = lookup.get((e0 + dx * step, n0 + dy * step))
+                    cell = lookup.get((i0 + dx, j0 + dy))
                     if not cell:
                         continue
                     sum_all += cell[0]
@@ -320,14 +333,14 @@ def run_knn(
                 r_pop, r_grp, r_ids = [], [], []
                 for dx, dy in offsets:
                     ex, ny = e0 + dx * step, n0 + dy * step
-                    cell = lookup.get((ex, ny))
+                    cell = lookup.get((i0 + dx, j0 + dy))
                     if cell:
                         ring_all += cell[0]
                         ring_grp += cell[1]
                         r_pop.append(cell[0])
                         r_grp.append(cell[1])
-                        r_ids.append(overshoot.cell_identity(
-                            round(ex / step), round(ny / step)))
+                        r_ids.append(overshoot.grid_identity(
+                            ex, ny, step))
                 if ring_all == 0:
                     continue
                 # BACKLOG 99: any k this ring CROSSES takes only a
@@ -671,10 +684,12 @@ def run_knn_stats(
         # and _walk only fills this scratch.
         scratch["selfpot"] = {}
         scratch["over"] = {}
-        _oid = int(overshoot.cell_identity(round(float(e0) / cd.unit_size),
-                                           round(float(n0) / cd.unit_size)))
-        rec: dict = {"EastWest": round(float(e0), 2),
-                     "NorthSouth": round(float(n0), 2),
+        _oid = int(overshoot.grid_identity(float(e0), float(n0),
+                                           cd.unit_size))
+        # as stored, not rounded to 2 decimals (v1.63.0, BACKLOG 445 -
+        # see fastcounts)
+        rec: dict = {"EastWest": float(e0),
+                     "NorthSouth": float(n0),
                      "N_local": float(cd.n[oi])}
         if cd.labels is not None:
             rec["CellId"] = cd.labels[oi]
@@ -790,11 +805,10 @@ def run_knn_stats(
                 # run doing nothing at all. Measured, not guessed:
                 # the cost only became visible once machine 2 stopped
                 # falling back to `whole` and the path ran for real.
-                r_ids = (overshoot.cell_identity(
-                    np.round(np.array([cd.E[ci] for ci in ring])
-                             / cd.unit_size),
-                    np.round(np.array([cd.N[ci] for ci in ring])
-                             / cd.unit_size))
+                r_ids = (overshoot.grid_identity(
+                    np.array([cd.E[ci] for ci in ring], float),
+                    np.array([cd.N[ci] for ci in ring], float),
+                    cd.unit_size)
                     if osm == overshoot.SAMPLED else None)
                 while pending and sum_n + ring_n >= pending[0]:
                     k = pending.pop(0)
